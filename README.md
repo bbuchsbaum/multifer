@@ -24,8 +24,8 @@ end-user package. The current implementation is strongest for:
 Current limitations are deliberate:
 
 - cross correlation / CCA supports multi-root testing for the plain paired-row
-  design and for common-`Z` nuisance-adjusted designs; more structured designs
-  remain conservative,
+  design, for common-`Z` nuisance-adjusted designs, and for nuisance-adjusted
+  designs with within-block exchangeability,
 - `multiblock` and `geneig` are part of the architecture but not yet shipped as
   complete inference engines,
 - variable significance is deferred; current variable-level output is stability,
@@ -115,8 +115,9 @@ res$component_tests
 ```
 
 For correlation-mode cross problems, the strongest current paths are the plain
-paired-row design and the common-`Z` nuisance-adjusted design. More structured
-correlation-mode designs are still conservative.
+paired-row design, common-`Z` nuisance-adjusted designs, and nuisance-adjusted
+designs with within-block exchangeability. Richer structured designs still
+require more work on the exchangeability side.
 
 ## Built-in adapters
 
@@ -180,15 +181,15 @@ Current Phase 1 core:
 
 - oneblock significance and stability
 - cross covariance significance and stability
-- correlation-mode multi-root inference for paired rows and common-`Z`
-  nuisance-adjusted designs
+- correlation-mode multi-root inference for paired rows, common-`Z`
+  nuisance-adjusted designs, and nuisance-adjusted within-block designs
 - sequential Monte Carlo ladder infrastructure
+- exact covariance core-space null draws
 - partial-SVD and bootstrap/stability performance improvements
 
 Deferred or later-phase work:
 
-- structured / block-aware valid multi-root CCA
-- exact cross-core fast path for null draws
+- richer structured / hierarchical valid multi-root CCA
 - `multiblock` and `geneig` engines
 - variable significance
 - method-named wrappers such as `infer_pca()` and `infer_plsc()`

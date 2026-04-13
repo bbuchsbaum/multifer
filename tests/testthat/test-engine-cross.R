@@ -88,6 +88,37 @@ make_nuisance_adjusted_correlation_engine <- function(n, canonical_corrs,
   )
 }
 
+make_structured_nuisance_adjusted_correlation_engine <- function(
+    n, canonical_corrs, groups, scale_x = NULL, scale_y = NULL) {
+  stopifnot(length(groups) == n)
+  z1 <- scale(seq_len(n))
+  z2 <- sin(seq_len(n) / 5)
+  Z <- cbind(1, z1, z2)
+
+  resid_basis <- .nuisance_residual_basis(Z, n = n, groups = groups)
+  base <- make_exact_canonical_correlation_engine(
+    n = ncol(resid_basis$Q),
+    canonical_corrs = canonical_corrs,
+    scale_x = scale_x,
+    scale_y = scale_y,
+    extra_scale_x = 0.9,
+    extra_scale_y = 1.1
+  )
+
+  bx <- matrix(c(1.8, -1.1, 0.7), nrow = ncol(Z), ncol = 1L)
+  by <- matrix(c(-1.2, 0.9, -0.6), nrow = ncol(Z), ncol = 1L)
+
+  list(
+    X = resid_basis$Q %*% base$X +
+      Z %*% bx %*% matrix(1, nrow = 1L, ncol = ncol(base$X)),
+    Y = resid_basis$Q %*% base$Y +
+      Z %*% by %*% matrix(1, nrow = 1L, ncol = ncol(base$Y)),
+    Z = Z,
+    groups = as.factor(groups),
+    reduced_groups = resid_basis$groups
+  )
+}
+
 test_that("run_cross_ladder validates recipe geometry", {
   ensure_default_adapters()
   rec_one <- infer_recipe(geometry = "oneblock", relation = "variance",
@@ -264,6 +295,45 @@ test_that("run_cross_ladder correlation recovers exact canonical rank with nuisa
   expect_equal(res$ladder_result$rejected_through, 3L)
   expect_equal(res$ladder_result$last_step_tested, 4L)
   expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+test_that("run_cross_ladder correlation recovers exact canonical rank with structured nuisance adjustment", {
+  ensure_default_adapters()
+  set.seed(406)
+  groups <- rep(1:8, each = 6)
+  dat <- make_structured_nuisance_adjusted_correlation_engine(
+    n = length(groups),
+    canonical_corrs = c(0.95, 0.7, 0.4),
+    groups = groups,
+    scale_x = c(5, 2, 1),
+    scale_y = c(4, 3, 0.5)
+  )
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = nuisance_adjusted(dat$Z, groups = dat$groups),
+    adapter = "cross_svd"
+  )
+  res <- run_cross_ladder(
+    rec, dat$X, dat$Y,
+    B = 39L, alpha = 0.05, seed = 7L, max_steps = 4L
+  )
+
+  expect_equal(res$ladder_result$rejected_through, 3L)
+  expect_equal(res$ladder_result$last_step_tested, 4L)
+  expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+test_that("restricted_row_permutation permutes only within blocks", {
+  set.seed(407)
+  groups <- factor(rep(letters[1:4], times = c(3, 4, 2, 5)))
+  perm <- .restricted_row_permutation(groups)
+
+  expect_equal(sort(perm), seq_along(groups))
+  for (lvl in levels(groups)) {
+    idx <- which(groups == lvl)
+    expect_setequal(perm[idx], idx)
+  }
 })
 
 test_that("run_cross_ladder correlation stays conservative for unsupported blocked designs", {

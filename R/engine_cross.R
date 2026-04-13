@@ -66,6 +66,83 @@
   )
 }
 
+.restricted_row_permutation <- function(groups) {
+  groups <- as.factor(groups)
+  idx <- seq_along(groups)
+  unsplit(lapply(split(idx, groups), sample), groups)
+}
+
+.theil_keep_indices <- function(groups, n_keep) {
+  groups <- as.factor(groups)
+  idx_by_group <- split(seq_along(groups), groups)
+  keep <- integer(0)
+  pos <- rep(1L, length(idx_by_group))
+
+  while (length(keep) < n_keep) {
+    progressed <- FALSE
+    for (g in seq_along(idx_by_group)) {
+      if (pos[g] <= length(idx_by_group[[g]])) {
+        keep <- c(keep, idx_by_group[[g]][pos[g]])
+        pos[g] <- pos[g] + 1L
+        progressed <- TRUE
+        if (length(keep) == n_keep) break
+      }
+    }
+    if (!progressed) {
+      stop("Unable to construct a Theil selection with the requested reduced size.",
+           call. = FALSE)
+    }
+  }
+
+  sort(keep)
+}
+
+.nuisance_residual_basis <- function(Z, n, groups = NULL, tol = 1e-10) {
+  if (!is.matrix(Z) || !is.numeric(Z)) {
+    stop("For nuisance-adjusted correlation designs, `design$Z` must be a numeric matrix.",
+         call. = FALSE)
+  }
+  if (nrow(Z) != n) {
+    stop("For nuisance-adjusted correlation designs, `design$Z` must have one row per observation.",
+         call. = FALSE)
+  }
+  qz <- qr(Z, tol = tol)
+  r <- qz$rank
+  if (r >= n) {
+    return(list(Q = matrix(0, nrow = n, ncol = 0L), groups = NULL))
+  }
+
+  if (is.null(groups)) {
+    q_full <- qr.Q(qz, complete = TRUE)
+    return(list(Q = q_full[, seq.int(r + 1L, n), drop = FALSE], groups = NULL))
+  }
+
+  groups <- as.factor(groups)
+  if (length(groups) != n) {
+    stop("For nuisance-adjusted structured designs, `groups` must have one value per observation.",
+         call. = FALSE)
+  }
+  if (anyNA(groups)) {
+    stop("For nuisance-adjusted structured designs, `groups` must not contain NA.",
+         call. = FALSE)
+  }
+
+  n_keep <- n - r
+  keep_idx <- .theil_keep_indices(groups, n_keep)
+  qz_full <- qr.Q(qz, complete = FALSE)
+  Rz <- diag(n) - qz_full %*% t(qz_full)
+  K <- Rz[keep_idx, keep_idx, drop = FALSE]
+  eig <- eigen((K + t(K)) / 2, symmetric = TRUE)
+  vals <- pmax(eig$values, 0)
+  if (any(vals <= tol)) {
+    stop("Structured nuisance basis is rank-deficient for the chosen selection matrix.",
+         call. = FALSE)
+  }
+  K_inv_sqrt <- eig$vectors %*% diag(1 / sqrt(vals), nrow = length(vals)) %*% t(eig$vectors)
+  Q <- Rz[, keep_idx, drop = FALSE] %*% K_inv_sqrt
+  list(Q = Q, groups = droplevels(groups[keep_idx]))
+}
+
 #' Run the cross sequential deflation engine
 #'
 #' Implements the test ladder for (cross, covariance) and
@@ -139,24 +216,6 @@ run_cross_ladder <- function(recipe,
     qr.Q(q, complete = FALSE)[, seq_len(r), drop = FALSE]
   }
 
-  residual_basis <- function(Z, n, tol = 1e-10) {
-    if (!is.matrix(Z) || !is.numeric(Z)) {
-      stop("For nuisance-adjusted correlation designs, `design$Z` must be a numeric matrix.",
-           call. = FALSE)
-    }
-    if (nrow(Z) != n) {
-      stop("For nuisance-adjusted correlation designs, `design$Z` must have one row per observation.",
-           call. = FALSE)
-    }
-    qz <- qr(Z, tol = tol)
-    r <- qz$rank
-    if (r >= n) {
-      return(matrix(0, nrow = n, ncol = 0L))
-    }
-    q_full <- qr.Q(qz, complete = TRUE)
-    q_full[, seq.int(r + 1L, n), drop = FALSE]
-  }
-
   ## --- validate recipe --------------------------------------------------------
 
   if (!is_infer_recipe(recipe)) {
@@ -221,16 +280,25 @@ run_cross_ladder <- function(recipe,
 
   qx_full <- NULL
   qy_full <- NULL
+  corr_groups <- NULL
   if (rel_kind == "covariance") {
     s_full <- cross_stat(Xc, Yc)
   } else {
     if (design_kind == "nuisance_adjusted") {
-      Qz <- residual_basis(recipe$shape$design$Z, nrow(Xc))
-      X_corr <- crossprod(Qz, Xc)
-      Y_corr <- crossprod(Qz, Yc)
+      resid_basis <- .nuisance_residual_basis(
+        recipe$shape$design$Z,
+        n = nrow(Xc),
+        groups = recipe$shape$design$groups
+      )
+      X_corr <- crossprod(resid_basis$Q, Xc)
+      Y_corr <- crossprod(resid_basis$Q, Yc)
+      corr_groups <- resid_basis$groups
     } else {
       X_corr <- Xc
       Y_corr <- Yc
+      if (design_kind == "blocked_rows") {
+        corr_groups <- recipe$shape$design$groups
+      }
     }
     qx_full <- orth_basis(X_corr)
     qy_full <- orth_basis(Y_corr)
@@ -367,7 +435,11 @@ run_cross_ladder <- function(recipe,
       Yp   <- data$Y[perm, , drop = FALSE]
       M    <- cross_matrix(data$X, Yp)
     } else {
-      perm <- base::sample.int(nrow(data$Qy))
+      perm <- if (is.null(data$groups)) {
+        base::sample.int(nrow(data$Qy))
+      } else {
+        .restricted_row_permutation(data$groups)
+      }
       Qyp  <- data$Qy[perm, , drop = FALSE]
       M    <- cross_matrix(data$Qx, Qyp)
     }
@@ -396,14 +468,14 @@ run_cross_ladder <- function(recipe,
       }
     } else {
       if (ncol(data$Qx) == 0L || ncol(data$Qy) == 0L) {
-        return(list(Qx = data$Qx, Qy = data$Qy))
+        return(list(Qx = data$Qx, Qy = data$Qy, groups = data$groups))
       }
       sv <- top_svd(crossprod(data$Qx, data$Qy), 1L)
       tx <- data$Qx %*% sv$u[, 1L, drop = FALSE]
       ty <- data$Qy %*% sv$v[, 1L, drop = FALSE]
       Qx_next <- orth_basis(data$Qx - tx %*% crossprod(tx, data$Qx))
       Qy_next <- orth_basis(data$Qy - ty %*% crossprod(ty, data$Qy))
-      return(list(Qx = Qx_next, Qy = Qy_next))
+      return(list(Qx = Qx_next, Qy = Qy_next, groups = data$groups))
     }
     if (sum(Xn^2) + sum(Yn^2) <= zero_tol) {
       return(list(
@@ -423,7 +495,7 @@ run_cross_ladder <- function(recipe,
     initial_data     = if (rel_kind == "covariance") {
       list(X = Xc, Y = Yc)
     } else {
-      list(Qx = qx_full, Qy = qy_full)
+      list(Qx = qx_full, Qy = qy_full, groups = corr_groups)
     },
     max_steps        = max_steps,
     B                = B,

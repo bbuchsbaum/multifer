@@ -168,8 +168,12 @@ infer <- function(adapter,
   null_label <- if (geom_kind == "oneblock") {
     "column_permute"
   } else if (rel_kind == "correlation" &&
-             recipe$shape$design$kind == "nuisance_adjusted") {
+             recipe$shape$design$kind == "nuisance_adjusted" &&
+             is.null(recipe$shape$design$groups)) {
     "row_permute_y_resid_basis"
+  } else if (rel_kind == "correlation" &&
+             recipe$shape$design$kind == "nuisance_adjusted") {
+    "row_permute_y_resid_basis_within_block"
   } else {
     "row_permute_y"
   }

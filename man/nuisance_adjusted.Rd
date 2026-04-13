@@ -4,11 +4,16 @@
 \alias{nuisance_adjusted}
 \title{Nuisance-adjusted design}
 \usage{
-nuisance_adjusted(Z)
+nuisance_adjusted(Z, groups = NULL)
 }
 \arguments{
 \item{Z}{A numeric matrix of nuisance covariates, with one row per
 observation.}
+
+\item{groups}{Optional factor, integer, numeric, or character vector
+of length \code{nrow(Z)} giving exchangeability blocks for structured
+nuisance-adjusted designs. When supplied, row permutations are
+restricted within blocks after the residual-basis transform.}
 }
 \value{
 A \code{multifer_design} object.

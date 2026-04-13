@@ -82,10 +82,14 @@ blocked_rows <- function(groups) {
 #'
 #' @param Z A numeric matrix of nuisance covariates, with one row per
 #'   observation.
+#' @param groups Optional factor, integer, numeric, or character vector
+#'   of length `nrow(Z)` giving exchangeability blocks for structured
+#'   nuisance-adjusted designs. When supplied, row permutations are
+#'   restricted within blocks after the residual-basis transform.
 #'
 #' @return A `multifer_design` object.
 #' @export
-nuisance_adjusted <- function(Z) {
+nuisance_adjusted <- function(Z, groups = NULL) {
   if (is.null(Z)) {
     stop("`Z` must not be NULL.", call. = FALSE)
   }
@@ -95,7 +99,21 @@ nuisance_adjusted <- function(Z) {
   if (anyNA(Z)) {
     stop("`Z` must not contain NA.", call. = FALSE)
   }
-  new_design("nuisance_adjusted", Z = Z)
+  if (!is.null(groups)) {
+    if (!(is.factor(groups) || is.integer(groups) ||
+          is.character(groups) || is.numeric(groups))) {
+      stop("`groups` must be a factor, integer, numeric, or character vector.",
+           call. = FALSE)
+    }
+    if (length(groups) != nrow(Z)) {
+      stop("`groups` must have length nrow(Z).", call. = FALSE)
+    }
+    if (anyNA(groups)) {
+      stop("`groups` must not contain NA.", call. = FALSE)
+    }
+    groups <- as.factor(groups)
+  }
+  new_design("nuisance_adjusted", Z = Z, groups = groups)
 }
 
 #' @export
@@ -106,6 +124,9 @@ print.multifer_design <- function(x, ...) {
         length(x$groups), sep = "")
   } else if (x$kind == "nuisance_adjusted") {
     cat(" | Z: ", nrow(x$Z), "x", ncol(x$Z), sep = "")
+    if (!is.null(x$groups)) {
+      cat(" | ", length(levels(x$groups)), " blocks", sep = "")
+    }
   }
   cat(">\n")
   invisible(x)
