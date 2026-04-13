@@ -1,0 +1,8 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_server_port": 50205,
+  "dolt_database": "multifer",
+  "project_id": "24cdd679-4c54-40db-812b-de35176ad41f"
+}
