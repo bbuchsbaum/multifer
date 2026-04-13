@@ -93,7 +93,7 @@ adapter_multivarious_pca <- function(adapter_id = "multivarious_pca",
 
     validity_level       = "conditional",
     declared_assumptions = c("rows_exchangeable"),
-    checked_assumptions  = list()
+    checked_assumptions  = .oneblock_baser_checks()
   )
 }
 

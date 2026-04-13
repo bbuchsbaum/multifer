@@ -116,7 +116,7 @@ adapter_multivarious_plsc <- function(adapter_id = "multivarious_plsc",
 
     validity_level       = "conditional",
     declared_assumptions = c("paired_rows", "centered_blocks"),
-    checked_assumptions  = list()
+    checked_assumptions  = .cross_baser_checks()
   )
 }
 

@@ -143,21 +143,55 @@ paired-row design, common-`Z` nuisance-adjusted designs, and nuisance-adjusted
 designs with within-block exchangeability. Richer structured designs still
 require more work on the exchangeability side.
 
-## Built-in adapters
+## Built-in adapters and maturity
 
-Exported adapters currently include:
+| Adapter                | Geometry  | Relation    | Maturity   |
+|------------------------|-----------|-------------|------------|
+| `svd_oneblock`         | oneblock  | variance    | **mature** |
+| `prcomp_oneblock`      | oneblock  | variance    | **mature** |
+| `cross_svd` (cov)      | cross     | covariance  | **mature** |
+| `multivarious_pca`     | oneblock  | variance    | **mature** |
+| `multivarious_plsc`    | cross     | covariance  | **mature** |
+| `cross_svd` (cor)      | cross     | correlation | qualified  |
+| `cancor_cross`         | cross     | correlation | qualified  |
 
-- `prcomp_oneblock`
-- `svd_oneblock`
-- `cross_svd`
-- `cancor_cross`
-- `multivarious_pca` when `multivarious` is installed
-- `multivarious_plsc` when `multivarious` is installed
+*Mature* adapters are the paper-backed exact path. *Qualified* adapters
+currently cover the paired-row design, common-`Z` nuisance-adjusted
+designs, and nuisance-adjusted designs with within-block exchangeability;
+richer structured designs on the correlation side are still being
+exactified.
+
+All mature-tier adapters now carry **executable validity contracts**:
+`infer()` runs the adapter's `checked_assumptions` against the raw data
+before the engine starts and errors in strict mode (the default) if any
+check fails. Pass-through records land in `result$assumptions$checked`.
 
 You can inspect the registry with:
 
 ```r
 list_infer_adapters()
+```
+
+### Third minimal example: correlation-mode cross (CCA)
+
+```r
+library(multifer)
+
+dat <- bench_cross_null(n = 150, p_x = 10, p_y = 8, seed = 1)
+
+res <- infer(
+  adapter  = "cancor_cross",
+  data     = list(X = dat$X, Y = dat$Y),
+  geometry = "cross",
+  relation = "correlation",
+  B = 99,
+  R = 49,
+  alpha = 0.05,
+  seed = 1
+)
+
+res$component_tests
+res$subspace_stability
 ```
 
 ## Design principles
