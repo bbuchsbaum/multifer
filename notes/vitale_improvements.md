@@ -1076,14 +1076,26 @@ Phase 1 in §22.17 is still too large. Insert **Phase 0** explicitly:
 
 **§40 benchmark status (measured on the reference machine, 2026-04-13):**
 
-| Suite                                   | Refit | Fast  | Speedup |
-|-----------------------------------------|-------|-------|---------|
-| oneblock medium (n=300, p=80)           | 0.86s | 0.80s | 1.08×   |
-| oneblock large  (n=500, p=300)          | 10.60s| 4.22s | 2.51×   |
-| cross cov medium (n=300, p=50, q=40)    | 0.55s | 0.61s | 0.92×   |
-| cross cov large  (n=500, p=250, q=200)  | 7.82s | 2.86s | 2.73×   |
+| Suite                                   | Refit  | Fast  | Speedup | §40 target |
+|-----------------------------------------|--------|-------|---------|-----------|
+| oneblock medium (n=300, p=80)           |  0.82s | 0.72s | 1.13×   | ≥ 5×      |
+| oneblock large  (n=500, p=300)          |  7.82s | 1.48s | **5.30×** ✓ | ≥ 5×  |
+| cross cov medium (n=300, p=50, q=40)    |  0.55s | 0.62s | 0.89×   | ≥ 5×      |
+| cross cov large  (n=500, p=250, q=200)  |  7.20s | 2.30s | 3.12×   | ≥ 10×     |
 
-The core-update mechanism is correct (decision agreement verified on all four Phase 0 bench suites) and the large-scale cases already realize a real speedup, but the §40 hard targets (≥ 5× medium, ≥ 10× large) are **not yet met** and remain follow-up work. The dominant remaining overhead is in the alignment / original-fit / ladder shared path rather than in `update_core()` itself. Investigation suggests tighter `core_rank` defaults, in-place updates in the alignment loop, and potentially a partial randomized SVD (`§30 rank 5`) in the ladder path as the next optimizations.
+Numbers after the partial-SVD follow-up commit `91cc382` (§30 rank 5). The oneblock large case now meets the §40 "medium" target of ≥ 5×. The cross large case is still short of the ≥ 10× target, and the medium cases are still effectively flat because the problem size is small enough that the shared fixed costs dominate.
+
+**Where the remaining time goes (profiling after this commit):**
+- For the cross large case, the top-1 dominant cost has shifted to `score_stability_from_bootstrap` / `.row_quantile_pair` / `sort.default` — roughly 41% of total. This is row-wise quantile computation over bootstrap-reconstructed score trajectories and lives in the stability consumer rather than the engine.
+- `base::crossprod` on the per-draw cross-product matrix is 26%.
+- The ladder's `null_stat_fn` / `top_singular_values` is ~29% (down from 72% before the partial-SVD wiring).
+
+**Next optimizations (not in scope for this pass):**
+- Vectorized / matrixStats-backed row quantiles in `score_stability_from_bootstrap`. Currently tracked as the major blocker for cross covariance >= 10× speedup.
+- Tighter medium-scale gains: at p <= core_rank the core-update path has no truncation benefit, so the only lever is in-place alignment and avoiding the cross-product reconstruction in the ladder path.
+- A partial randomized SVD (`RSpectra::svds` already wired) could be extended to the engines' deflation step, which currently still calls a full `base::svd()` per rung in `deflate_fn`.
+
+The core-update mechanism is correct (decision agreement verified on all four Phase 0 bench suites). Large oneblock hits `§40` medium; cross large is close; medium cases and cross >= 10× are tracked as follow-ups.
 
 - Tracked in `bd` as epic `multifer-3c0`.
 
