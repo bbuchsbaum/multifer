@@ -61,6 +61,57 @@ adapter_svd <- function(adapter_id = "svd_oneblock", adapter_version = "0.0.1") 
       fit
     },
 
+    # Phase 1.5 fast path (§17 / §30 rank 2). Builds a core representation
+    # from the original fit and the centered original data matrix. The
+    # core stores (U, d, V, center) so that row-bootstrap resamples can
+    # be solved by an n x k inner SVD instead of an n x p refit.
+    core = function(x, data, ...) {
+      if (is.list(data) && !is.null(data$X)) {
+        data <- data$X
+      }
+      list(
+        U      = x$u,
+        d      = x$d,
+        V      = x$v,
+        center = x$center,
+        n      = nrow(data),
+        k      = length(x$d)
+      )
+    },
+
+    # Core-space update. `indices` is an integer vector of length n_orig
+    # (the bootstrap resample indices). Returns a fit-shaped object
+    # (list with u, d, v, center) matching `refit()`'s return contract,
+    # so downstream `loadings()` and `scores()` hooks are unchanged.
+    update_core = function(core_obj, indices = NULL, ...) {
+      if (is.null(indices)) {
+        stop("`update_core` for adapter_svd requires integer `indices`.",
+             call. = FALSE)
+      }
+      U  <- core_obj$U
+      d  <- core_obj$d
+      V  <- core_obj$V
+      ctr_orig <- core_obj$center
+
+      U_idx  <- U[indices, , drop = FALSE]
+      u_bar  <- base::colMeans(U_idx)
+      U_tilde <- U_idx - base::rep(u_bar, each = nrow(U_idx))
+      # M = U_tilde %*% diag(d) is an n x k inner matrix.
+      M  <- base::sweep(U_tilde, 2L, d, `*`)
+      sv <- base::svd(M)
+      # SVD of centered resampled = (sv$u, sv$d, V %*% sv$v).
+      v_new <- V %*% sv$v
+      # Compose the new column-center in original variable space:
+      # (original center) + V %*% d %*% u_bar
+      new_ctr <- ctr_orig + as.numeric(V %*% (d * u_bar))
+      list(
+        u      = sv$u,
+        d      = sv$d,
+        v      = v_new,
+        center = new_ctr
+      )
+    },
+
     null_action = function(x, data, ...) {
       # Column-wise permutation of the residual matrix.
       apply(data, 2L, sample)
@@ -141,6 +192,61 @@ adapter_prcomp <- function(adapter_id = "prcomp_oneblock",
         new_data <- new_data$X
       }
       stats::prcomp(new_data, center = TRUE, scale. = FALSE)
+    },
+
+    # Phase 1.5 fast path. prcomp stores (sdev, rotation, x, center); we
+    # reconstruct the thin SVD (u, d, v) from those fields so the shared
+    # Fisher-style trick applies. Return a prcomp-shaped list so the
+    # `loadings()` and `scores()` hooks are unchanged.
+    core = function(x, data, ...) {
+      if (is.list(data) && !is.null(data$X)) data <- data$X
+      n <- nrow(data)
+      # prcomp(..., scale.=FALSE): sdev = sqrt(sum(centered^2) / (n-1)) per col.
+      # Recover the SVD: d = sdev * sqrt(n-1), u = x / d (where x are scores),
+      # v = rotation.
+      d <- x$sdev * sqrt(max(1L, n - 1L))
+      # Guard against zero singular values when reconstructing u.
+      d_inv <- ifelse(d > 0, 1 / d, 0)
+      u <- x$x %*% diag(d_inv, nrow = length(d_inv))
+      list(
+        U      = u,
+        d      = d,
+        V      = x$rotation,
+        center = if (is.null(x$center)) rep(0, ncol(data)) else x$center,
+        n      = n,
+        k      = length(d)
+      )
+    },
+
+    update_core = function(core_obj, indices = NULL, ...) {
+      if (is.null(indices)) {
+        stop("`update_core` for adapter_prcomp requires integer `indices`.",
+             call. = FALSE)
+      }
+      U <- core_obj$U; d <- core_obj$d; V <- core_obj$V
+      ctr_orig <- core_obj$center
+
+      U_idx   <- U[indices, , drop = FALSE]
+      u_bar   <- base::colMeans(U_idx)
+      U_tilde <- U_idx - base::rep(u_bar, each = nrow(U_idx))
+      M       <- base::sweep(U_tilde, 2L, d, `*`)
+      sv      <- base::svd(M)
+      v_new   <- V %*% sv$v
+      new_ctr <- ctr_orig + as.numeric(V %*% (d * u_bar))
+      n_new   <- length(indices)
+
+      # Return a prcomp-shaped object so adapter$loadings/scores work
+      # unchanged. sdev uses the same n-1 convention as stats::prcomp.
+      structure(
+        list(
+          sdev     = sv$d / sqrt(max(1L, n_new - 1L)),
+          rotation = v_new,
+          center   = new_ctr,
+          scale    = FALSE,
+          x        = base::sweep(sv$u, 2L, sv$d, `*`)
+        ),
+        class = "prcomp"
+      )
     },
 
     null_action = function(x, data, ...) apply(data, 2L, sample),

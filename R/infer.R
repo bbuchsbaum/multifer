@@ -252,9 +252,15 @@ infer <- function(adapter,
   t_total_end <- proc.time()[["elapsed"]]
   cache_rate  <- svd_cache_rate()
   if (is.na(cache_rate)) cache_rate <- 0
+  core_updates_used <- if (exists("artifact", inherits = FALSE) &&
+                           isTRUE(artifact$used_fast_path)) {
+    as.integer(R)
+  } else {
+    0L
+  }
   cost_block <- infer_cost(
     full_data_ops    = 1L,
-    core_updates     = 0L,
+    core_updates     = core_updates_used,
     mc_budget_spent  = as.integer(B * max(1L, length(step_results))),
     cache_hits       = cache_rate,
     wall_time_phases = c(

@@ -135,6 +135,20 @@ bootstrap_fits <- function(recipe,
     domains
   )
 
+  ## --- Phase 1.5 fast-path detection -----------------------------------------
+  # If the adapter exposes core() and update_core(), precompute the core once
+  # and use update_core per replicate (O(n*k^2 + p*k) per rep) instead of
+  # refit (O(n*p^2)). Oneblock only for Wave 2; cross covariance lands in Wave 3.
+  has_fast_path <- !is.null(adapter$core) &&
+                   !is.null(adapter$update_core) &&
+                   geom_kind == "oneblock"
+
+  core_obj <- if (has_fast_path) {
+    adapter$core(original_fit, data)
+  } else {
+    NULL
+  }
+
   ## --- RNG state: save and restore if seed supplied ---------------------------
 
   if (!is.null(seed)) {
@@ -173,9 +187,13 @@ bootstrap_fits <- function(recipe,
       )
     }
 
-    ## -- refit on resampled data ---------------------------------------------
+    ## -- refit (slow path) or core-update (fast path) ------------------------
 
-    rep_fit <- adapter$refit(original_fit, rep_data)
+    rep_fit <- if (has_fast_path) {
+      adapter$update_core(core_obj, indices = indices)
+    } else {
+      adapter$refit(original_fit, rep_data)
+    }
 
     ## -- align loadings and scores per domain --------------------------------
 
@@ -232,11 +250,12 @@ bootstrap_fits <- function(recipe,
 
   structure(
     list(
-      reps         = reps,
-      R            = R,
-      method_align = method_align,
-      domains      = domains,
-      seed         = seed
+      reps           = reps,
+      R              = R,
+      method_align   = method_align,
+      domains        = domains,
+      seed           = seed,
+      used_fast_path = has_fast_path
     ),
     class = "multifer_bootstrap_artifact"
   )
