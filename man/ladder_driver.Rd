@@ -11,6 +11,8 @@ ladder_driver(
   initial_data,
   max_steps,
   B,
+  B_total = NULL,
+  batch_size = 32L,
   alpha = 0.05,
   seed = NULL
 )
@@ -32,7 +34,15 @@ component just tested).}
 
 \item{max_steps}{Integer, hard cap on how many ladder rungs to test.}
 
-\item{B}{Number of Monte Carlo draws per rung.}
+\item{B}{Per-rung cap on Monte Carlo draws. Also the default value used
+when \code{B_total} is not supplied.}
+
+\item{B_total}{Optional integer. Global Monte Carlo budget shared across
+rungs via \code{\link[=mc_budget_allocator]{mc_budget_allocator()}}. Defaults to \code{B * max_steps} so the
+legacy fixed-B behavior is preserved when unset.}
+
+\item{batch_size}{Positive integer, draws per Besag-Clifford batch
+inside a single rung. Default \code{32L}.}
 
 \item{alpha}{Significance threshold for stop-at-first-non-rejection.
 Default \code{0.05}.}
@@ -47,14 +57,21 @@ A list with elements:
 \item{step_results}{List of length <= \code{max_steps}, one element
 per rung tested. Each element is a list with fields
 \code{step}, \code{observed_stat}, \code{p_value},
-\code{mc_se}, \code{r}, \code{B}, \code{null_values},
+\code{mc_se}, \code{r}, \code{B} (cap), \code{drawn}, \code{h},
+\code{stop_reason}, \code{batch_schedule}, \code{null_values},
 \code{selected} (logical, TRUE when p_value <= alpha).}
 \item{last_step_tested}{Integer. The highest rung that was evaluated.}
 \item{rejected_through}{Integer. The number of consecutive initial
-rejections, i.e., the estimated rank. Zero when the first rung is
-not rejected.}
+rejections, i.e., the estimated rank.}
 \item{deflated_data_final}{The last deflated_data produced before
-stopping. Useful for diagnostics.}
+stopping.}
+\item{allocator}{The \code{multifer_budget_allocator} after the ladder
+finishes, exposing \verb{$used_fn()}, \verb{$remaining_fn()}, \verb{$schedule}.}
+\item{total_draws_used}{Integer. Sum of draws across all rungs.}
+\item{batch_schedule}{Integer vector. Concatenated batch sizes
+across all rungs, suitable for \code{infer_mc()$batch_schedule}.}
+\item{stopping_boundary}{Character scalar. Describes the rule used,
+e.g. \code{"besag_clifford(h = <h>)"}.}
 }
 }
 \description{

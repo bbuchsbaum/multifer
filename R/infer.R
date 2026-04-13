@@ -56,11 +56,13 @@ infer <- function(adapter,
                   design   = NULL,
                   targets  = "default",
                   strict   = TRUE,
-                  B        = 1000L,
-                  R        = 500L,
-                  alpha    = 0.05,
-                  model    = NULL,
-                  seed     = NULL) {
+                  B            = 1000L,
+                  B_total      = NULL,
+                  mc_batch_size = 32L,
+                  R            = 500L,
+                  alpha        = 0.05,
+                  model        = NULL,
+                  seed         = NULL) {
 
   call <- match.call()
   t_start_total <- proc.time()[["elapsed"]]
@@ -109,7 +111,8 @@ infer <- function(adapter,
            call. = FALSE)
     }
     engine_out <- run_oneblock_ladder(
-      recipe = recipe, X = data, B = B, alpha = alpha, seed = seed
+      recipe = recipe, X = data, B = B, B_total = B_total,
+      batch_size = mc_batch_size, alpha = alpha, seed = seed
     )
   } else if (geom_kind == "cross") {
     if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
@@ -118,7 +121,8 @@ infer <- function(adapter,
     }
     engine_out <- run_cross_ladder(
       recipe = recipe, X = data$X, Y = data$Y,
-      B = B, alpha = alpha, seed = seed
+      B = B, B_total = B_total, batch_size = mc_batch_size,
+      alpha = alpha, seed = seed
     )
   } else {
     stop(sprintf("Phase 1 supports only 'oneblock' and 'cross'; got '%s'.",
@@ -235,13 +239,21 @@ infer <- function(adapter,
     checked  = adapter_obj$checked_assumptions
   )
 
+  ladder_res_meta    <- engine_out$ladder_result
+  total_draws_used   <- as.integer(ladder_res_meta$total_draws_used %||%
+                                   sum(vapply(step_results,
+                                              function(sr) as.integer(sr$drawn %||% sr$B %||% 0L),
+                                              integer(1L))))
+  batch_schedule_agg <- as.integer(ladder_res_meta$batch_schedule %||% integer(0L))
+  stop_boundary_lab  <- ladder_res_meta$stopping_boundary %||% "fixed_B"
+
   mc_block <- infer_mc(
     rng_seed          = if (is.null(seed)) NA_integer_ else as.integer(seed),
     rng_kind          = RNGkind()[1L],
-    stopping_boundary = "fixed_B",
-    batch_schedule    = as.integer(B),
-    stop_iteration    = as.integer(B),
-    total_draws_used  = as.integer(B * max(1L, length(step_results))),
+    stopping_boundary = stop_boundary_lab,
+    batch_schedule    = batch_schedule_agg,
+    stop_iteration    = total_draws_used,
+    total_draws_used  = total_draws_used,
     exceedance_counts = vapply(
       step_results,
       function(sr) as.integer(sr$r),
@@ -261,7 +273,7 @@ infer <- function(adapter,
   cost_block <- infer_cost(
     full_data_ops    = 1L,
     core_updates     = core_updates_used,
-    mc_budget_spent  = as.integer(B * max(1L, length(step_results))),
+    mc_budget_spent  = total_draws_used,
     cache_hits       = cache_rate,
     wall_time_phases = c(
       engine = t_engine_end - t_engine_start,

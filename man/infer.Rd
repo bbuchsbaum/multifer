@@ -15,6 +15,8 @@ infer(
   targets = "default",
   strict = TRUE,
   B = 1000L,
+  B_total = NULL,
+  mc_batch_size = 32L,
   R = 500L,
   alpha = 0.05,
   model = NULL,

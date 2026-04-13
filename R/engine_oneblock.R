@@ -48,10 +48,12 @@
 #' @export
 run_oneblock_ladder <- function(recipe,
                                 X,
-                                B         = 1000L,
-                                alpha     = 0.05,
-                                max_steps = NULL,
-                                seed      = NULL) {
+                                B          = 1000L,
+                                B_total    = NULL,
+                                batch_size = 32L,
+                                alpha      = 0.05,
+                                max_steps  = NULL,
+                                seed       = NULL) {
 
   ## --- validate recipe --------------------------------------------------------
 
@@ -146,6 +148,8 @@ run_oneblock_ladder <- function(recipe,
     initial_data     = Xc,
     max_steps        = max_steps,
     B                = B,
+    B_total          = B_total,
+    batch_size       = batch_size,
     alpha            = alpha,
     seed             = seed
   )

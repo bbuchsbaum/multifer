@@ -8,6 +8,8 @@ run_oneblock_ladder(
   recipe,
   X,
   B = 1000L,
+  B_total = NULL,
+  batch_size = 32L,
   alpha = 0.05,
   max_steps = NULL,
   seed = NULL
