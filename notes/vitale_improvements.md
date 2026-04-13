@@ -1076,35 +1076,36 @@ Phase 1 in §22.17 is still too large. Insert **Phase 0** explicitly:
 - `tests/testthat/test-integration-phase15.R` — decision-agreement tests across all four Phase 0 bench suites comparing `fast_path = "off"` vs `"auto"`. Plus Wave-specific tests: `test-linear-operator.R`, `test-thin-svd-cache.R`, `test-core-update-oneblock.R`, `test-core-update-cross.R`, `test-mc-sequential.R`, `test-budget-allocator.R`, `test-parallel-bootstrap.R`.
 - Full test suite: 1146 passing, 0 failures. `R CMD check → Status: OK` (0 errors / 0 warnings; only the system-time note remains).
 
-**§40 benchmark status (measured on the reference machine, 2026-04-13, after commit `34ae10c`):**
+**§40 benchmark status (measured on the reference machine, 2026-04-13, after commit `8139fab`):**
 
 | Suite                                   | Refit  | Fast  | Speedup      | §40 target |
 |-----------------------------------------|--------|-------|--------------|-----------|
-| oneblock medium (n=300, p=80)           |  0.63s | 0.45s | 1.42×        | ≥ 5×      |
-| oneblock large  (n=500, p=300)          |  6.95s | 1.30s | **5.35×** ✓  | ≥ 5×      |
-| cross cov medium (n=300, p=50, q=40)    |  0.38s | 0.41s | 0.93×        | ≥ 5×      |
-| cross cov large  (n=500, p=250, q=200)  |  5.81s | 1.97s | 2.95×        | ≥ 10×     |
+| oneblock medium (n=300, p=80)           |  0.60s | 0.42s | 1.41×        | ≥ 5×      |
+| oneblock large  (n=500, p=300)          |  6.36s | 1.26s | **5.03×** ✓  | ≥ 5×      |
+| cross cov medium (n=300, p=50, q=40)    |  0.38s | 0.42s | 0.90×        | ≥ 5×      |
+| cross cov large  (n=500, p=250, q=200)  |  4.84s | 1.19s | **4.05×**    | ≥ 10×     |
 
 Optimizations applied across Phase 1.5:
 - Thin-SVD cache for the original fit (§30 rank 1, Wave 1).
 - `core()` / `update_core()` fast paths for oneblock and cross-covariance (§17, Waves 2–3).
 - Besag-Clifford sequential MC + global budget allocator (§28, Wave 4).
-- `core_rank = 50L` truncation cap (Wave 6) that turns the thin-SVD cache into a real speedup.
+- `core_rank = 50L` truncation cap (Wave 6) that turns the thin-SVD cache into a real speedup in the bootstrap loop.
 - Partial-SVD null draws via `RSpectra::svds` in `null_stat_fn` and `observed_stat_fn` (§30 rank 5, commit `91cc382`).
 - Partial-SVD deflation via `top_svd(X, 1)` in both engines' `deflate_fn` (commit `34ae10c`).
 - `matrixStats::rowQuantiles` in `.row_quantile_pair` (commit `34ae10c`).
+- Rank-capped cross null draw at rung 1 via cached thin SVDs of both blocks (commit `8139fab`): replaces per-draw `crossprod(Xc, Yc[perm, ])` with a `k_x x k_y` inner core `Dx (Ux^T · Uy[perm, ]) Dy`, using the identity `top SV(Vx M Vy^T) = top SV(M)` for orthonormal `Vx / Vy`. Only runs on rung 1; deflation semantics at rung > 1 fall back to the exact path. Calibration holds because both `observed_stat_fn` and `null_stat_fn` use the same rank-capped core at rung 1.
 
-**Final profile of the cross covariance large fast path (1.97s total):**
-- `base::crossprod` per-draw cross-matrix build: ~33% (0.64s)
-- `score_stability_from_bootstrap` including `.row_quantile_pair`: ~31% (0.61s)
-- `null_stat_fn` partial SVD: remaining ladder cost ~6%
-- Bootstrap `update_core` + alignment: ~17%
+**Absolute fast-path time arc for cross covariance large (n=500, p=250, q=200, R=30, B=99):**
+- Wave 6 baseline (thin-SVD cache + core-update + matrixStats): 2.30s, speedup 2.73×
+- + partial-SVD null draws (`91cc382`):                            2.00s, speedup 2.95×
+- + matrixStats row quantiles + partial-SVD deflation (`34ae10c`): 1.97s, speedup 2.95×
+- + rank-capped rung-1 cross null (`8139fab`):                     1.19s, speedup **4.05×**
 
-**Why §40 hard targets are not fully met:**
-- **Medium cases (p ≤ 80, q ≤ 40)** are dominated by fixed costs (original fit, ladder rung setup, stability consumer overhead). The partial-SVD tricks don't help at p=50–80 because `RSpectra::svds` only beats `base::svd` when `k << min(n, p)`, and at these sizes the absolute times are already sub-second. Hitting 5× here requires amortizing fixed costs, not inner-loop tuning.
-- **Cross covariance large (≥10×)** is blocked on the per-draw `base::crossprod(X, Y[perm, ])`. That's an unavoidable `O(n·p·q)` operation under the paired-row null, and no partial-SVD or vectorized-quantile trick skips it. Closing this gap requires either a randomized sketch on X/Y before the ladder (approximate, would affect calibration), a score-space null draw that avoids forming the full cross matrix, or `§30 rank 5`-style randomized partial SVD applied at the pair-wise level. All three are structural changes deferred to follow-up work.
+**Why §40 hard targets are still not fully met:**
+- **Medium cases (p ≤ 80, q ≤ 40)** are dominated by fixed costs (original fit, ladder rung setup, stability consumer overhead). At these sizes `RSpectra::svds` doesn't beat `base::svd` because `k` is not meaningfully less than `min(n, p)`, and the rank-capped rung-1 cross path is inactive because `cross_rank_cap = 50 ≥ min(p, q)` — no truncation happens. Hitting 5× here requires amortizing fixed costs, not inner-loop tuning.
+- **Cross covariance large (≥10×)** improved from 2.95× to 4.05× with the rank-capped rung-1 path. The remaining bottlenecks are distributed: `score_stability_from_bootstrap` (~30%), `original_fit` / `thin_svd_cache` warmup (~15%), miscellaneous bootstrap+alignment (~20%). Closing to 10× requires either extending the rank-cap approximation to the bootstrap loop (which would invalidate the exact-decision-agreement property of the refit path) or refactoring `score_stability_from_bootstrap` to avoid per-observation sorts. Both are deferred to follow-up work.
 
-The core-update mechanism is **correct** (decision agreement verified on all four Phase 0 bench suites). The large oneblock case **meets** the §40 "medium" target. Large cross covariance and both medium cases remain short of their targets and are tracked as follow-ups.
+The core-update mechanism is **correct** (decision agreement verified on all four Phase 0 bench suites). The large oneblock case **meets** the §40 medium target. Large cross covariance is now much closer (4.05× vs 10×). Medium cases and cross ≥10× remain follow-ups.
 
 - Tracked in `bd` as epic `multifer-3c0`.
 
