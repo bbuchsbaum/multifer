@@ -4,6 +4,8 @@
 
 **Status:** Parts 1–5 integrated. Part 5 tightens the framework in response to the Part 3 review. Naming note: the conceptual framing in Part 5 uses "typed shape inference" and cites the working name "ShapeInfer"; the **package name remains `multifer`** as committed at the end of Part 3. Treat "ShapeInfer" in Part 5 as the concept label, `multifer` as the shipping artifact.
 
+**Companion note:** For the intended methods-paper framing and the precise theoretical boundary between direct SVD/eigen latent-root extensions and later supervised / generalized-eigen engines, see [paper1_rank_matched_residual_randomization.md](./paper1_rank_matched_residual_randomization.md).
+
 **Scope shift (from Part 2).** The project is no longer "improve Vitale's PCA permutation test." It is: **turn sequential deflated permutation inference into a general deflated operator inference framework** covering PCA, PLS, CCA, and multi-block decompositions, with one shared resampling engine.
 
 **Product shift (from Part 3).** The framework crystallizes into a concrete package: **`multifer`** — a shape-first inference layer built on top of `multivarious`'s projector geometry. Working name during design was "ShapeInfer"; final package name is **multifer**. Tagline: *projector-native perturbation inference for latent operator models.*
