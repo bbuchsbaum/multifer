@@ -177,6 +177,83 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       )
     },
 
+    # Phase 1.5 fast path (§17 / §30 rank 2) -- covariance only.
+    # Correlation mode falls back to refit() because per-replicate
+    # column rescaling does not admit a clean k x k update; the
+    # bootstrap_fits() gate enforces this by checking the recipe's
+    # relation kind before calling core()/update_core().
+    #
+    # Core representation: the separate block thin SVDs of the
+    # centered X and Y matrices, which are then composed via a
+    # k_x x k_y inner SVD per replicate.
+    core = function(x, data, ...) {
+      X <- data$X; Y <- data$Y
+      cx <- base::colMeans(X); cy <- base::colMeans(Y)
+      Xc <- base::sweep(X, 2L, cx, "-")
+      Yc <- base::sweep(Y, 2L, cy, "-")
+      sv_x <- base::svd(Xc)
+      sv_y <- base::svd(Yc)
+      list(
+        relation = "covariance",
+        Ux       = sv_x$u, dx = sv_x$d, Vx = sv_x$v,
+        Uy       = sv_y$u, dy = sv_y$d, Vy = sv_y$v,
+        center_x = cx,
+        center_y = cy,
+        n        = nrow(X)
+      )
+    },
+
+    update_core = function(core_obj, indices = NULL, ...) {
+      if (is.null(indices)) {
+        stop("`update_core` for adapter_cross_svd requires integer `indices`.",
+             call. = FALSE)
+      }
+      Ux <- core_obj$Ux; dx <- core_obj$dx; Vx <- core_obj$Vx
+      Uy <- core_obj$Uy; dy <- core_obj$dy; Vy <- core_obj$Vy
+
+      Ux_idx <- Ux[indices, , drop = FALSE]
+      Uy_idx <- Uy[indices, , drop = FALSE]
+      n_new  <- nrow(Ux_idx)
+
+      ux_bar <- base::colMeans(Ux_idx)
+      uy_bar <- base::colMeans(Uy_idx)
+      Ux_tilde <- Ux_idx - base::rep(ux_bar, each = n_new)
+      Uy_tilde <- Uy_idx - base::rep(uy_bar, each = n_new)
+
+      # DUx[i, j] = Ux_tilde[i, j] * dx[j]; same for DUy.
+      DUx <- base::sweep(Ux_tilde, 2L, dx, `*`)
+      DUy <- base::sweep(Uy_tilde, 2L, dy, `*`)
+
+      # M = D_x (Ux_tilde^T Uy_tilde) D_y  ==  crossprod(DUx, DUy), k_x x k_y.
+      M  <- base::crossprod(DUx, DUy)
+      sv <- base::svd(M)
+
+      # The centered resampled cross-product factors as Vx M Vy^T, so its
+      # SVD is (Vx %*% sv$u) * diag(sv$d) * (Vy %*% sv$v)^T.
+      Wx_new <- Vx %*% sv$u                 # p_x x r
+      Wy_new <- Vy %*% sv$v                 # p_y x r
+      d_new  <- sv$d
+
+      # Scores: X_boot_c %*% Wx_new = Ux_tilde Dx Vx^T (Vx A) = Ux_tilde Dx A
+      #                              = DUx %*% sv$u   (since Vx has orthonormal cols).
+      Tx_new <- DUx %*% sv$u
+      Ty_new <- DUy %*% sv$v
+
+      new_cx <- core_obj$center_x + as.numeric(Vx %*% (dx * ux_bar))
+      new_cy <- core_obj$center_y + as.numeric(Vy %*% (dy * uy_bar))
+
+      list(
+        relation = "covariance",
+        d        = d_new,
+        Wx       = Wx_new,
+        Wy       = Wy_new,
+        Tx       = Tx_new,
+        Ty       = Ty_new,
+        center_x = new_cx,
+        center_y = new_cy
+      )
+    },
+
     null_action = function(x, data, ...) {
       # Break pairing by permuting rows of Y.
       perm <- sample(seq_len(nrow(data$Y)))

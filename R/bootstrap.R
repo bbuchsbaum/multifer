@@ -137,11 +137,14 @@ bootstrap_fits <- function(recipe,
 
   ## --- Phase 1.5 fast-path detection -----------------------------------------
   # If the adapter exposes core() and update_core(), precompute the core once
-  # and use update_core per replicate (O(n*k^2 + p*k) per rep) instead of
-  # refit (O(n*p^2)). Oneblock only for Wave 2; cross covariance lands in Wave 3.
+  # and use update_core per replicate (O(n*k^2 + k_x*k_y) per rep) instead of
+  # refit (O(n*p^2) or O(p_x*p_y*min(n,p,q))). The cross correlation branch
+  # does not have a clean fast path (per-replicate QR rescaling) and falls
+  # back to refit by gating on rel_kind.
   has_fast_path <- !is.null(adapter$core) &&
                    !is.null(adapter$update_core) &&
-                   geom_kind == "oneblock"
+                   (geom_kind == "oneblock" ||
+                    (geom_kind == "cross" && rel_kind == "covariance"))
 
   core_obj <- if (has_fast_path) {
     adapter$core(original_fit, data)
