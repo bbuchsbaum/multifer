@@ -36,4 +36,9 @@
     generator = bench_speed_agreement,
     targets   = bench_speed_agreement_targets
   ), envir = .multifer_bench_registry)
+
+  register_oneblock_baser_adapters()
+  register_cross_baser_adapters()
+  register_multivarious_pca_adapter()
+  register_multivarious_plsc_adapter()
 }

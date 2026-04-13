@@ -1027,11 +1027,32 @@ Phase 1 in §22.17 is still too large. Insert **Phase 0** explicitly:
 - 125 `test_that` blocks across 12 test files; `R CMD check → Status: OK` (0 errors, 0 warnings, 0 notes).
 - Tracked in `bd` as epic `multifer-9qu` with children `9qu.1` … `9qu.10`; Phase 1 epic `multifer-kxn` is blocked on the Phase 0 epic.
 
-### Phase 1 — minimal working engine
+### Phase 1 — minimal working engine  **[COMPLETE — 2026-04-13]**
 - **Shapes:** `oneblock` + `cross` only.
 - **Engine:** refit-first (slow but universal path from §22.10).
 - **Outputs:** component significance, variable stability, score stability, subspace stability.
 - **Explicitly excluded:** variable significance, multiblock, geneig.
+
+**Delivered (Phase 1):**
+- `R/alignment.R` — `match_components` (greedy permutation matching), `align_sign`, `align_procrustes`, `principal_angles` (prefers `multivarious::prinang` when installed), `align_loadings` pipeline. Permutation matching runs *before* sign / Procrustes per the Part 5 review.
+- `R/unit_formation.R` — `form_units()`. **Conservative default**: every root is its own singleton component; near-tie grouping is opt-in behind `group_near_ties = TRUE`.
+- `R/mc_pvalue.R` — `mc_p_value()` Phipson-Smyth `(1+r)/(B+1)`, fixed B (sequential stopping is Phase 1.5).
+- `R/ladder.R` — shape-agnostic `ladder_driver()` shared scaffold.
+- `R/engine_oneblock.R` — `run_oneblock_ladder()` implements the explicit Vitale P3 simplification (Part 1 §1) with no second SVD per null draw.
+- `R/engine_cross.R` — `run_cross_ladder()` reuses `ladder_driver` for both `(cross, covariance)` and `(cross, correlation)` recipes; null action permutes rows of Y only.
+- `R/bootstrap.R` — `bootstrap_fits()`. **Paired** row bootstrap for cross. Aligns each rep's loadings + scores via `match_components` then `align_sign` / `align_procrustes`.
+- `R/variable_stability.R` — `variable_stability_from_bootstrap()` returns a STABILITY measure (not a p-value).
+- `R/score_stability.R` — `score_stability_from_bootstrap()`. **Design lock**: scores are computed by projecting the ORIGINAL observations through each rep's fit, never on the bootstrap sample.
+- `R/subspace_stability.R` — principal-angle summaries per unit.
+- `R/infer.R` — top-level `infer()` dispatcher; populates `infer_result` with units, component_tests, variable/score/subspace stability, assumptions, mc reproducibility log, cost (wall-time per phase), provenance.
+- `R/adapter_oneblock_baser.R` — `adapter_svd()` and `adapter_prcomp()` (no-dep oneblock references).
+- `R/adapter_cross_baser.R` — `adapter_cross_svd()` (the *one real* cross reference declaring BOTH covariance and correlation; triggers strict-dispatch ambiguity errors when relation is omitted) + `adapter_cancor()` (correlation only).
+- `R/adapter_multivarious_pca.R` — Tier-2 wrapper for `multivarious::pca`, soft dep, registers only when multivarious is installed.
+- `R/adapter_multivarious_plsc.R` — Tier-2 wrapper for `multivarious::plsc`, single-relation (covariance only).
+- `tests/testthat/helper-default-adapters.R` — `ensure_default_adapters()` test helper that re-registers the auto-loaded adapters after other test files clear the registry.
+- `tests/testthat/test-integration-phase1.R` — end-to-end integration on the 4 frozen Phase 0 bench suites + multivarious round-trips.
+- ~140 new test_that blocks across Phase 1 modules; `R CMD check → Status: OK` (0 errors / 0 warnings / 0 notes).
+- Tracked in `bd` as epic `multifer-kxn` with children `kxn.1` … `kxn.16` (all closed).
 
 ### Phase 1.5 — fast path
 - `core()` / `update_core()` for `oneblock` and `cross`.
