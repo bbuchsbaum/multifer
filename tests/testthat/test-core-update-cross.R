@@ -1,3 +1,21 @@
+make_cross_bootstrap_fixture <- function(n, p_x, p_y, signal, noise_x, noise_y) {
+  k <- length(signal)
+  latent <- qr.Q(qr(scale(matrix(rnorm(n * k), nrow = n, ncol = k),
+                            center = TRUE, scale = FALSE)))
+  Wx <- qr.Q(qr(matrix(rnorm(p_x * k), nrow = p_x, ncol = k)))
+  Wy <- qr.Q(qr(matrix(rnorm(p_y * k), nrow = p_y, ncol = k)))
+
+  X <- latent %*% diag(signal, nrow = k, ncol = k) %*% t(Wx) +
+    matrix(rnorm(n * p_x, sd = noise_x), nrow = n, ncol = p_x)
+  Y <- latent %*% diag(signal, nrow = k, ncol = k) %*% t(Wy) +
+    matrix(rnorm(n * p_y, sd = noise_y), nrow = n, ncol = p_y)
+
+  list(
+    X = scale(X, center = TRUE, scale = FALSE),
+    Y = scale(Y, center = TRUE, scale = FALSE)
+  )
+}
+
 test_that("adapter_cross_svd$core returns block SVDs for covariance mode", {
   set.seed(1)
   X <- matrix(rnorm(30 * 5), 30, 5)
@@ -87,6 +105,98 @@ test_that("bootstrap_fits uses fast path for cross covariance", {
     function(r) all(fit_keys %in% names(r$fit)),
     logical(1L)
   )))
+})
+
+test_that("cross covariance fast-path bootstrap matches refit artifact and stability summaries", {
+  scenarios <- list(
+    list(name = "balanced", n = 48L, p_x = 7L, p_y = 6L,
+         signal = c(5, 3, 1.5), noise_x = 0.8, noise_y = 0.9),
+    list(name = "wide_y_noisy_y", n = 60L, p_x = 5L, p_y = 11L,
+         signal = c(4, 2.7), noise_x = 0.7, noise_y = 1.8)
+  )
+
+  adapter <- adapter_cross_svd()
+  recipe <- infer_recipe(
+    geometry = "cross", relation = "covariance",
+    adapter = adapter, strict = TRUE
+  )
+
+  for (i in seq_along(scenarios)) {
+    sc <- scenarios[[i]]
+    set.seed(100 + i)
+    dat <- make_cross_bootstrap_fixture(
+      n = sc$n, p_x = sc$p_x, p_y = sc$p_y,
+      signal = sc$signal, noise_x = sc$noise_x, noise_y = sc$noise_y
+    )
+
+    original_fit <- adapter$refit(
+      NULL, list(X = dat$X, Y = dat$Y, relation = "covariance")
+    )
+    units <- form_units(adapter$roots(original_fit))
+
+    fast <- bootstrap_fits(
+      recipe = recipe, adapter = adapter,
+      data = list(X = dat$X, Y = dat$Y),
+      original_fit = original_fit, units = units,
+      R = 8L, method_align = "sign", seed = 700L + i,
+      fast_path = "auto", core_rank = NULL
+    )
+    slow <- bootstrap_fits(
+      recipe = recipe, adapter = adapter,
+      data = list(X = dat$X, Y = dat$Y),
+      original_fit = original_fit, units = units,
+      R = 8L, method_align = "sign", seed = 700L + i,
+      fast_path = "off", core_rank = NULL
+    )
+
+    expect_true(isTRUE(fast$used_fast_path), info = sc$name)
+    expect_false(isTRUE(slow$used_fast_path), info = sc$name)
+
+    for (b in seq_len(fast$R)) {
+      rep_fast <- fast$reps[[b]]
+      rep_slow <- slow$reps[[b]]
+
+      expect_equal(rep_fast$resample_indices, rep_slow$resample_indices,
+                   info = sprintf("%s rep %d indices", sc$name, b))
+      expect_equal(rep_fast$fit$d, rep_slow$fit$d, tolerance = 1e-10,
+                   info = sprintf("%s rep %d singular values", sc$name, b))
+      expect_equal(rep_fast$fit$center_x, rep_slow$fit$center_x, tolerance = 1e-10,
+                   info = sprintf("%s rep %d center_x", sc$name, b))
+      expect_equal(rep_fast$fit$center_y, rep_slow$fit$center_y, tolerance = 1e-10,
+                   info = sprintf("%s rep %d center_y", sc$name, b))
+
+      recon_fast <- rep_fast$fit$Wx %*% diag(rep_fast$fit$d, nrow = length(rep_fast$fit$d)) %*%
+        t(rep_fast$fit$Wy)
+      recon_slow <- rep_slow$fit$Wx %*% diag(rep_slow$fit$d, nrow = length(rep_slow$fit$d)) %*%
+        t(rep_slow$fit$Wy)
+      expect_equal(recon_fast, recon_slow, tolerance = 1e-10,
+                   info = sprintf("%s rep %d reconstructed cross operator", sc$name, b))
+
+      expect_equal(rep_fast$aligned_loadings$X, rep_slow$aligned_loadings$X, tolerance = 1e-10,
+                   info = sprintf("%s rep %d aligned X loadings", sc$name, b))
+      expect_equal(rep_fast$aligned_loadings$Y, rep_slow$aligned_loadings$Y, tolerance = 1e-10,
+                   info = sprintf("%s rep %d aligned Y loadings", sc$name, b))
+      expect_equal(rep_fast$aligned_scores$X, rep_slow$aligned_scores$X, tolerance = 1e-10,
+                   info = sprintf("%s rep %d aligned X scores", sc$name, b))
+      expect_equal(rep_fast$aligned_scores$Y, rep_slow$aligned_scores$Y, tolerance = 1e-10,
+                   info = sprintf("%s rep %d aligned Y scores", sc$name, b))
+    }
+
+    var_fast <- variable_stability_from_bootstrap(fast, units)
+    var_slow <- variable_stability_from_bootstrap(slow, units)
+    expect_equal(var_fast, var_slow, tolerance = 1e-10,
+                 info = sprintf("%s variable stability", sc$name))
+
+    score_fast <- score_stability_from_bootstrap(fast, dat, units)
+    score_slow <- score_stability_from_bootstrap(slow, dat, units)
+    expect_equal(score_fast, score_slow, tolerance = 1e-10,
+                 info = sprintf("%s score stability", sc$name))
+
+    sub_fast <- subspace_stability_from_bootstrap(fast, original_fit, adapter, units)
+    sub_slow <- subspace_stability_from_bootstrap(slow, original_fit, adapter, units)
+    expect_equal(sub_fast, sub_slow, tolerance = 1e-10,
+                 info = sprintf("%s subspace stability", sc$name))
+  }
 })
 
 test_that("bootstrap_fits falls back to refit for cross correlation", {
