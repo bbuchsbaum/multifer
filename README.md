@@ -12,6 +12,19 @@ The package is built around three ideas:
 - explicit null actions matched to the inferential target,
 - strict validity contracts rather than silent guessing.
 
+The package is unified at the level of its inferential scaffold:
+
+- ordered latent objects,
+- sequential removal of previously claimed structure,
+- design-matched null actions,
+- stop-at-first-non-rejection testing,
+- latent-unit stability summaries.
+
+Direct latent-root methods such as PCA, PLSC, CCA, and later `geneig` engines
+fit that scaffold directly. Supervised stagewise methods such as PLS regression
+can still belong in the framework, but may require a different inner target,
+such as predictive increments rather than a literal `X^T Y` root test.
+
 ## Current scope
 
 `multifer` is farther along as a core inference engine than as a polished

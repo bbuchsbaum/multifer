@@ -34,6 +34,32 @@ So the right framing is:
 - the **package** implements that object faithfully,
 - and the package also provides the broader user interface and roadmap around it.
 
+## Cohesion doctrine
+
+`multifer` should be unified at the level of its inferential scaffold, not by
+pretending every multivariate method is the same root test.
+
+The scaffold is:
+
+- ordered latent objects,
+- sequential removal of previously claimed structure,
+- null actions matched to design and inferential target,
+- stop-at-first-non-rejection testing,
+- latent-unit stability summaries.
+
+For direct latent-root models, this shared scaffold also supports a shared
+ordered-root target:
+
+- PCA,
+- PLSC,
+- CCA with the right validity machinery,
+- later symmetric-definite `geneig` engines.
+
+For supervised stagewise methods, the scaffold remains shared but the target may
+change. PLS regression is the clearest example: it belongs in the framework, but
+its inferential target should be successive predictive increments rather than a
+literal reuse of an `X^T Y` root statistic.
+
 ## Recommended positioning
 
 `multifer` should be presented as:

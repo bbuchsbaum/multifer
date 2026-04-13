@@ -6,7 +6,7 @@
 
 **Companion note:** For the intended methods-paper framing and the precise theoretical boundary between direct SVD/eigen latent-root extensions and later supervised / generalized-eigen engines, see [paper1_rank_matched_residual_randomization.md](./paper1_rank_matched_residual_randomization.md).
 
-**Scope shift (from Part 2).** The project is no longer "improve Vitale's PCA permutation test." It is: **turn sequential deflated permutation inference into a general deflated operator inference framework** covering PCA, PLS, CCA, and multi-block decompositions, with one shared resampling engine.
+**Scope shift (from Part 2).** The project is no longer "improve Vitale's PCA permutation test." It is: **turn sequential deflated permutation inference into a general latent-operator inference framework** covering PCA, PLSC, CCA, and later multi-block / generalized-eigen settings, with one shared inferential scaffold and method-specific latent targets where needed.
 
 **Product shift (from Part 3).** The framework crystallizes into a concrete package: **`multifer`** — a shape-first inference layer built on top of `multivarious`'s projector geometry. Working name during design was "ShapeInfer"; final package name is **multifer**. Tagline: *projector-native perturbation inference for latent operator models.*
 
@@ -177,6 +177,15 @@ H_a : \text{no $a$-th latent root beyond the first } a-1.
 $$
 Stop at the first non-rejection (same logic as §4 — automatic overall Type-I control).
 
+**Package doctrine.** The scaffold is shared across methods:
+- ordered latent objects,
+- sequential removal of previously claimed structure,
+- null actions matched to design and inferential target,
+- stop-at-first-non-rejection testing,
+- latent-unit stability summaries.
+
+What may change across methods is the **inner target**. PCA, PLSC, CCA, and symmetric-definite generalized-eigen models fit the direct ordered-root story. Supervised methods such as PLS regression may still fit the scaffold, but they should use predictive-increment targets rather than being forced into an `X^T Y` root test.
+
 **Test statistic choices.**
 - **PCA / covariance-type PLS:** Vitale-style **tail-ratio** $T_a$ is natural.
 - **CCA:** test the $a$-th canonical root itself, or a root-based multivariate statistic, **after stepwise removal of previously explained association**.
@@ -224,7 +233,7 @@ $$
 
 ## 10. Cross-fitted sparse / regularized PLS & CCA
 
-**Problem.** Testing an **in-sample** sparse CCA/PLS objective is circular — the objective has already been optimized on the same data.
+**Problem.** Testing an **in-sample** sparse CCA/PLSC objective is circular — the objective has already been optimized on the same data.
 
 **Fix (cross-fitted test).**
 1. Estimate sparse weights on a **training split**.
