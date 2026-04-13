@@ -103,3 +103,76 @@ Rscript tools/procrustes_bias_study.R --n-perm=80 --n-boot=80 --outdir=tools/res
 
 The script is deterministic given its seeds and is meant as a methods
 comparison harness, not a package test.
+
+## Preliminary findings (run1: `n_perm = 40`, `n_boot = 40`)
+
+The first moderate run already shows the qualitative pattern we were
+concerned about.
+
+### Null distortion
+
+Across all scenarios, McIntosh-style rotated singular values differ
+materially from the raw singular values of the permuted cross-operator.
+The average null tail-ratio shift is modest in absolute terms
+(typically on the order of `0.003` to `0.013`), but the componentwise
+root shifts are large and scenario-dependent:
+
+- `lv1_abs_shift_mean` is typically between about `3.5` and `10`
+- `lv2_abs_shift_mean` is of similar size
+- `mixing_mean` is roughly `0.2` to `0.33` across most regimes
+
+This is consistent with the algebra: Procrustes is mixing singular-value
+energy across latent dimensions rather than merely fixing label and sign.
+
+The distortion is strongest in asymmetric shape/noise settings:
+
+- `wide_y_noisy_y`
+- `wide_x_noisy_x`
+- `small_n_wide_near_tied`
+
+That is exactly where alignment angles are expected to be most unstable.
+
+### Bootstrap alignment
+
+The bootstrap comparison is even more revealing.
+
+For several scenarios, Procrustes drives the mean angle to the sample
+reference almost to zero while leaving the angle to the generating truth
+substantial. Examples from the run:
+
+- `balanced_near_tied`, domain `X`
+- `balanced_near_tied`, domain `Y`
+- `small_n_wide_near_tied`, both domains
+- `large_n_balanced`, especially domain `X`
+
+The strongest indicator is the sign/procrustes delta table:
+
+- `delta_reference_angle1` is often around `-0.84` to `-0.99`
+- `delta_reference_angle2` is often around `-0.82` to `-1.08`
+- while `delta_truth_angle*` is small, mixed-sign, and often close to
+  zero in comparison
+
+So Procrustes is frequently making replicates look much closer to the
+sample reference than to the generating axes.
+
+At the same time, `delta_loading_sd` is consistently negative and often
+large in magnitude:
+
+- around `-0.03` in some asymmetric cases
+- around `-0.09` to `-0.17` in many balanced or near-tied cases
+
+This means Procrustes often suppresses axis-level bootstrap variability
+without materially improving truth recovery.
+
+### Practical interpretation
+
+The current evidence supports the following package stance:
+
+- keep Procrustes only for legacy comparison work
+- prefer sign alignment for well-separated axes
+- prefer subspace-level summaries when roots are near-tied
+- do not use Procrustes-rotated root quantities for significance
+
+The next computational step is not “better Procrustes.” It is exact
+core-space weighted resampling for cross-covariance models, paired with
+subspace-aware stability summaries.
