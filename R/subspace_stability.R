@@ -66,35 +66,45 @@ subspace_stability_from_bootstrap <- function(artifact,
     domains
   )
 
-  rows_unit_id  <- character(0)
-  rows_pa_mean  <- numeric(0)
-  rows_pa_max   <- numeric(0)
-  rows_align    <- character(0)
-  rows_label    <- character(0)
+  rows_unit_id  <- character(length(unit_ids))
+  rows_pa_mean  <- numeric(length(unit_ids))
+  rows_pa_max   <- numeric(length(unit_ids))
+  rows_align    <- character(length(unit_ids))
+  rows_label    <- character(length(unit_ids))
+  row_pos <- 1L
 
   for (u in seq_along(unit_ids)) {
     uid         <- unit_ids[u]
     member_cols <- as.integer(members[[u]])
     if (length(member_cols) == 0L) next
 
-    per_rep_mean_all <- numeric(0)
-    per_rep_max_all  <- numeric(0)
+    per_rep_mean_all <- rep(NA_real_, R)
+    per_rep_max_all  <- rep(NA_real_, R)
 
     for (b in seq_len(R)) {
       per_domain_angles <- numeric(0)
       for (d in domains) {
-        Vref <- orig_loadings[[d]][, member_cols, drop = FALSE]
-        Vrep <- reps[[b]]$aligned_loadings[[d]][, member_cols, drop = FALSE]
+        Vrep_all <- reps[[b]]$aligned_loadings[[d]]
+        Vref_all <- orig_loadings[[d]]
+        if (any(member_cols > ncol(Vref_all)) || any(member_cols > ncol(Vrep_all))) {
+          next
+        }
+        Vref <- Vref_all[, member_cols, drop = FALSE]
+        Vrep <- Vrep_all[, member_cols, drop = FALSE]
         ang  <- principal_angles(Vref, Vrep)
         per_domain_angles <- c(per_domain_angles, ang)
       }
-      if (length(per_domain_angles) == 0L) next
-      per_rep_mean_all <- c(per_rep_mean_all, mean(per_domain_angles))
-      per_rep_max_all  <- c(per_rep_max_all,  max(per_domain_angles))
+      if (length(per_domain_angles) == 0L) {
+        next
+      }
+      per_rep_mean_all[b] <- mean(per_domain_angles)
+      per_rep_max_all[b]  <- max(per_domain_angles)
     }
 
-    pa_mean <- if (length(per_rep_mean_all) > 0L) mean(per_rep_mean_all) else NA_real_
-    pa_max  <- if (length(per_rep_max_all)  > 0L) max(per_rep_max_all)   else NA_real_
+    finite_mean <- per_rep_mean_all[is.finite(per_rep_mean_all)]
+    finite_max  <- per_rep_max_all[is.finite(per_rep_max_all)]
+    pa_mean <- if (length(finite_mean) > 0L) mean(finite_mean) else NA_real_
+    pa_max  <- if (length(finite_max)  > 0L) max(finite_max)   else NA_real_
 
     label <- if (is.na(pa_max)) {
       "unknown"
@@ -108,22 +118,28 @@ subspace_stability_from_bootstrap <- function(artifact,
       "stable"
     }
 
-    rows_unit_id <- c(rows_unit_id, uid)
-    rows_pa_mean <- c(rows_pa_mean, pa_mean)
-    rows_pa_max  <- c(rows_pa_max,  pa_max)
+    rows_unit_id[row_pos] <- uid
+    rows_pa_mean[row_pos] <- pa_mean
+    rows_pa_max[row_pos]  <- pa_max
     # alignment_method maps to the schema's allowed set
     align_label <- if (length(member_cols) > 1L) "subspace" else am
     if (align_label == "sign") align_label <- "sign"
     if (align_label == "procrustes") align_label <- "procrustes"
-    rows_align <- c(rows_align, align_label)
-    rows_label <- c(rows_label, label)
+    rows_align[row_pos] <- align_label
+    rows_label[row_pos] <- label
+    row_pos <- row_pos + 1L
   }
 
+  if (row_pos == 1L) {
+    return(infer_subspace_stability())
+  }
+
+  keep <- seq_len(row_pos - 1L)
   infer_subspace_stability(
-    unit_id              = rows_unit_id,
-    principal_angle_mean = rows_pa_mean,
-    principal_angle_max  = rows_pa_max,
-    alignment_method     = rows_align,
-    stability_label      = rows_label
+    unit_id              = rows_unit_id[keep],
+    principal_angle_mean = rows_pa_mean[keep],
+    principal_angle_max  = rows_pa_max[keep],
+    alignment_method     = rows_align[keep],
+    stability_label      = rows_label[keep]
   )
 }

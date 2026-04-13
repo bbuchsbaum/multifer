@@ -70,13 +70,29 @@ score_stability_from_bootstrap <- function(artifact,
     data_by_domain$Y <- sweep(original_data$Y, 2L, colMeans(original_data$Y), "-")
   }
 
-  rows_unit_id     <- character(0)
-  rows_domain      <- character(0)
-  rows_observation <- integer(0)
-  rows_estimate    <- numeric(0)
-  rows_lower       <- numeric(0)
-  rows_upper       <- numeric(0)
-  rows_leverage    <- numeric(0)
+  score_cache <- stats::setNames(vector("list", length(domains)), domains)
+  n_obs_by_domain <- integer(length(domains))
+  names(n_obs_by_domain) <- domains
+
+  for (d in domains) {
+    Xd <- data_by_domain[[d]]
+    n_obs_by_domain[d] <- nrow(Xd)
+    score_cache[[d]] <- vector("list", R)
+    for (b in seq_len(R)) {
+      Lb <- reps[[b]]$aligned_loadings[[d]]
+      score_cache[[d]][[b]] <- Xd %*% Lb
+    }
+  }
+
+  n_rows <- length(unit_ids) * sum(n_obs_by_domain)
+  rows_unit_id     <- character(n_rows)
+  rows_domain      <- character(n_rows)
+  rows_observation <- integer(n_rows)
+  rows_estimate    <- numeric(n_rows)
+  rows_lower       <- numeric(n_rows)
+  rows_upper       <- numeric(n_rows)
+  rows_leverage    <- rep(NA_real_, n_rows)
+  row_pos <- 1L
 
   for (u in seq_along(unit_ids)) {
     uid         <- unit_ids[u]
@@ -84,49 +100,45 @@ score_stability_from_bootstrap <- function(artifact,
     if (length(member_cols) == 0L) next
 
     for (d in domains) {
-      Xd  <- data_by_domain[[d]]
-      n   <- nrow(Xd)
+      n <- n_obs_by_domain[d]
 
       # Per-rep score matrix for this unit, shape n x length(member_cols).
       # We collapse over members via Frobenius norm so subspace units
       # are rotation-invariant.
       rep_norms <- matrix(NA_real_, nrow = n, ncol = R)
       for (b in seq_len(R)) {
-        Lb <- reps[[b]]$aligned_loadings[[d]]
-        if (any(member_cols > ncol(Lb))) next
-        S_b <- Xd %*% Lb[, member_cols, drop = FALSE]
+        S_all <- score_cache[[d]][[b]]
+        if (any(member_cols > ncol(S_all))) next
+        S_b <- S_all[, member_cols, drop = FALSE]
         rep_norms[, b] <- sqrt(rowSums(S_b * S_b))
       }
 
       estimate <- rowMeans(rep_norms, na.rm = TRUE)
-      lower    <- apply(rep_norms, 1L, function(v) {
-        v <- v[is.finite(v)]
-        if (length(v) == 0L) return(NA_real_)
-        as.numeric(stats::quantile(v, quantiles[1L]))
-      })
-      upper    <- apply(rep_norms, 1L, function(v) {
-        v <- v[is.finite(v)]
-        if (length(v) == 0L) return(NA_real_)
-        as.numeric(stats::quantile(v, quantiles[2L]))
-      })
+      interval <- .row_quantile_pair(rep_norms, quantiles)
 
-      rows_unit_id     <- c(rows_unit_id,     rep(uid, n))
-      rows_domain      <- c(rows_domain,      rep(d,   n))
-      rows_observation <- c(rows_observation, seq_len(n))
-      rows_estimate    <- c(rows_estimate,    estimate)
-      rows_lower       <- c(rows_lower,       lower)
-      rows_upper       <- c(rows_upper,       upper)
-      rows_leverage    <- c(rows_leverage,    rep(NA_real_, n))
+      idx <- row_pos:(row_pos + n - 1L)
+      rows_unit_id[idx]     <- uid
+      rows_domain[idx]      <- d
+      rows_observation[idx] <- seq_len(n)
+      rows_estimate[idx]    <- estimate
+      rows_lower[idx]       <- interval$lower
+      rows_upper[idx]       <- interval$upper
+      row_pos <- row_pos + n
     }
   }
 
+  if (row_pos == 1L) {
+    return(infer_score_stability())
+  }
+
+  keep <- seq_len(row_pos - 1L)
   infer_score_stability(
-    unit_id     = rows_unit_id,
-    domain      = rows_domain,
-    observation = rows_observation,
-    estimate    = rows_estimate,
-    lower       = rows_lower,
-    upper       = rows_upper,
-    leverage    = rows_leverage
+    unit_id     = rows_unit_id[keep],
+    domain      = rows_domain[keep],
+    observation = rows_observation[keep],
+    estimate    = rows_estimate[keep],
+    lower       = rows_lower[keep],
+    upper       = rows_upper[keep],
+    leverage    = rows_leverage[keep]
   )
 }

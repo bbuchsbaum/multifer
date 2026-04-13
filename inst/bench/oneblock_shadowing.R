@@ -29,6 +29,9 @@ bench_oneblock_shadowing <- function(n = 200, p = 50,
 
   k <- length(root_profile)
   if (k < 1L) stop("`root_profile` must have length >= 1.", call. = FALSE)
+  if (any(root_profile < 0)) {
+    stop("`root_profile` must be non-negative.", call. = FALSE)
+  }
   if (k > min(n, p)) {
     stop(sprintf(
       "`root_profile` length (%d) exceeds min(n, p) = %d.",
@@ -39,7 +42,8 @@ bench_oneblock_shadowing <- function(n = 200, p = 50,
   U <- .random_orthonormal(n, k)
   V <- .random_orthonormal(p, k)
 
-  signal <- U %*% diag(root_profile, nrow = k, ncol = k) %*% t(V)
+  signal_sdev <- sqrt((n - 1) * root_profile)
+  signal <- U %*% diag(signal_sdev, nrow = k, ncol = k) %*% t(V)
 
   noise_mat <- switch(noise,
     gaussian = matrix(stats::rnorm(n * p), nrow = n, ncol = p),

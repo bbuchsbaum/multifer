@@ -258,6 +258,38 @@ test_that("bootstrap_fits: aligned_scores are consistent with aligned_loadings o
 })
 
 # ---------------------------------------------------------------------------
+# Test 5b: Optional aligned_scores suppression
+# ---------------------------------------------------------------------------
+
+test_that("bootstrap_fits can skip aligned_scores when requested", {
+  clear_adapter_registry()
+
+  set.seed(55)
+  X <- matrix(stats::rnorm(180), 36, 5)
+
+  recipe  <- .make_oneblock_recipe()
+  adapter <- recipe$adapter
+
+  original_fit <- adapter$refit(NULL, X)
+  units        <- form_units(adapter$roots(original_fit))
+
+  result <- bootstrap_fits(
+    recipe       = recipe,
+    adapter      = adapter,
+    data         = X,
+    original_fit = original_fit,
+    units        = units,
+    R            = 6L,
+    seed         = 21L,
+    store_aligned_scores = FALSE
+  )
+
+  expect_length(result$reps, 6L)
+  expect_true(all(vapply(result$reps, function(rep) is.null(rep$aligned_scores), logical(1L))))
+  expect_true(all(vapply(result$reps, function(rep) !is.null(rep$aligned_loadings$X), logical(1L))))
+})
+
+# ---------------------------------------------------------------------------
 # Test 6: Reproducibility under seed
 # ---------------------------------------------------------------------------
 

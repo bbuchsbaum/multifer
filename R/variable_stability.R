@@ -52,11 +52,19 @@ variable_stability_from_bootstrap <- function(artifact, units) {
   members  <- attr(units, "members")
   if (is.null(members)) members <- vector("list", nrow(units))
 
-  rows_unit_id  <- character(0)
-  rows_domain   <- character(0)
-  rows_variable <- character(0)
-  rows_estimate <- numeric(0)
-  rows_stab     <- numeric(0)
+  template_dims <- vapply(
+    domains,
+    function(d) nrow(reps[[1L]]$aligned_loadings[[d]]),
+    integer(1L)
+  )
+  n_rows <- length(unit_ids) * sum(template_dims)
+
+  rows_unit_id  <- character(n_rows)
+  rows_domain   <- character(n_rows)
+  rows_variable <- character(n_rows)
+  rows_estimate <- numeric(n_rows)
+  rows_stab     <- numeric(n_rows)
+  row_pos <- 1L
 
   for (u in seq_along(unit_ids)) {
     uid     <- unit_ids[u]
@@ -71,52 +79,45 @@ variable_stability_from_bootstrap <- function(artifact, units) {
       var_names <- if (!is.null(rownames(first_L))) rownames(first_L)
                    else as.character(seq_len(n_var))
 
-      # Collect the unit's loading SLAB for every replicate:
-      # array of shape (n_var, length(member_cols), R).
-      slab <- array(NA_real_,
-                    dim = c(n_var, length(member_cols), R))
+      rep_norms <- matrix(NA_real_, nrow = n_var, ncol = R)
+      first_member <- matrix(NA_real_, nrow = n_var, ncol = R)
       for (b in seq_len(R)) {
         Lb <- reps[[b]]$aligned_loadings[[d]]
         if (any(member_cols > ncol(Lb))) next
-        slab[, , b] <- Lb[, member_cols, drop = FALSE]
+        unit_loadings <- Lb[, member_cols, drop = FALSE]
+        rep_norms[, b] <- sqrt(rowSums(unit_loadings * unit_loadings))
+        first_member[, b] <- unit_loadings[, 1L]
       }
 
-      # Per-variable stability: pool columns by row Frobenius norm so
-      # tied subspaces are not penalized for in-subspace rotation.
-      # rep_norms[i, b] = sqrt(sum slab[i, , b]^2)
-      rep_norms <- apply(slab, c(1L, 3L), function(v) sqrt(sum(v^2)))
-      # rep_norms is (n_var x R)
-
-      mean_norm <- rowMeans(rep_norms, na.rm = TRUE)
-      sd_norm   <- apply(rep_norms, 1L, function(v) {
-        v <- v[is.finite(v)]
-        if (length(v) < 2L) return(0)
-        stats::sd(v)
-      })
+      stats_norm <- .row_mean_sd(rep_norms)
+      mean_norm <- stats_norm$mean
+      sd_norm   <- stats_norm$sd
       stability <- 1 / (1 + sd_norm / (abs(mean_norm) + eps))
 
-      # estimate: signed mean of the FIRST member column per variable
-      first_col_slab <- slab[, 1L, , drop = TRUE]
-      if (is.null(dim(first_col_slab))) {
-        first_col_slab <- matrix(first_col_slab, nrow = n_var)
-      }
-      estimate <- rowMeans(first_col_slab, na.rm = TRUE)
+      estimate <- rowMeans(first_member, na.rm = TRUE)
 
-      rows_unit_id  <- c(rows_unit_id,  rep(uid, n_var))
-      rows_domain   <- c(rows_domain,   rep(d,   n_var))
-      rows_variable <- c(rows_variable, var_names)
-      rows_estimate <- c(rows_estimate, estimate)
-      rows_stab     <- c(rows_stab,     stability)
+      idx <- row_pos:(row_pos + n_var - 1L)
+      rows_unit_id[idx]  <- uid
+      rows_domain[idx]   <- d
+      rows_variable[idx] <- var_names
+      rows_estimate[idx] <- estimate
+      rows_stab[idx]     <- stability
+      row_pos <- row_pos + n_var
     }
   }
 
-  n <- length(rows_unit_id)
+  if (row_pos == 1L) {
+    return(infer_variable_stability())
+  }
+
+  keep <- seq_len(row_pos - 1L)
+  n <- length(keep)
   infer_variable_stability(
-    unit_id            = rows_unit_id,
-    domain             = rows_domain,
-    variable           = rows_variable,
-    estimate           = rows_estimate,
-    stability          = rows_stab,
+    unit_id            = rows_unit_id[keep],
+    domain             = rows_domain[keep],
+    variable           = rows_variable[keep],
+    estimate           = rows_estimate[keep],
+    stability          = rows_stab[keep],
     selection_freq     = rep(NA_real_, n),
     weight_sensitivity = rep(NA_real_, n)
   )

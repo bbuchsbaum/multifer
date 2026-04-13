@@ -45,6 +45,11 @@
 #' @param fast_path One of `"auto"`, `"off"`. `"auto"` uses the
 #'   adapter's core()/update_core() hooks when available; `"off"`
 #'   forces the refit path.
+#' @param store_aligned_scores Logical. When `TRUE` (default), compute
+#'   and store aligned replicate scores in each bootstrap replicate.
+#'   When `FALSE`, skip score extraction/alignment and store
+#'   `aligned_scores = NULL`. This is safe when downstream consumers
+#'   only need aligned loadings.
 #' @param core_rank Positive integer cap on the core rank used by the
 #'   fast path, or NULL to leave the full thin SVD untruncated.
 #'   Truncation is the knob that converts the §30 thin-SVD cache into
@@ -78,6 +83,7 @@ bootstrap_fits <- function(recipe,
                            seed = NULL,
                            parallel = c("sequential", "mirai", "auto"),
                            fast_path = c("auto", "off"),
+                           store_aligned_scores = TRUE,
                            core_rank = 50L) {
 
   ## --- input validation -------------------------------------------------------
@@ -97,6 +103,10 @@ bootstrap_fits <- function(recipe,
   method_align <- match.arg(method_align)
   parallel     <- match.arg(parallel)
   fast_path    <- match.arg(fast_path)
+  if (!is.logical(store_aligned_scores) || length(store_aligned_scores) != 1L ||
+      is.na(store_aligned_scores)) {
+    stop("`store_aligned_scores` must be TRUE or FALSE.", call. = FALSE)
+  }
   if (!is.null(core_rank)) {
     if (!is.numeric(core_rank) || length(core_rank) != 1L ||
         is.na(core_rank) || core_rank < 1L ||
@@ -251,32 +261,42 @@ bootstrap_fits <- function(recipe,
     }
 
     rep_aligned_loadings <- stats::setNames(vector("list", length(domains)), domains)
-    rep_aligned_scores   <- stats::setNames(vector("list", length(domains)), domains)
+    rep_aligned_scores   <- if (store_aligned_scores) {
+      stats::setNames(vector("list", length(domains)), domains)
+    } else {
+      NULL
+    }
 
     for (d in domains) {
       Vref <- orig_loadings[[d]]
       Vb   <- adapter$loadings(rep_fit, d)
-      Sb   <- adapter$scores(rep_fit, d)
+      Sb   <- if (store_aligned_scores) adapter$scores(rep_fit, d) else NULL
 
       perm    <- .fn_match_components(Vref, Vb)
       Vb_perm <- Vb[, perm, drop = FALSE]
-      Sb_perm <- Sb[, perm, drop = FALSE]
+      Sb_perm <- if (store_aligned_scores) Sb[, perm, drop = FALSE] else NULL
 
       if (method_align == "sign") {
         signs       <- sign(base::colSums(Vref * Vb_perm))
         signs[signs == 0L] <- 1L
         aligned_L   <- base::sweep(Vb_perm, 2L, signs, `*`)
-        aligned_S   <- base::sweep(Sb_perm, 2L, signs, `*`)
+        aligned_S   <- if (store_aligned_scores) {
+          base::sweep(Sb_perm, 2L, signs, `*`)
+        } else {
+          NULL
+        }
       } else {
         M  <- base::crossprod(Vref, Vb_perm)
         sv <- base::svd(M)
         Q  <- sv$v %*% t(sv$u)
         aligned_L <- Vb_perm %*% Q
-        aligned_S <- Sb_perm %*% Q
+        aligned_S <- if (store_aligned_scores) Sb_perm %*% Q else NULL
       }
 
       rep_aligned_loadings[[d]] <- aligned_L
-      rep_aligned_scores[[d]]   <- aligned_S
+      if (store_aligned_scores) {
+        rep_aligned_scores[[d]] <- aligned_S
+      }
     }
 
     list(

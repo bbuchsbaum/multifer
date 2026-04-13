@@ -53,6 +53,31 @@ test_that("subspace_stability handles cross geometry across two domains", {
                   is.na(tbl$principal_angle_mean)))
 })
 
+test_that("subspace_stability marks units beyond a truncated fit rank unknown", {
+  skip_if_not_installed("multivarious")
+  ensure_default_adapters()
+
+  set.seed(604)
+  X <- matrix(rnorm(40 * 6), 40, 6)
+  rec <- infer_recipe(geometry = "oneblock", relation = "variance",
+                      adapter = "multivarious_pca")
+  adapter <- get_infer_adapter("multivarious_pca")
+  fit <- multivarious::pca(X, ncomp = 5)
+  units <- infer_units(
+    unit_id = sprintf("u%d", 1:6),
+    unit_type = rep("component", 6),
+    members = lapply(1:6, function(i) as.integer(i)),
+    identifiable = rep(TRUE, 6),
+    selected = rep(FALSE, 6)
+  )
+  art <- bootstrap_fits(rec, adapter, X, fit, units, R = 4, seed = 13)
+  tbl <- subspace_stability_from_bootstrap(art, fit, adapter, units)
+
+  expect_true(is.na(tbl$principal_angle_mean[tbl$unit_id == "u6"]))
+  expect_true(is.na(tbl$principal_angle_max[tbl$unit_id == "u6"]))
+  expect_equal(tbl$stability_label[tbl$unit_id == "u6"], "unknown")
+})
+
 test_that("subspace_stability rejects malformed inputs", {
   expect_error(subspace_stability_from_bootstrap("nope", NULL, NULL,
                                                   form_units(c(1))),

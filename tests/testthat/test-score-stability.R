@@ -56,6 +56,27 @@ test_that("score_stability_from_bootstrap handles cross with both domains", {
   expect_setequal(unique(tbl$domain), c("X", "Y"))
 })
 
+test_that("score_stability_from_bootstrap does not require stored aligned_scores", {
+  ensure_default_adapters()
+  set.seed(504)
+  X <- matrix(rnorm(200), 40, 5)
+  rec <- infer_recipe(geometry = "oneblock", relation = "variance",
+                      adapter = "prcomp_oneblock")
+  adapter <- get_infer_adapter("prcomp_oneblock")
+  fit <- adapter$refit(NULL, X)
+  units <- form_units(adapter$roots(fit))
+
+  art_full <- bootstrap_fits(rec, adapter, X, fit, units,
+                             R = 8, seed = 17, store_aligned_scores = TRUE)
+  art_light <- bootstrap_fits(rec, adapter, X, fit, units,
+                              R = 8, seed = 17, store_aligned_scores = FALSE)
+
+  tbl_full <- score_stability_from_bootstrap(art_full, X, units)
+  tbl_light <- score_stability_from_bootstrap(art_light, X, units)
+
+  expect_equal(tbl_light, tbl_full, tolerance = 1e-12)
+})
+
 test_that("score_stability rejects malformed inputs", {
   expect_error(score_stability_from_bootstrap("nope", matrix(0, 2, 2),
                                               form_units(c(1))),

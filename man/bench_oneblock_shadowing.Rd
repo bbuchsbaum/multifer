@@ -38,7 +38,9 @@ This is the primary stress test for deflation: the weakest components
 (lowest entries in \code{root_profile}) are the "shadowed" targets.
 }
 \details{
-Data construction: \verb{X = U diag(root_profile) V^T + noise_matrix}
+Data construction: \verb{X = U diag(sqrt((n - 1) * root_profile)) V^T + noise_matrix}
 where \code{U} is a random orthonormal \verb{n x k} matrix, \code{V} is a random
-orthonormal \verb{p x k} matrix, and \code{k = length(root_profile)}.
+orthonormal \verb{p x k} matrix, and \code{k = length(root_profile)}. This puts
+\code{root_profile} on the variance scale used by the one-block adapters
+(\code{prcomp}/\code{svd} roots), rather than on the raw singular-value scale.
 }

@@ -231,7 +231,8 @@ infer <- function(adapter,
       method_align = "sign",
       seed         = seed,
       parallel     = parallel,
-      fast_path    = fast_path
+      fast_path    = fast_path,
+      store_aligned_scores = FALSE
     )
 
     if ("variable_stability" %in% resolved_targets) {
