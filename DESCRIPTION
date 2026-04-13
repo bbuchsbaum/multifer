@@ -19,10 +19,10 @@ RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1)
 Imports:
-    digest
+    digest,
+    mirai
 Suggests:
     multivarious,
-    mirai,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 URL: https://github.com/bbuchsbaum/multifer

@@ -12,7 +12,8 @@ bootstrap_fits(
   units,
   R = 500L,
   method_align = c("sign", "procrustes"),
-  seed = NULL
+  seed = NULL,
+  parallel = c("sequential", "mirai", "auto")
 )
 }
 \arguments{

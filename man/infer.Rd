@@ -20,7 +20,8 @@ infer(
   R = 500L,
   alpha = 0.05,
   model = NULL,
-  seed = NULL
+  seed = NULL,
+  parallel = c("sequential", "mirai", "auto")
 )
 }
 \arguments{

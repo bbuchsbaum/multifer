@@ -64,7 +64,8 @@ bootstrap_fits <- function(recipe,
                            units,
                            R = 500L,
                            method_align = c("sign", "procrustes"),
-                           seed = NULL) {
+                           seed = NULL,
+                           parallel = c("sequential", "mirai", "auto")) {
 
   ## --- input validation -------------------------------------------------------
 
@@ -81,6 +82,7 @@ bootstrap_fits <- function(recipe,
   R <- as.integer(R)
 
   method_align <- match.arg(method_align)
+  parallel     <- match.arg(parallel)
 
   if (!is.null(seed)) {
     if (!is.numeric(seed) || length(seed) != 1L || is.na(seed)) {
@@ -169,28 +171,30 @@ bootstrap_fits <- function(recipe,
     set.seed(seed)
   }
 
-  ## --- bootstrap loop ---------------------------------------------------------
+  ## --- per-replicate closure --------------------------------------------------
+  # Pure function: takes one replicate index and returns the full per-rep
+  # artifact. Everything it reads is captured by value in the enclosing
+  # bootstrap_fits() frame; everything it writes lives in the returned list.
+  # This is the mirai-serializable fan-out unit.
+  #
+  # Bind all package helpers that the closure calls as locals so they live
+  # in the function frame (= closure's enclosing env) and get serialized
+  # with the task. Without this, mirai workers that do not have multifer
+  # attached to their search path cannot resolve bare-name references.
+  .fn_match_components <- match_components
 
-  reps <- vector("list", R)
-
-  for (b in seq_len(R)) {
-
-    ## -- resample ------------------------------------------------------------
-
+  rep_fn <- function(b) {
     indices <- base::sample.int(n, n, replace = TRUE)
 
-    if (geom_kind == "oneblock") {
-      rep_data <- data[indices, , drop = FALSE]
+    rep_data <- if (geom_kind == "oneblock") {
+      data[indices, , drop = FALSE]
     } else {
-      # Paired row bootstrap: SAME indices applied to both X and Y.
-      rep_data <- list(
+      list(
         X        = data$X[indices, , drop = FALSE],
         Y        = data$Y[indices, , drop = FALSE],
         relation = rel_kind
       )
     }
-
-    ## -- refit (slow path) or core-update (fast path) ------------------------
 
     rep_fit <- if (has_fast_path) {
       adapter$update_core(core_obj, indices = indices)
@@ -198,41 +202,27 @@ bootstrap_fits <- function(recipe,
       adapter$refit(original_fit, rep_data)
     }
 
-    ## -- align loadings and scores per domain --------------------------------
-
-    rep_aligned_loadings <- vector("list", length(domains))
-    names(rep_aligned_loadings) <- domains
-
-    rep_aligned_scores <- vector("list", length(domains))
-    names(rep_aligned_scores) <- domains
+    rep_aligned_loadings <- stats::setNames(vector("list", length(domains)), domains)
+    rep_aligned_scores   <- stats::setNames(vector("list", length(domains)), domains)
 
     for (d in domains) {
       Vref <- orig_loadings[[d]]
       Vb   <- adapter$loadings(rep_fit, d)
       Sb   <- adapter$scores(rep_fit, d)
 
-      ## Step 1: column permutation
-      perm    <- match_components(Vref, Vb)
+      perm    <- .fn_match_components(Vref, Vb)
       Vb_perm <- Vb[, perm, drop = FALSE]
       Sb_perm <- Sb[, perm, drop = FALSE]
 
       if (method_align == "sign") {
-        ## Step 2a: sign flips
-        ## signs[j] = sign of diag(t(Vref) %*% Vb_perm)[j]
-        ## Use colSums(Vref * Vb_perm) as the cheap diagonal equivalent.
         signs       <- sign(base::colSums(Vref * Vb_perm))
         signs[signs == 0L] <- 1L
-
         aligned_L   <- base::sweep(Vb_perm, 2L, signs, `*`)
         aligned_S   <- base::sweep(Sb_perm, 2L, signs, `*`)
-
       } else {
-        ## Step 2b: Procrustes orthogonal rotation
-        ## M = t(Vref) %*% Vb_perm; svd(M) = U D V^t; Q = V %*% t(U)
-        M         <- base::crossprod(Vref, Vb_perm)
-        sv        <- svd(M)
-        Q         <- sv$v %*% t(sv$u)
-
+        M  <- base::crossprod(Vref, Vb_perm)
+        sv <- base::svd(M)
+        Q  <- sv$v %*% t(sv$u)
         aligned_L <- Vb_perm %*% Q
         aligned_S <- Sb_perm %*% Q
       }
@@ -241,11 +231,31 @@ bootstrap_fits <- function(recipe,
       rep_aligned_scores[[d]]   <- aligned_S
     }
 
-    reps[[b]] <- list(
+    list(
       fit               = rep_fit,
       aligned_loadings  = rep_aligned_loadings,
       aligned_scores    = rep_aligned_scores,
       resample_indices  = indices
+    )
+  }
+
+  ## --- dispatch: sequential (legacy single-stream) or parallel (per-rep seed) ---
+
+  reps <- if (parallel == "sequential") {
+    # Single-stream RNG loop: exactly the Phase 1 behavior. Every reproducibility
+    # test that hard-codes replicate indices relies on this stream ordering.
+    out <- vector("list", R)
+    for (b in seq_len(R)) out[[b]] <- rep_fn(b)
+    out
+  } else {
+    # Parallel path: each task gets a deterministic per-rep seed so results
+    # are reproducible within the same backend for a given master seed.
+    task_seeds <- multifer_task_seeds(R, master_seed = seed)
+    multifer_parallel_lapply(
+      X       = seq_len(R),
+      FUN     = rep_fn,
+      seeds   = task_seeds,
+      backend = parallel
     )
   }
 
@@ -258,7 +268,8 @@ bootstrap_fits <- function(recipe,
       method_align   = method_align,
       domains        = domains,
       seed           = seed,
-      used_fast_path = has_fast_path
+      used_fast_path = has_fast_path,
+      parallel       = parallel
     ),
     class = "multifer_bootstrap_artifact"
   )

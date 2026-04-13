@@ -56,15 +56,17 @@ infer <- function(adapter,
                   design   = NULL,
                   targets  = "default",
                   strict   = TRUE,
-                  B            = 1000L,
-                  B_total      = NULL,
+                  B             = 1000L,
+                  B_total       = NULL,
                   mc_batch_size = 32L,
-                  R            = 500L,
-                  alpha        = 0.05,
-                  model        = NULL,
-                  seed         = NULL) {
+                  R             = 500L,
+                  alpha         = 0.05,
+                  model         = NULL,
+                  seed          = NULL,
+                  parallel      = c("sequential", "mirai", "auto")) {
 
   call <- match.call()
+  parallel <- match.arg(parallel)
   t_start_total <- proc.time()[["elapsed"]]
 
   ## --- reset thin-SVD cache for this call ------------------------------------
@@ -214,7 +216,8 @@ infer <- function(adapter,
       units        = units,
       R            = R,
       method_align = "sign",
-      seed         = seed
+      seed         = seed,
+      parallel     = parallel
     )
 
     if ("variable_stability" %in% resolved_targets) {
