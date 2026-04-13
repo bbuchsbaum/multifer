@@ -129,6 +129,51 @@ test_that("infer() populates result$assumptions$checked with passed records on c
                          logical(1L))))
 })
 
+test_that("oneblock adapter check fires when a column has zero variance", {
+  adapter <- adapter_svd()
+  X <- matrix(rnorm(40), 10, 4)
+  X[, 2L] <- 1.0  # constant column, zero variance
+  expect_error(
+    run_adapter_checks(adapter, X, strict = TRUE),
+    "non-zero sample variance"
+  )
+})
+
+test_that("cross adapter check fires on zero-variance column", {
+  adapter <- adapter_cross_svd()
+  X <- matrix(rnorm(60), 15, 4)
+  Y <- matrix(rnorm(45), 15, 3)
+  Y[, 1L] <- 3.14  # constant column
+  expect_error(
+    run_adapter_checks(adapter, list(X = X, Y = Y), strict = TRUE),
+    "non-zero sample variance"
+  )
+})
+
+test_that("cross adapter check fires on collinear columns (rank deficiency)", {
+  adapter <- adapter_cross_svd()
+  set.seed(17L)
+  X <- matrix(rnorm(60), 15, 4)
+  X[, 4L] <- 2 * X[, 1L] + 0.5 * X[, 2L]  # exact linear combination
+  Y <- matrix(rnorm(45), 15, 3)
+  expect_error(
+    run_adapter_checks(adapter, list(X = X, Y = Y), strict = TRUE),
+    "full numerical column rank"
+  )
+})
+
+test_that("cross adapter permissive mode records rank-deficiency violation without erroring", {
+  adapter <- adapter_cross_svd()
+  set.seed(19L)
+  X <- matrix(rnorm(60), 15, 4)
+  X[, 4L] <- 2 * X[, 1L] + 0.5 * X[, 2L]
+  Y <- matrix(rnorm(45), 15, 3)
+  results <- run_adapter_checks(adapter, list(X = X, Y = Y), strict = FALSE)
+  rank_result <- results[["cross_blocks_full_column_rank"]]
+  expect_false(isTRUE(rank_result$passed))
+  expect_match(rank_result$detail, "full numerical column rank")
+})
+
 test_that("infer() cross-covariance runs paired-row + finite + min-dim checks end-to-end", {
   ensure_default_adapters()
   set.seed(2)

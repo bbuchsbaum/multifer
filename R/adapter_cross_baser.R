@@ -445,6 +445,42 @@ adapter_cancor <- function(adapter_id = "cancor_cross",
         nrow(data$X) >= 2L &&
           ncol(data$X) >= 1L && ncol(data$Y) >= 1L
       }
+    ),
+    list(
+      name   = "cross_columns_have_variance",
+      detail = "every column of cross blocks `X` and `Y` must have non-zero sample variance",
+      check  = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+        if (!all(is.finite(data$X)) || !all(is.finite(data$Y))) return(TRUE)
+        if (nrow(data$X) < 2L || nrow(data$Y) < 2L) return(TRUE)
+        vx <- apply(data$X, 2L, stats::var)
+        vy <- apply(data$Y, 2L, stats::var)
+        all(vx > 0) && all(vy > 0)
+      }
+    ),
+    list(
+      name   = "cross_blocks_full_column_rank",
+      detail = paste0(
+        "centered cross blocks `X` and `Y` must have full numerical column rank ",
+        "(collinear or duplicated columns break the canonical-correlation whitening)"
+      ),
+      check  = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+        if (!all(is.finite(data$X)) || !all(is.finite(data$Y))) return(TRUE)
+        if (nrow(data$X) < 2L || nrow(data$Y) < 2L) return(TRUE)
+        # Center then check rank via QR. Use a generous tolerance relative
+        # to the block magnitudes so mild near-collinearity (common in
+        # standardized biomedical data) does not fire the check.
+        Xc <- sweep(data$X, 2L, colMeans(data$X), "-")
+        Yc <- sweep(data$Y, 2L, colMeans(data$Y), "-")
+        tol_x <- max(1, max(abs(Xc))) * sqrt(.Machine$double.eps)
+        tol_y <- max(1, max(abs(Yc))) * sqrt(.Machine$double.eps)
+        rx <- qr(Xc, tol = tol_x)$rank
+        ry <- qr(Yc, tol = tol_y)$rank
+        rx == ncol(Xc) && ry == ncol(Yc)
+      }
     )
   )
 }

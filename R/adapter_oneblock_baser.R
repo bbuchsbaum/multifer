@@ -297,6 +297,17 @@ adapter_prcomp <- function(adapter_id = "prcomp_oneblock",
         if (!is.matrix(data)) return(TRUE)
         nrow(data) >= 2L && ncol(data) >= 2L
       }
+    ),
+    list(
+      name   = "oneblock_columns_have_variance",
+      detail = "every column of oneblock `data` must have non-zero sample variance",
+      check  = function(data, ...) {
+        if (!is.matrix(data) || !is.numeric(data)) return(TRUE)
+        if (!all(is.finite(data))) return(TRUE)
+        if (nrow(data) < 2L || ncol(data) < 1L) return(TRUE)
+        col_var <- apply(data, 2L, stats::var)
+        all(col_var > 0)
+      }
     )
   )
 }
