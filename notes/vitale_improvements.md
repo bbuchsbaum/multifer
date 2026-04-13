@@ -1054,10 +1054,38 @@ Phase 1 in §22.17 is still too large. Insert **Phase 0** explicitly:
 - ~140 new test_that blocks across Phase 1 modules; `R CMD check → Status: OK` (0 errors / 0 warnings / 0 notes).
 - Tracked in `bd` as epic `multifer-kxn` with children `kxn.1` … `kxn.16` (all closed).
 
-### Phase 1.5 — fast path
+### Phase 1.5 — fast path  **[COMPLETE — 2026-04-13]**
 - `core()` / `update_core()` for `oneblock` and `cross`.
 - Sequential Monte Carlo stopping as **global budget allocator** (§28).
 - Caching, parallel execution (`mirai` default from §30).
+
+**Delivered (Phase 1.5):**
+- `R/linear_operator.R` — minimum operator surface (`apply`, `apply_t`, `dim`, optional `gram` and `core_update`). Dense reference wrapper via `as_linear_operator.matrix()`. (§30 rank 1.)
+- `R/thin_svd_cache.R` — per-call xxhash64-keyed cache with `cached_svd()`, `svd_cache_new()` / `_reset()` / `_hits()` / `_rate()`. `infer()` resets the package-default cache at every call and reports the hit rate through `result$cost$cache_hits`.
+- `R/adapter_oneblock_baser.R` — `adapter_svd()` and `adapter_prcomp()` now expose `core()` and `update_core()` via the Fisher-style `(U[idx] - 1·ū^T)·diag(d)·V^T` identity. Inner SVD is n × k; return shape matches `refit()`.
+- `R/adapter_cross_baser.R` — `adapter_cross_svd()` (covariance branch only) exposes `core()`/`update_core()` via `X[idx]^T Y[idx] = V_x M V_y^T` with `M = D_x (U_x[idx]^T U_y[idx]) D_y`. Correlation branch falls back to `refit` (per-replicate QR rescaling does not admit a clean k × k update).
+- `R/mc_sequential.R` — `mc_sequential_bc()` implements classical Besag-Clifford early non-rejection on the fixed-B Phipson-Smyth primitive. Default `h = ceiling(α·(B_max+1))`.
+- `R/budget_allocator.R` — `mc_budget_allocator()` state machine: global `B_total`, optional `per_rung_cap`, rolling pool that accumulates unused budget across rungs. Exposed via `checkout() / record_use() / remaining_fn() / used_fn()`.
+- `R/ladder.R` — `ladder_driver()` now builds an allocator and drives each rung through `mc_sequential_bc()` instead of `mc_p_value()`. Returns `allocator`, `total_draws_used`, `batch_schedule`, `stopping_boundary`.
+- `R/parallel.R` — `multifer_parallel_init()` (lazy idempotent daemon pool), `multifer_parallel_shutdown()`, `multifer_task_seeds()` (deterministic per-task seed generator that preserves the caller's RNG stream), `multifer_parallel_lapply()` with `backend = c("auto", "mirai", "sequential")`.
+- `R/bootstrap.R` — per-replicate body refactored into a pure closure `rep_fn()` that the parallel backend fans out. New knobs: `parallel`, `fast_path`, `core_rank = 50L`. `core_rank` is the truncation cap that converts the thin-SVD cache into wall-clock wins; without it the inner n × k SVD matches the refit cost.
+- `R/infer.R` — consolidated knobs: `B`, `B_total`, `mc_batch_size`, `parallel`, `fast_path`. Populates `result$cost` fully (`full_data_ops`, `core_updates`, `mc_budget_spent`, `cache_hits`, `wall_time_phases`) and `result$mc` fully from the allocator output (`stopping_boundary`, `batch_schedule`, `stop_iteration`, `total_draws_used`, `exceedance_counts`).
+- `DESCRIPTION` — `digest` and `mirai` promoted to `Imports`.
+- `tests/testthat/test-integration-phase15.R` — decision-agreement tests across all four Phase 0 bench suites comparing `fast_path = "off"` vs `"auto"`. Plus Wave-specific tests: `test-linear-operator.R`, `test-thin-svd-cache.R`, `test-core-update-oneblock.R`, `test-core-update-cross.R`, `test-mc-sequential.R`, `test-budget-allocator.R`, `test-parallel-bootstrap.R`.
+- Full test suite: 1146 passing, 0 failures. `R CMD check → Status: OK` (0 errors / 0 warnings; only the system-time note remains).
+
+**§40 benchmark status (measured on the reference machine, 2026-04-13):**
+
+| Suite                                   | Refit | Fast  | Speedup |
+|-----------------------------------------|-------|-------|---------|
+| oneblock medium (n=300, p=80)           | 0.86s | 0.80s | 1.08×   |
+| oneblock large  (n=500, p=300)          | 10.60s| 4.22s | 2.51×   |
+| cross cov medium (n=300, p=50, q=40)    | 0.55s | 0.61s | 0.92×   |
+| cross cov large  (n=500, p=250, q=200)  | 7.82s | 2.86s | 2.73×   |
+
+The core-update mechanism is correct (decision agreement verified on all four Phase 0 bench suites) and the large-scale cases already realize a real speedup, but the §40 hard targets (≥ 5× medium, ≥ 10× large) are **not yet met** and remain follow-up work. The dominant remaining overhead is in the alignment / original-fit / ladder shared path rather than in `update_core()` itself. Investigation suggests tighter `core_rank` defaults, in-place updates in the alignment loop, and potentially a partial randomized SVD (`§30 rank 5`) in the ladder path as the next optimizations.
+
+- Tracked in `bd` as epic `multifer-3c0`.
 
 ### Phase 2 — scope expansion
 - `multiblock` shape.
