@@ -23,9 +23,9 @@ end-user package. The current implementation is strongest for:
 
 Current limitations are deliberate:
 
-- cross correlation / CCA supports multi-root testing only for the plain
-  paired-row, no-nuisance design; nuisance-adjusted correlation problems remain
-  conservative,
+- cross correlation / CCA supports multi-root testing for the plain paired-row
+  design and for common-`Z` nuisance-adjusted designs; more structured designs
+  remain conservative,
 - `multiblock` and `geneig` are part of the architecture but not yet shipped as
   complete inference engines,
 - variable significance is deferred; current variable-level output is stability,
@@ -114,9 +114,9 @@ res <- infer(
 res$component_tests
 ```
 
-For correlation-mode cross problems, the strongest current path is the plain
-paired-row design with no nuisance adjustment. More complex correlation-mode
-designs are still conservative.
+For correlation-mode cross problems, the strongest current paths are the plain
+paired-row design and the common-`Z` nuisance-adjusted design. More structured
+correlation-mode designs are still conservative.
 
 ## Built-in adapters
 
@@ -180,13 +180,14 @@ Current Phase 1 core:
 
 - oneblock significance and stability
 - cross covariance significance and stability
-- correlation-mode multi-root inference for plain paired rows
+- correlation-mode multi-root inference for paired rows and common-`Z`
+  nuisance-adjusted designs
 - sequential Monte Carlo ladder infrastructure
 - partial-SVD and bootstrap/stability performance improvements
 
 Deferred or later-phase work:
 
-- nuisance-aware valid multi-root CCA
+- structured / block-aware valid multi-root CCA
 - exact cross-core fast path for null draws
 - `multiblock` and `geneig` engines
 - variable significance

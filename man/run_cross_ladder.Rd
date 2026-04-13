@@ -70,9 +70,11 @@ deflated problem gives the intended stepwise ladder.
 
 For correlation-mode cross problems, valid multi-root testing requires
 stepwise residualization in the whitened CCA space. \code{multifer}
-implements that ladder for the plain paired-row, no-nuisance design.
-More complex designs still fall back to the conservative first-root
-cap until an exchangeability-preserving basis transform is wired in.
+implements that ladder for the plain paired-row design, and for
+nuisance-adjusted designs it first projects both blocks into an
+exchangeability-preserving residual basis before running the same
+stepwise ladder. More complex designs still fall back to the
+conservative first-root cap.
 
 Phase 1 is refit-first; the Part 2 section 9 core-space update is
 a Phase 1.5 optimization.

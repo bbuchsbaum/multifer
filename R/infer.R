@@ -165,7 +165,14 @@ infer <- function(adapter,
   ct_null_lab <- character(0)
   ct_validity <- character(0)
 
-  null_label <- if (geom_kind == "oneblock") "column_permute" else "row_permute_y"
+  null_label <- if (geom_kind == "oneblock") {
+    "column_permute"
+  } else if (rel_kind == "correlation" &&
+             recipe$shape$design$kind == "nuisance_adjusted") {
+    "row_permute_y_resid_basis"
+  } else {
+    "row_permute_y"
+  }
   validity   <- adapter_obj$validity_level
   if (!is.null(recipe$downgrade_reason) && !is.na(recipe$downgrade_reason)) {
     validity <- recipe$validity_level

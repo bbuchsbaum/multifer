@@ -60,6 +60,34 @@ make_exact_canonical_correlation_engine <- function(n, canonical_corrs,
   list(X = X, Y = Y, canonical_corrs = c(canonical_corrs, 0))
 }
 
+make_nuisance_adjusted_correlation_engine <- function(n, canonical_corrs,
+                                                      scale_x = NULL,
+                                                      scale_y = NULL) {
+  z1 <- scale(seq_len(n))
+  z2 <- cos(seq_len(n) / 4)
+  Z <- cbind(1, z1, z2)
+  qz_full <- qr.Q(qr(Z), complete = TRUE)
+  Qz <- qz_full[, seq.int(ncol(Z) + 1L, n), drop = FALSE]
+
+  base <- make_exact_canonical_correlation_engine(
+    n = ncol(Qz),
+    canonical_corrs = canonical_corrs,
+    scale_x = scale_x,
+    scale_y = scale_y,
+    extra_scale_x = 0.8,
+    extra_scale_y = 1.1
+  )
+
+  bx <- matrix(c(2.0, -1.5, 1.0), nrow = ncol(Z), ncol = 1L)
+  by <- matrix(c(-1.0, 1.2, -0.8), nrow = ncol(Z), ncol = 1L)
+
+  list(
+    X = Qz %*% base$X + Z %*% bx %*% matrix(1, nrow = 1L, ncol = ncol(base$X)),
+    Y = Qz %*% base$Y + Z %*% by %*% matrix(1, nrow = 1L, ncol = ncol(base$Y)),
+    Z = Z
+  )
+}
+
 test_that("run_cross_ladder validates recipe geometry", {
   ensure_default_adapters()
   rec_one <- infer_recipe(geometry = "oneblock", relation = "variance",
@@ -177,9 +205,34 @@ test_that("run_cross_ladder correlation recovers exact shared canonical rank und
   expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
 })
 
-test_that("run_cross_ladder correlation remains conservative for nuisance-adjusted designs", {
+test_that("run_cross_ladder correlation recovers exact canonical rank with nuisance adjustment", {
   ensure_default_adapters()
   set.seed(403)
+  dat <- make_nuisance_adjusted_correlation_engine(
+    n = 36,
+    canonical_corrs = c(0.95, 0.7, 0.4),
+    scale_x = c(5, 2, 1),
+    scale_y = c(4, 3, 0.5)
+  )
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = nuisance_adjusted(dat$Z),
+    adapter = "cross_svd"
+  )
+  res <- run_cross_ladder(
+    rec, dat$X, dat$Y,
+    B = 39L, alpha = 0.05, seed = 7L, max_steps = 4L
+  )
+
+  expect_equal(res$ladder_result$rejected_through, 3L)
+  expect_equal(res$ladder_result$last_step_tested, 4L)
+  expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+test_that("run_cross_ladder correlation stays conservative for unsupported blocked designs", {
+  ensure_default_adapters()
+  set.seed(404)
   dat <- make_exact_canonical_correlation_engine(
     n = 36,
     canonical_corrs = c(0.95, 0.7, 0.4),
@@ -188,11 +241,10 @@ test_that("run_cross_ladder correlation remains conservative for nuisance-adjust
     extra_scale_x = 1.5,
     extra_scale_y = 1.2
   )
-  Z <- cbind(1, scale(seq_len(nrow(dat$X))))
   rec <- infer_recipe(
     geometry = "cross",
     relation = "correlation",
-    design = nuisance_adjusted(Z),
+    design = blocked_rows(rep(1:6, each = 6)),
     adapter = "cross_svd"
   )
   res <- run_cross_ladder(
@@ -201,9 +253,7 @@ test_that("run_cross_ladder correlation remains conservative for nuisance-adjust
   )
 
   expect_equal(res$ladder_result$last_step_tested, 1L)
-  expect_true(res$ladder_result$rejected_through %in% c(0L, 1L))
   expect_equal(nrow(res$component_tests), 1L)
-  expect_true(isTRUE(res$component_tests$selected[1L]))
 })
 
 test_that("run_cross_ladder correlation controls false positives on replicated null draws", {

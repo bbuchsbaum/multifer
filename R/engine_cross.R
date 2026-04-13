@@ -21,9 +21,11 @@
 #'
 #' For correlation-mode cross problems, valid multi-root testing requires
 #' stepwise residualization in the whitened CCA space. `multifer`
-#' implements that ladder for the plain paired-row, no-nuisance design.
-#' More complex designs still fall back to the conservative first-root
-#' cap until an exchangeability-preserving basis transform is wired in.
+#' implements that ladder for the plain paired-row design, and for
+#' nuisance-adjusted designs it first projects both blocks into an
+#' exchangeability-preserving residual basis before running the same
+#' stepwise ladder. More complex designs still fall back to the
+#' conservative first-root cap.
 #'
 #' Phase 1 is refit-first; the Part 2 section 9 core-space update is
 #' a Phase 1.5 optimization.
@@ -69,6 +71,24 @@ run_cross_ladder <- function(recipe,
     qr.Q(q, complete = FALSE)[, seq_len(r), drop = FALSE]
   }
 
+  residual_basis <- function(Z, n, tol = 1e-10) {
+    if (!is.matrix(Z) || !is.numeric(Z)) {
+      stop("For nuisance-adjusted correlation designs, `design$Z` must be a numeric matrix.",
+           call. = FALSE)
+    }
+    if (nrow(Z) != n) {
+      stop("For nuisance-adjusted correlation designs, `design$Z` must have one row per observation.",
+           call. = FALSE)
+    }
+    qz <- qr(Z, tol = tol)
+    r <- qz$rank
+    if (r >= n) {
+      return(matrix(0, nrow = n, ncol = 0L))
+    }
+    q_full <- qr.Q(qz, complete = TRUE)
+    q_full[, seq.int(r + 1L, n), drop = FALSE]
+  }
+
   ## --- validate recipe --------------------------------------------------------
 
   if (!is_infer_recipe(recipe)) {
@@ -109,7 +129,7 @@ run_cross_ladder <- function(recipe,
   Yc <- sweep(Y, 2L, colMeans(Y), "-")
   design_kind <- recipe$shape$design$kind
   allow_multiroot_correlation <- rel_kind == "correlation" &&
-    identical(design_kind, "paired_rows")
+    design_kind %in% c("paired_rows", "nuisance_adjusted")
 
   ## --- relation-specific cross statistic --------------------------------------
   # cross_stat(X_residual, Y_residual) returns the FULL singular-value
@@ -131,11 +151,21 @@ run_cross_ladder <- function(recipe,
 
   ## --- full observed root vector (for form_units) -----------------------------
 
+  qx_full <- NULL
+  qy_full <- NULL
   if (rel_kind == "covariance") {
     s_full <- cross_stat(Xc, Yc)
   } else {
-    qx_full <- orth_basis(Xc)
-    qy_full <- orth_basis(Yc)
+    if (design_kind == "nuisance_adjusted") {
+      Qz <- residual_basis(recipe$shape$design$Z, nrow(Xc))
+      X_corr <- crossprod(Qz, Xc)
+      Y_corr <- crossprod(Qz, Yc)
+    } else {
+      X_corr <- Xc
+      Y_corr <- Yc
+    }
+    qx_full <- orth_basis(X_corr)
+    qy_full <- orth_basis(Y_corr)
     s_full <- cross_stat(qx_full, qy_full)
   }
   roots_observed <- s_full^2
