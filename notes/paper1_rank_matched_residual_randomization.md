@@ -4,6 +4,8 @@ This note captures the intended framing for a publishable first methods paper. I
 
 Companion note: for the package-level positioning that explains how `multifer` should simultaneously serve as the paper's reference implementation and as a broadly useful R package, see [package_vision.md](./package_vision.md).
 
+Executable manuscript outline: see [paper1_outline.md](../paper/paper1_outline.md).
+
 ## One-line pitch
 
 Start from Vitale's three best ideas:
