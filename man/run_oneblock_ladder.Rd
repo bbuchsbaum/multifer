@@ -65,10 +65,14 @@ This is mathematically identical to the Part 1 section 1 formula
 deflations the first singular value of the residual IS the a-th
 singular value of the original matrix.
 
-The null generator permutes columns of \code{E_a} and recomputes the
-same statistic. No second SVD is needed -- the permuted matrix's top
-singular value divided by its squared Frobenius norm IS the
-Part 1 section 1 null draw.
+The null generator permutes columns of \code{E_a} and evaluates the
+collapsed Vitale P3 null
+
+T_a^*(M_b) = lambda_a(M_b) / sum_{q >= a} lambda_q(M_b)
+
+on the randomized residual \code{M_b}. No projected matrix is formed
+and no second SVD is needed; only the first \code{a} singular values
+of \code{M_b} are required.
 
 Phase 1.5 TODO: replace full \code{base::svd()} calls in
 \code{observed_stat_fn} and \code{null_stat_fn} with a partial SVD

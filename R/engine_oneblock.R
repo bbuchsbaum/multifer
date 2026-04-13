@@ -12,10 +12,14 @@
 #' deflations the first singular value of the residual IS the a-th
 #' singular value of the original matrix.
 #'
-#' The null generator permutes columns of \code{E_a} and recomputes the
-#' same statistic. No second SVD is needed -- the permuted matrix's top
-#' singular value divided by its squared Frobenius norm IS the
-#' Part 1 section 1 null draw.
+#' The null generator permutes columns of \code{E_a} and evaluates the
+#' collapsed Vitale P3 null
+#'
+#'   T_a^*(M_b) = lambda_a(M_b) / sum_{q >= a} lambda_q(M_b)
+#'
+#' on the randomized residual \code{M_b}. No projected matrix is formed
+#' and no second SVD is needed; only the first \code{a} singular values
+#' of \code{M_b} are required.
 #'
 #' Phase 1.5 TODO: replace full \code{base::svd()} calls in
 #' \code{observed_stat_fn} and \code{null_stat_fn} with a partial SVD
@@ -114,22 +118,35 @@ run_oneblock_ladder <- function(recipe,
   # This IS the Part 1 section 1 simplification applied to the deflated
   # residual E_a. The "first" singular value of E_a is lambda_a(X).
   observed_stat_fn <- function(step, data) {
-    s  <- base::svd(data)$d
-    s2 <- s^2
-    total <- sum(s2)
-    if (total <= zero_tol || length(s2) == 0L) return(0)
-    s2[1L] / total
+    # Only the top-1 singular value is needed for the numerator; the
+    # Frobenius norm gives the full tail-sum cheaply.
+    s_top <- top_singular_values(data, 1L)[1L]
+    total <- sum(data * data)
+    if (total <= zero_tol) return(0)
+    (s_top * s_top) / total
   }
 
-  # null_stat_fn: column-permute the residual, then apply the same ratio.
-  # No second SVD: the permuted matrix's ratio is computed fresh from one SVD.
+  # null_stat_fn: column-permute the residual, then apply the collapsed
+  # Vitale P3 null for rung `step`:
+  #   lambda_step(M_b) / sum_{q >= step} lambda_q(M_b)
+  # where M_b is the randomized residual. This is algebraically identical
+  # to the paper's projected-null statistic without forming the projected
+  # matrix or taking a second SVD.
+  #
+  # The denominator is `sum_{q >= step} s_q^2 = ||M_b||_F^2 - sum_{q < step} s_q^2`.
+  # Column permutation preserves column sums of squares, so ||M_b||_F^2
+  # equals ||data||_F^2 -- computed once per draw (O(np), negligible vs the
+  # SVD). Only the top `step` singular values are needed, which opens the
+  # door to a partial SVD (RSpectra::svds) on large problems.
   null_stat_fn <- function(step, data) {
     perm <- base::apply(data, 2L, base::sample)
-    s    <- base::svd(perm)$d
-    s2   <- s^2
-    total <- sum(s2)
-    if (total <= zero_tol || length(s2) == 0L) return(0)
-    s2[1L] / total
+    s    <- top_singular_values(perm, step)
+    if (length(s) < step) return(0)
+    s2   <- s * s
+    total_F2 <- sum(data * data)
+    tail_total <- total_F2 - sum(s2[seq_len(step - 1L)])
+    if (tail_total <= zero_tol) return(0)
+    s2[step] / tail_total
   }
 
   # deflate_fn: remove the rank-1 approximation from the top component.

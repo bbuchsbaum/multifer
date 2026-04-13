@@ -127,22 +127,37 @@ run_cross_ladder <- function(recipe,
 
   ## --- callbacks --------------------------------------------------------------
 
+  # Build the cross matrix directly and compute (top-1 SV, Frobenius^2).
+  # Only the leading singular value is needed for the test statistic --
+  # we hand the matrix to top_singular_values() which routes through
+  # RSpectra::svds(, k=1) when available, giving a large speedup over
+  # a full SVD on the cross-product.
+  cross_matrix <- if (rel_kind == "covariance") {
+    function(Xr, Yr) base::crossprod(Xr, Yr)
+  } else {
+    function(Xr, Yr) {
+      Qx <- qr.Q(qr(Xr))
+      Qy <- qr.Q(qr(Yr))
+      base::crossprod(Qx, Qy)
+    }
+  }
+
   observed_stat_fn <- function(step, data) {
-    s  <- cross_stat(data$X, data$Y)
-    s2 <- s^2
-    total <- sum(s2)
-    if (total <= zero_tol || length(s2) == 0L) return(0)
-    s2[1L] / total
+    M <- cross_matrix(data$X, data$Y)
+    total <- sum(M * M)
+    if (total <= zero_tol) return(0)
+    s1 <- top_singular_values(M, 1L)[1L]
+    (s1 * s1) / total
   }
 
   null_stat_fn <- function(step, data) {
     perm <- base::sample.int(nrow(data$Y))
     Yp   <- data$Y[perm, , drop = FALSE]
-    s    <- cross_stat(data$X, Yp)
-    s2   <- s^2
-    total <- sum(s2)
-    if (total <= zero_tol || length(s2) == 0L) return(0)
-    s2[1L] / total
+    M    <- cross_matrix(data$X, Yp)
+    total <- sum(M * M)
+    if (total <= zero_tol) return(0)
+    s1 <- top_singular_values(M, 1L)[1L]
+    (s1 * s1) / total
   }
 
   deflate_fn <- function(step, data) {
