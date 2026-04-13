@@ -283,7 +283,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
 
     validity_level       = "conditional",
     declared_assumptions = c("paired_rows", "centered_blocks"),
-    checked_assumptions  = list()
+    checked_assumptions  = .cross_baser_checks()
   )
 }
 
@@ -391,7 +391,61 @@ adapter_cancor <- function(adapter_id = "cancor_cross",
 
     validity_level       = "conditional",
     declared_assumptions = c("paired_rows"),
-    checked_assumptions  = list()
+    checked_assumptions  = .cross_baser_checks()
+  )
+}
+
+
+# -----------------------------------------------------------------------------
+# Executable validity checks shared by adapter_cross_svd() and adapter_cancor().
+#
+# Both cross adapters assume the data argument is a list with X and Y,
+# that nrow(X) == nrow(Y) (paired rows), and that both blocks are
+# finite numeric matrices of sane shape. Strict-mode infer() fails
+# fast with a named reason if any check fires.
+# -----------------------------------------------------------------------------
+
+#' @noRd
+.cross_baser_checks <- function() {
+  list(
+    list(
+      name   = "cross_data_is_list_with_xy",
+      detail = "cross `data` must be a list containing numeric matrices `X` and `Y`",
+      check  = function(data, ...) {
+        is.list(data) &&
+          !is.null(data$X) && !is.null(data$Y) &&
+          is.matrix(data$X) && is.matrix(data$Y) &&
+          is.numeric(data$X) && is.numeric(data$Y)
+      }
+    ),
+    list(
+      name   = "cross_paired_rows",
+      detail = "cross `data$X` and `data$Y` must have the same number of rows (paired-row design)",
+      check  = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+        nrow(data$X) == nrow(data$Y)
+      }
+    ),
+    list(
+      name   = "cross_blocks_are_finite",
+      detail = "cross `data$X` and `data$Y` must not contain NA, NaN, or Inf",
+      check  = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+        all(is.finite(data$X)) && all(is.finite(data$Y))
+      }
+    ),
+    list(
+      name   = "cross_min_dimensions",
+      detail = "cross blocks must each have at least 2 rows and at least 1 column",
+      check  = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+        nrow(data$X) >= 2L &&
+          ncol(data$X) >= 1L && ncol(data$Y) >= 1L
+      }
+    )
   )
 }
 

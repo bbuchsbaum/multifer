@@ -116,6 +116,11 @@ infer <- function(adapter,
   rel_kind  <- recipe$shape$relation$kind
   resolved_targets <- recipe$targets
 
+  ## --- executable validity checks --------------------------------------------
+  # Every mature adapter ships concrete checked_assumptions; strict mode
+  # (the default) errors on any violation before the engine starts.
+  check_results <- run_adapter_checks(adapter_obj, data, strict = strict)
+
   ## --- engine: sequential deflation ladder ------------------------------------
 
   t_engine_start <- proc.time()[["elapsed"]]
@@ -265,7 +270,7 @@ infer <- function(adapter,
 
   assumptions <- infer_assumptions(
     declared = adapter_obj$declared_assumptions,
-    checked  = adapter_obj$checked_assumptions
+    checked  = check_results
   )
 
   ladder_res_meta    <- engine_out$ladder_result

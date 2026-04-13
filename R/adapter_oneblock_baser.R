@@ -130,7 +130,7 @@ adapter_svd <- function(adapter_id = "svd_oneblock", adapter_version = "0.0.1") 
 
     validity_level       = "conditional",
     declared_assumptions = c("rows_exchangeable", "centered_data"),
-    checked_assumptions  = list()
+    checked_assumptions  = .oneblock_baser_checks()
   )
 }
 
@@ -259,7 +259,45 @@ adapter_prcomp <- function(adapter_id = "prcomp_oneblock",
 
     validity_level       = "conditional",
     declared_assumptions = c("rows_exchangeable"),
-    checked_assumptions  = list()
+    checked_assumptions  = .oneblock_baser_checks()
+  )
+}
+
+
+# -----------------------------------------------------------------------------
+# Executable validity checks shared by adapter_svd() and adapter_prcomp().
+#
+# These run on the raw `data` argument passed to infer() before any SVD
+# is computed, so a bad input fails fast with a named reason instead of
+# producing a meaningless fit.
+# -----------------------------------------------------------------------------
+
+#' @noRd
+.oneblock_baser_checks <- function() {
+  list(
+    list(
+      name   = "oneblock_data_is_numeric_matrix",
+      detail = "oneblock `data` must be a numeric matrix",
+      check  = function(data, ...) {
+        is.matrix(data) && is.numeric(data)
+      }
+    ),
+    list(
+      name   = "oneblock_data_is_finite",
+      detail = "oneblock `data` must not contain NA, NaN, or Inf",
+      check  = function(data, ...) {
+        if (!is.matrix(data) || !is.numeric(data)) return(TRUE)  # covered above
+        all(is.finite(data))
+      }
+    ),
+    list(
+      name   = "oneblock_min_dimensions",
+      detail = "oneblock `data` must have at least 2 rows and 2 columns",
+      check  = function(data, ...) {
+        if (!is.matrix(data)) return(TRUE)
+        nrow(data) >= 2L && ncol(data) >= 2L
+      }
+    )
   )
 }
 
