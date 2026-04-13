@@ -3,3 +3,16 @@
 .dolt/
 *.db
 .beads-credential-key
+
+# R package
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+*.tar.gz
+*.Rcheck/
+
+# System
+.DS_Store
+.omc/

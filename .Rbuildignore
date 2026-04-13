@@ -1,0 +1,15 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.github$
+^\.beads$
+^\.omc$
+^notes$
+^paper$
+^LICENSE\.md$
+^README\.md$
+^\.gitignore$
+^\.claude$
+^CLAUDE\.md$
+^AGENTS\.md$
+^\.dolt$
+^\.beads-credential-key$
