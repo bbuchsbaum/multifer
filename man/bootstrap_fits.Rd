@@ -15,6 +15,7 @@ bootstrap_fits(
   seed = NULL,
   parallel = c("sequential", "mirai", "auto"),
   fast_path = c("auto", "off"),
+  store_aligned_scores = TRUE,
   core_rank = 50L
 )
 }
@@ -52,6 +53,12 @@ tasks to a mirai daemon pool with deterministic per-rep seeds.}
 \item{fast_path}{One of \code{"auto"}, \code{"off"}. \code{"auto"} uses the
 adapter's core()/update_core() hooks when available; \code{"off"}
 forces the refit path.}
+
+\item{store_aligned_scores}{Logical. When \code{TRUE} (default), compute
+and store aligned replicate scores in each bootstrap replicate.
+When \code{FALSE}, skip score extraction/alignment and store
+\code{aligned_scores = NULL}. This is safe when downstream consumers
+only need aligned loadings.}
 
 \item{core_rank}{Positive integer cap on the core rank used by the
 fast path, or NULL to leave the full thin SVD untruncated.

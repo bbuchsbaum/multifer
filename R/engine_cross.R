@@ -6,18 +6,23 @@
 #' but use different per-step statistics:
 #'
 #' \itemize{
-#'   \item covariance: top singular value of the centered cross-product
-#'     \code{X^t Y} on the deflated residual, normalized by the squared
-#'     Frobenius mass of the remaining singular values.
-#'   \item correlation: top singular value of the orthonormal
-#'     cross-product \code{Q_x^t Q_y} on the deflated residual, where
-#'     \code{Q_x} and \code{Q_y} are the thin QR factors of the
-#'     centered residual blocks.
+#'   \item covariance: squared leading singular value of the centered
+#'     cross-product \code{X^t Y} on the deflated residual.
+#'   \item correlation: squared leading singular value of the
+#'     orthonormal cross-product \code{Q_x^t Q_y} on the deflated
+#'     residual, where \code{Q_x} and \code{Q_y} are the thin QR
+#'     factors of the centered residual blocks.
 #' }
 #'
-#' Both use the Part 1 section 1 simplification: the top singular value
-#' of the deflated cross-block matrix at step \code{a} is the a-th
-#' latent root of the original problem.
+#' For covariance-mode cross problems, the top singular value of the
+#' deflated cross-block matrix at step \code{a} is the \code{a}-th
+#' latent root of the original problem, so root-strength testing on the
+#' deflated problem gives the intended stepwise ladder.
+#'
+#' For correlation-mode cross problems, naive row-permutation CCA is not
+#' valid beyond the first root without additional stepwise
+#' residualization / exchangeability handling. Phase 1 therefore tests
+#' only the first canonical root and caps the ladder at one rung.
 #'
 #' Phase 1 is refit-first; the Part 2 section 9 core-space update is
 #' a Phase 1.5 optimization.
@@ -46,12 +51,13 @@
 run_cross_ladder <- function(recipe,
                              X,
                              Y,
-                             B          = 1000L,
-                             B_total    = NULL,
-                             batch_size = 32L,
-                             alpha      = 0.05,
-                             max_steps  = NULL,
-                             seed       = NULL) {
+                             B              = 1000L,
+                             B_total        = NULL,
+                             batch_size     = 32L,
+                             alpha          = 0.05,
+                             max_steps      = NULL,
+                             seed           = NULL,
+                             cross_rank_cap = 50L) {
 
   ## --- validate recipe --------------------------------------------------------
 
@@ -124,10 +130,13 @@ run_cross_ladder <- function(recipe,
     max_steps <- min(min(nrow(Xc), ncol(Xc), ncol(Yc)) - 1L, 50L)
   }
   max_steps <- as.integer(max(1L, max_steps))
+  if (rel_kind == "correlation") {
+    max_steps <- min(max_steps, 1L)
+  }
 
   ## --- callbacks --------------------------------------------------------------
 
-  # Build the cross matrix directly and compute (top-1 SV, Frobenius^2).
+  # Build the cross matrix directly and compute (top-1 SV)^2.
   # Only the leading singular value is needed for the test statistic --
   # we hand the matrix to top_singular_values() which routes through
   # RSpectra::svds(, k=1) when available, giving a large speedup over
@@ -142,22 +151,75 @@ run_cross_ladder <- function(recipe,
     }
   }
 
+  # Phase 1.5 follow-up: rank-capped core approximation for rung 1.
+  #
+  # For (cross, covariance) the top singular value of Xc^T · Yc[perm,] is
+  # the quantity we need per null draw. If we thin-SVD both blocks once
+  # before the ladder, Xc = Ux Dx Vx^T and Yc = Uy Dy Vy^T, then
+  #   Xc^T · Yc[perm,]  =  Vx Dx (Ux^T · P Uy) Dy Vy^T
+  # where P permutes rows. Since Vx / Vy have orthonormal columns, the
+  # top singular value of that product equals the top singular value of
+  #   M  =  Dx · (Ux^T · Uy[perm,]) · Dy
+  # which is a k_x x k_y inner matrix. Truncating the thin SVDs to
+  # cross_rank_cap makes the per-draw work O(k_x * n * k_y) instead of
+  # O(n * p * q); with the default k = 50 on n=500, p=250, q=200 this is
+  # a ~20x drop in flops on the per-draw hot spot.
+  #
+  # The approximation only fires on rung 1 because deeper rungs see a
+  # deflated (Xd, Yd) that we do not have a cheap cached SVD for. Most
+  # ladder runs stop at rung 1 under null-ish data, so this is where
+  # the savings live.
+  use_fast_rung1 <- rel_kind == "covariance" &&
+                    is.numeric(cross_rank_cap) &&
+                    length(cross_rank_cap) == 1L &&
+                    cross_rank_cap >= 1L
+
+  core_Ux <- NULL; core_Dx <- NULL
+  core_Uy <- NULL; core_Dy <- NULL
+  if (use_fast_rung1) {
+    k_max_x <- min(as.integer(cross_rank_cap), nrow(Xc) - 1L, ncol(Xc))
+    k_max_y <- min(as.integer(cross_rank_cap), nrow(Yc) - 1L, ncol(Yc))
+    if (k_max_x >= 1L && k_max_y >= 1L) {
+      sv_x <- top_svd(Xc, k_max_x)
+      sv_y <- top_svd(Yc, k_max_y)
+      core_Ux <- sv_x$u
+      core_Dx <- sv_x$d
+      core_Uy <- sv_y$u
+      core_Dy <- sv_y$d
+    } else {
+      use_fast_rung1 <- FALSE
+    }
+  }
+
+  rung1_top_sv2 <- function(Uy_view) {
+    # M = diag(Dx) · (Ux^T · Uy_view) · diag(Dy), a k_x x k_y inner matrix.
+    # Return the top singular value squared of M.
+    inner <- base::crossprod(core_Ux, Uy_view)          # k_x x k_y
+    M     <- base::sweep(inner, 1L, core_Dx, `*`)       # scale rows
+    M     <- base::sweep(M,     2L, core_Dy, `*`)       # scale columns
+    s1    <- top_singular_values(M, 1L)[1L]
+    s1 * s1
+  }
+
   observed_stat_fn <- function(step, data) {
-    M <- cross_matrix(data$X, data$Y)
-    total <- sum(M * M)
-    if (total <= zero_tol) return(0)
+    if (use_fast_rung1 && step == 1L) {
+      return(rung1_top_sv2(core_Uy))
+    }
+    M  <- cross_matrix(data$X, data$Y)
     s1 <- top_singular_values(M, 1L)[1L]
-    (s1 * s1) / total
+    s1 * s1
   }
 
   null_stat_fn <- function(step, data) {
+    if (use_fast_rung1 && step == 1L) {
+      perm <- base::sample.int(nrow(core_Uy))
+      return(rung1_top_sv2(core_Uy[perm, , drop = FALSE]))
+    }
     perm <- base::sample.int(nrow(data$Y))
     Yp   <- data$Y[perm, , drop = FALSE]
     M    <- cross_matrix(data$X, Yp)
-    total <- sum(M * M)
-    if (total <= zero_tol) return(0)
-    s1 <- top_singular_values(M, 1L)[1L]
-    (s1 * s1) / total
+    s1   <- top_singular_values(M, 1L)[1L]
+    s1 * s1
   }
 
   deflate_fn <- function(step, data) {

@@ -13,7 +13,8 @@ run_cross_ladder(
   batch_size = 32L,
   alpha = 0.05,
   max_steps = NULL,
-  seed = NULL
+  seed = NULL,
+  cross_rank_cap = 50L
 )
 }
 \arguments{
@@ -54,18 +55,23 @@ but use different per-step statistics:
 }
 \details{
 \itemize{
-\item covariance: top singular value of the centered cross-product
-\code{X^t Y} on the deflated residual, normalized by the squared
-Frobenius mass of the remaining singular values.
-\item correlation: top singular value of the orthonormal
-cross-product \code{Q_x^t Q_y} on the deflated residual, where
-\code{Q_x} and \code{Q_y} are the thin QR factors of the
-centered residual blocks.
+\item covariance: squared leading singular value of the centered
+cross-product \code{X^t Y} on the deflated residual.
+\item correlation: squared leading singular value of the
+orthonormal cross-product \code{Q_x^t Q_y} on the deflated
+residual, where \code{Q_x} and \code{Q_y} are the thin QR
+factors of the centered residual blocks.
 }
 
-Both use the Part 1 section 1 simplification: the top singular value
-of the deflated cross-block matrix at step \code{a} is the a-th
-latent root of the original problem.
+For covariance-mode cross problems, the top singular value of the
+deflated cross-block matrix at step \code{a} is the \code{a}-th
+latent root of the original problem, so root-strength testing on the
+deflated problem gives the intended stepwise ladder.
+
+For correlation-mode cross problems, naive row-permutation CCA is not
+valid beyond the first root without additional stepwise
+residualization / exchangeability handling. Phase 1 therefore tests
+only the first canonical root and caps the ladder at one rung.
 
 Phase 1 is refit-first; the Part 2 section 9 core-space update is
 a Phase 1.5 optimization.
