@@ -2,7 +2,7 @@
 % Please edit documentation in R/alignment.R
 \name{align_loadings}
 \alias{align_loadings}
-\title{Align loadings: match components then apply sign or Procrustes alignment}
+\title{Align loadings: match components then apply sign or legacy Procrustes alignment}
 \usage{
 align_loadings(Vref, Vb, method = c("sign", "procrustes"))
 }
@@ -12,17 +12,19 @@ align_loadings(Vref, Vb, method = c("sign", "procrustes"))
 \item{Vb}{Numeric matrix. Bootstrap/replicate loading matrix, n x k.}
 
 \item{method}{Character scalar. One of \code{"sign"} (default) or
-\code{"procrustes"}.}
+\code{"procrustes"} (legacy-only).}
 }
 \value{
 A numeric matrix of the same dimensions as \code{Vb} with columns
-permuted and then sign- or Procrustes-aligned to \code{Vref}.
+permuted and then sign- or legacy-Procrustes-aligned to \code{Vref}.
 }
 \description{
 Convenience pipeline. First calls \code{\link{match_components}} to find
 the best column permutation, then applies either sign alignment
 (\code{\link{align_sign}}) or orthogonal Procrustes alignment
-(\code{\link{align_procrustes}}).
+(\code{\link{align_procrustes}}). The recommended default is
+\code{method = "sign"}; \code{"procrustes"} is retained only for
+backward compatibility with legacy workflows.
 }
 \details{
 CRITICAL ordering: \code{match_components} is always called before any

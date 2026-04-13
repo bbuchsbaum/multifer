@@ -26,6 +26,9 @@ Current limitations are deliberate:
 - cross correlation / CCA supports multi-root testing for the plain paired-row
   design, for common-`Z` nuisance-adjusted designs, and for nuisance-adjusted
   designs with within-block exchangeability,
+- bootstrap stability defaults to sign alignment; Procrustes alignment is
+  retained only for backward compatibility and is not an endorsed inferential
+  target,
 - `multiblock` and `geneig` are part of the architecture but not yet shipped as
   complete inference engines,
 - variable significance is deferred; current variable-level output is stability,
@@ -159,9 +162,12 @@ prevent accidental use of the wrong inferential target.
 ### Validity first
 
 The package favors conservative or partial validity claims over broad but weak
-ones. A concrete example is current CCA support: the computational machinery is
-there, but multi-root permutation validity is not claimed yet, so the current
-implementation stops at the first root.
+ones. A concrete example is current CCA support: multi-root inference is only
+claimed for the supported paired-row and nuisance-adjusted designs, and richer
+exchangeability structures are still treated conservatively. Likewise, bootstrap
+stability defaults to sign alignment rather than Procrustes rotation, because
+the package treats subspace uncertainty as the primary target when roots are
+near-tied.
 
 ## Benchmarks and synthetic test generators
 

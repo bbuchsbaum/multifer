@@ -39,8 +39,9 @@ NULL
 #'   component indices that belong to unit `i`. For `"component"` units
 #'   this is a length-1 integer vector; for `"subspace"` units it is
 #'   length >= 2.
-#' @param identifiable Logical vector. `TRUE` means sign / Procrustes
-#'   alignment resolves the unit. Subspace units are typically `FALSE`.
+#' @param identifiable Logical vector. `TRUE` means sign or legacy
+#'   Procrustes alignment resolves the unit. Subspace units are typically
+#'   `FALSE`.
 #' @param selected Logical vector. `TRUE` means the sequential test
 #'   ladder accepted this unit as significant.
 #'
@@ -250,7 +251,8 @@ infer_score_stability <- function(unit_id = character(0),
 #'   perturbation replicates (numeric, radians).
 #' @param principal_angle_max Max principal angle (numeric, radians).
 #' @param alignment_method Character, one of
-#'   `c("sign", "procrustes", "subspace")`.
+#'   `c("sign", "procrustes", "subspace")`. `procrustes` is retained as
+#'   a legacy label for backward compatibility.
 #' @param stability_label Character free-text label (`"stable"`,
 #'   `"tied"`, `"unstable"`, etc.).
 #'

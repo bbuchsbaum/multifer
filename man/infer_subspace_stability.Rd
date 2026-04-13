@@ -21,7 +21,8 @@ perturbation replicates (numeric, radians).}
 \item{principal_angle_max}{Max principal angle (numeric, radians).}
 
 \item{alignment_method}{Character, one of
-\code{c("sign", "procrustes", "subspace")}.}
+\code{c("sign", "procrustes", "subspace")}. \code{procrustes} is retained as
+a legacy label for backward compatibility.}
 
 \item{stability_label}{Character free-text label (\code{"stable"},
 \code{"tied"}, \code{"unstable"}, etc.).}

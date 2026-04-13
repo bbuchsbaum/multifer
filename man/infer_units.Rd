@@ -23,8 +23,9 @@ component indices that belong to unit \code{i}. For \code{"component"} units
 this is a length-1 integer vector; for \code{"subspace"} units it is
 length >= 2.}
 
-\item{identifiable}{Logical vector. \code{TRUE} means sign / Procrustes
-alignment resolves the unit. Subspace units are typically \code{FALSE}.}
+\item{identifiable}{Logical vector. \code{TRUE} means sign or legacy
+Procrustes alignment resolves the unit. Subspace units are typically
+\code{FALSE}.}
 
 \item{selected}{Logical vector. \code{TRUE} means the sequential test
 ladder accepted this unit as significant.}

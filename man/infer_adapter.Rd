@@ -69,7 +69,7 @@ the capability gate):
 \item \code{refit(x, new_data)} -- refit on perturbed data (slow-path fallback).
 \item \code{core(x, data)} -- optional fast-path core representation.
 \item \code{update_core(core_obj, ...)} -- optional fast-path core update.
-\item \code{align(xb, xref)} -- alignment (sign / Procrustes / subspace).
+\item \code{align(xb, xref)} -- alignment (sign / legacy Procrustes / subspace).
 \item \code{null_action(x, data)} -- generate one null resample.
 \item \code{component_stat(x, data, k)} -- per-component test statistic.
 \item \code{variable_stat(x, data, domain, k)} -- variable-level statistic.

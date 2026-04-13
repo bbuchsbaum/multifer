@@ -46,7 +46,7 @@
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
 #' - `core(x, data)` -- optional fast-path core representation.
 #' - `update_core(core_obj, ...)` -- optional fast-path core update.
-#' - `align(xb, xref)` -- alignment (sign / Procrustes / subspace).
+#' - `align(xb, xref)` -- alignment (sign / legacy Procrustes / subspace).
 #' - `null_action(x, data)` -- generate one null resample.
 #' - `component_stat(x, data, k)` -- per-component test statistic.
 #' - `variable_stat(x, data, domain, k)` -- variable-level statistic.

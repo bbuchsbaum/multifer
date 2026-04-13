@@ -23,3 +23,10 @@ Rotates \code{Vb_matched} by the closest orthogonal matrix Q to
 with SVD \code{M = U D V^t}, the optimal Q is \code{V \%*\% t(U)} and
 the aligned matrix is \code{Vb_matched \%*\% V \%*\% t(U)}.
 }
+\details{
+This helper is retained for backward compatibility with legacy
+bootstrap workflows. It is not the recommended default for inferential
+use in \pkg{multifer}; prefer permutation matching plus sign correction
+for separated components, and subspace summaries when roots are tied or
+nearly tied.
+}

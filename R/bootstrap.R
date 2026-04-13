@@ -19,7 +19,11 @@
 #' \code{Q = V \%*\% t(U)}, and the SAME orthogonal matrix Q is applied to
 #' the scores (right-multiplied). This keeps loadings and scores consistent:
 #' \code{scores \%*\% Q} represents the same projections as
-#' \code{loadings \%*\% Q}.
+#' \code{loadings \%*\% Q}. This option is retained for backward
+#' compatibility only. It is not recommended as a default inferential
+#' target; prefer \code{method_align = "sign"} for well-separated
+#' components and subspace stability summaries for tied or near-tied
+#' roots.
 #'
 #' @param recipe A compiled \code{multifer_infer_recipe}.
 #' @param adapter The \code{multifer_adapter} object (from
@@ -33,8 +37,8 @@
 #' @param R Integer >= 1, number of bootstrap replicates.
 #' @param method_align Character, one of \code{"sign"} or
 #'   \code{"procrustes"} (default \code{"sign"}). Passed to
-#'   \code{\link{align_loadings}()}. See section on score alignment for
-#'   procrustes details.
+#'   \code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only
+#'   and emits a warning; see section on score alignment for details.
 #' @param seed Integer or NULL for reproducibility. When non-NULL, the
 #'   current RNG state is saved and restored on exit so the caller's RNG
 #'   stream is unchanged.
@@ -103,6 +107,17 @@ bootstrap_fits <- function(recipe,
   method_align <- match.arg(method_align)
   parallel     <- match.arg(parallel)
   fast_path    <- match.arg(fast_path)
+  if (identical(method_align, "procrustes")) {
+    warning(
+      paste(
+        "`method_align = \"procrustes\"` is legacy-only and retained for",
+        "backward compatibility.",
+        "Prefer `\"sign\"` for separated components and subspace summaries",
+        "for tied or near-tied roots."
+      ),
+      call. = FALSE
+    )
+  }
   if (!is.logical(store_aligned_scores) || length(store_aligned_scores) != 1L ||
       is.na(store_aligned_scores)) {
     stop("`store_aligned_scores` must be TRUE or FALSE.", call. = FALSE)

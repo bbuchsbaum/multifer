@@ -89,6 +89,12 @@ align_sign <- function(Vref, Vb_matched) {
 #' with SVD \code{M = U D V^t}, the optimal Q is \code{V \%*\% t(U)} and
 #' the aligned matrix is \code{Vb_matched \%*\% V \%*\% t(U)}.
 #'
+#' This helper is retained for backward compatibility with legacy
+#' bootstrap workflows. It is not the recommended default for inferential
+#' use in \pkg{multifer}; prefer permutation matching plus sign correction
+#' for separated components, and subspace summaries when roots are tied or
+#' nearly tied.
+#'
 #' @param Vref Numeric matrix. Reference loading matrix, n x k.
 #' @param Vb_matched Numeric matrix. Loading matrix already permuted to match
 #'   \code{Vref}. Must have the same dimensions as \code{Vref}.
@@ -171,12 +177,14 @@ principal_angles <- function(A, B) {
 }
 
 
-#' Align loadings: match components then apply sign or Procrustes alignment
+#' Align loadings: match components then apply sign or legacy Procrustes alignment
 #'
 #' Convenience pipeline. First calls \code{\link{match_components}} to find
 #' the best column permutation, then applies either sign alignment
 #' (\code{\link{align_sign}}) or orthogonal Procrustes alignment
-#' (\code{\link{align_procrustes}}).
+#' (\code{\link{align_procrustes}}). The recommended default is
+#' \code{method = "sign"}; \code{"procrustes"} is retained only for
+#' backward compatibility with legacy workflows.
 #'
 #' CRITICAL ordering: \code{match_components} is always called before any
 #' sign or rotation step. Bootstrap replicates that swap neighboring
@@ -186,10 +194,10 @@ principal_angles <- function(A, B) {
 #' @param Vref Numeric matrix. Reference loading matrix, n x k.
 #' @param Vb Numeric matrix. Bootstrap/replicate loading matrix, n x k.
 #' @param method Character scalar. One of \code{"sign"} (default) or
-#'   \code{"procrustes"}.
+#'   \code{"procrustes"} (legacy-only).
 #'
 #' @return A numeric matrix of the same dimensions as \code{Vb} with columns
-#'   permuted and then sign- or Procrustes-aligned to \code{Vref}.
+#'   permuted and then sign- or legacy-Procrustes-aligned to \code{Vref}.
 #'
 #' @export
 align_loadings <- function(Vref, Vb, method = c("sign", "procrustes")) {

@@ -38,8 +38,8 @@ original (unperturbed) data. Used as the alignment reference.}
 
 \item{method_align}{Character, one of \code{"sign"} or
 \code{"procrustes"} (default \code{"sign"}). Passed to
-\code{\link{align_loadings}()}. See section on score alignment for
-procrustes details.}
+\code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only
+and emits a warning; see section on score alignment for details.}
 
 \item{seed}{Integer or NULL for reproducibility. When non-NULL, the
 current RNG state is saved and restored on exit so the caller's RNG
@@ -105,6 +105,10 @@ the orthogonal matrix Q from the Procrustes solution
 \code{Q = V \%*\% t(U)}, and the SAME orthogonal matrix Q is applied to
 the scores (right-multiplied). This keeps loadings and scores consistent:
 \code{scores \%*\% Q} represents the same projections as
-\code{loadings \%*\% Q}.
+\code{loadings \%*\% Q}. This option is retained for backward
+compatibility only. It is not recommended as a default inferential
+target; prefer \code{method_align = "sign"} for well-separated
+components and subspace stability summaries for tied or near-tied
+roots.
 }
 
