@@ -68,10 +68,11 @@ deflated cross-block matrix at step \code{a} is the \code{a}-th
 latent root of the original problem, so root-strength testing on the
 deflated problem gives the intended stepwise ladder.
 
-For correlation-mode cross problems, naive row-permutation CCA is not
-valid beyond the first root without additional stepwise
-residualization / exchangeability handling. Phase 1 therefore tests
-only the first canonical root and caps the ladder at one rung.
+For correlation-mode cross problems, valid multi-root testing requires
+stepwise residualization in the whitened CCA space. \code{multifer}
+implements that ladder for the plain paired-row, no-nuisance design.
+More complex designs still fall back to the conservative first-root
+cap until an exchangeability-preserving basis transform is wired in.
 
 Phase 1 is refit-first; the Part 2 section 9 core-space update is
 a Phase 1.5 optimization.

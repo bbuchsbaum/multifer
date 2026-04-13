@@ -19,10 +19,11 @@
 #' latent root of the original problem, so root-strength testing on the
 #' deflated problem gives the intended stepwise ladder.
 #'
-#' For correlation-mode cross problems, naive row-permutation CCA is not
-#' valid beyond the first root without additional stepwise
-#' residualization / exchangeability handling. Phase 1 therefore tests
-#' only the first canonical root and caps the ladder at one rung.
+#' For correlation-mode cross problems, valid multi-root testing requires
+#' stepwise residualization in the whitened CCA space. `multifer`
+#' implements that ladder for the plain paired-row, no-nuisance design.
+#' More complex designs still fall back to the conservative first-root
+#' cap until an exchangeability-preserving basis transform is wired in.
 #'
 #' Phase 1 is refit-first; the Part 2 section 9 core-space update is
 #' a Phase 1.5 optimization.
@@ -58,6 +59,15 @@ run_cross_ladder <- function(recipe,
                              max_steps      = NULL,
                              seed           = NULL,
                              cross_rank_cap = 50L) {
+
+  orth_basis <- function(M, tol = 1e-10) {
+    q <- qr(M, tol = tol)
+    r <- q$rank
+    if (r <= 0L) {
+      return(matrix(0, nrow = nrow(M), ncol = 0L))
+    }
+    qr.Q(q, complete = FALSE)[, seq_len(r), drop = FALSE]
+  }
 
   ## --- validate recipe --------------------------------------------------------
 
@@ -97,6 +107,9 @@ run_cross_ladder <- function(recipe,
 
   Xc <- sweep(X, 2L, colMeans(X), "-")
   Yc <- sweep(Y, 2L, colMeans(Y), "-")
+  design_kind <- recipe$shape$design$kind
+  allow_multiroot_correlation <- rel_kind == "correlation" &&
+    identical(design_kind, "paired_rows")
 
   ## --- relation-specific cross statistic --------------------------------------
   # cross_stat(X_residual, Y_residual) returns the FULL singular-value
@@ -108,29 +121,37 @@ run_cross_ladder <- function(recipe,
       cached_svd(crossprod(Xr, Yr))$d
     }
   } else {
-    function(Xr, Yr) {
-      # Thin QR for whitening; fall back to centered if rank-deficient.
-      qx <- qr(Xr)
-      qy <- qr(Yr)
-      Qx <- qr.Q(qx)
-      Qy <- qr.Q(qy)
+    function(Qx, Qy) {
+      if (ncol(Qx) == 0L || ncol(Qy) == 0L) {
+        return(0)
+      }
       cached_svd(crossprod(Qx, Qy))$d
     }
   }
 
   ## --- full observed root vector (for form_units) -----------------------------
 
-  s_full <- cross_stat(Xc, Yc)
+  if (rel_kind == "covariance") {
+    s_full <- cross_stat(Xc, Yc)
+  } else {
+    qx_full <- orth_basis(Xc)
+    qy_full <- orth_basis(Yc)
+    s_full <- cross_stat(qx_full, qy_full)
+  }
   roots_observed <- s_full^2
   zero_tol <- max(1, sum(roots_observed)) * .Machine$double.eps
 
   ## --- max_steps default ------------------------------------------------------
 
   if (is.null(max_steps)) {
-    max_steps <- min(min(nrow(Xc), ncol(Xc), ncol(Yc)) - 1L, 50L)
+    if (rel_kind == "correlation" && allow_multiroot_correlation) {
+      max_steps <- min(length(roots_observed), 50L)
+    } else {
+      max_steps <- min(min(nrow(Xc), ncol(Xc), ncol(Yc)) - 1L, 50L)
+    }
   }
   max_steps <- as.integer(max(1L, max_steps))
-  if (rel_kind == "correlation") {
+  if (rel_kind == "correlation" && !allow_multiroot_correlation) {
     max_steps <- min(max_steps, 1L)
   }
 
@@ -144,9 +165,10 @@ run_cross_ladder <- function(recipe,
   cross_matrix <- if (rel_kind == "covariance") {
     function(Xr, Yr) base::crossprod(Xr, Yr)
   } else {
-    function(Xr, Yr) {
-      Qx <- qr.Q(qr(Xr))
-      Qy <- qr.Q(qr(Yr))
+    function(Qx, Qy) {
+      if (ncol(Qx) == 0L || ncol(Qy) == 0L) {
+        return(matrix(0, nrow = 1L, ncol = 1L))
+      }
       base::crossprod(Qx, Qy)
     }
   }
@@ -205,7 +227,11 @@ run_cross_ladder <- function(recipe,
     if (use_fast_rung1 && step == 1L) {
       return(rung1_top_sv2(core_Uy))
     }
-    M  <- cross_matrix(data$X, data$Y)
+    if (rel_kind == "covariance") {
+      M <- cross_matrix(data$X, data$Y)
+    } else {
+      M <- cross_matrix(data$Qx, data$Qy)
+    }
     s1 <- top_singular_values(M, 1L)[1L]
     s1 * s1
   }
@@ -215,9 +241,15 @@ run_cross_ladder <- function(recipe,
       perm <- base::sample.int(nrow(core_Uy))
       return(rung1_top_sv2(core_Uy[perm, , drop = FALSE]))
     }
-    perm <- base::sample.int(nrow(data$Y))
-    Yp   <- data$Y[perm, , drop = FALSE]
-    M    <- cross_matrix(data$X, Yp)
+    if (rel_kind == "covariance") {
+      perm <- base::sample.int(nrow(data$Y))
+      Yp   <- data$Y[perm, , drop = FALSE]
+      M    <- cross_matrix(data$X, Yp)
+    } else {
+      perm <- base::sample.int(nrow(data$Qy))
+      Qyp  <- data$Qy[perm, , drop = FALSE]
+      M    <- cross_matrix(data$Qx, Qyp)
+    }
     s1   <- top_singular_values(M, 1L)[1L]
     s1 * s1
   }
@@ -235,25 +267,15 @@ run_cross_ladder <- function(recipe,
       Xn <- data$X - data$X %*% u1 %*% t(u1)
       Yn <- data$Y - data$Y %*% v1 %*% t(v1)
     } else {
-      qx <- qr(data$X)
-      qy <- qr(data$Y)
-      Qx <- qr.Q(qx)
-      Qy <- qr.Q(qy)
-      sv <- top_svd(crossprod(Qx, Qy), 1L)
-      # Map whitened directions back to original variable space.
-      Wx <- backsolve(qr.R(qx), sv$u[, 1L, drop = FALSE])
-      Wy <- backsolve(qr.R(qy), sv$v[, 1L, drop = FALSE])
-      # Normalize columns so the projector is well-defined.
-      norm_or_one <- function(w) {
-        nm <- sqrt(sum(w^2))
-        if (nm < 1e-12) w else w / nm
+      if (ncol(data$Qx) == 0L || ncol(data$Qy) == 0L) {
+        return(list(Qx = data$Qx, Qy = data$Qy))
       }
-      Wx <- apply(Wx, 2L, norm_or_one)
-      Wy <- apply(Wy, 2L, norm_or_one)
-      if (!is.matrix(Wx)) Wx <- matrix(Wx, ncol = 1L)
-      if (!is.matrix(Wy)) Wy <- matrix(Wy, ncol = 1L)
-      Xn <- data$X - data$X %*% Wx %*% t(Wx)
-      Yn <- data$Y - data$Y %*% Wy %*% t(Wy)
+      sv <- top_svd(crossprod(data$Qx, data$Qy), 1L)
+      tx <- data$Qx %*% sv$u[, 1L, drop = FALSE]
+      ty <- data$Qy %*% sv$v[, 1L, drop = FALSE]
+      Qx_next <- orth_basis(data$Qx - tx %*% crossprod(tx, data$Qx))
+      Qy_next <- orth_basis(data$Qy - ty %*% crossprod(ty, data$Qy))
+      return(list(Qx = Qx_next, Qy = Qy_next))
     }
     if (sum(Xn^2) + sum(Yn^2) <= zero_tol) {
       return(list(
@@ -270,7 +292,11 @@ run_cross_ladder <- function(recipe,
     observed_stat_fn = observed_stat_fn,
     null_stat_fn     = null_stat_fn,
     deflate_fn       = deflate_fn,
-    initial_data     = list(X = Xc, Y = Yc),
+    initial_data     = if (rel_kind == "covariance") {
+      list(X = Xc, Y = Yc)
+    } else {
+      list(Qx = qx_full, Qy = qy_full)
+    },
     max_steps        = max_steps,
     B                = B,
     B_total          = B_total,

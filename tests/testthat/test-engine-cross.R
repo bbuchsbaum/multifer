@@ -32,6 +32,34 @@ make_exact_cross_correlation_engine <- function(n, scales_x, scales_y) {
   )
 }
 
+make_exact_canonical_correlation_engine <- function(n, canonical_corrs,
+                                                    scale_x = NULL,
+                                                    scale_y = NULL,
+                                                    extra_scale_x = 1,
+                                                    extra_scale_y = 1) {
+  k <- length(canonical_corrs)
+  if (is.null(scale_x)) scale_x <- rep(1, k)
+  if (is.null(scale_y)) scale_y <- rep(1, k)
+  stopifnot(length(scale_x) == k, length(scale_y) == k)
+
+  B <- centered_orthonormal_cross(n, 2L * k + 2L)
+  A <- B[, seq_len(k), drop = FALSE]
+  C <- B[, k + seq_len(k), drop = FALSE]
+  extra_x <- B[, 2L * k + 1L, drop = FALSE]
+  extra_y <- B[, 2L * k + 2L, drop = FALSE]
+
+  Qx_shared <- A
+  Qy_shared <- A %*% diag(canonical_corrs, nrow = k, ncol = k) +
+    C %*% diag(sqrt(1 - canonical_corrs^2), nrow = k, ncol = k)
+
+  X <- cbind(Qx_shared %*% diag(scale_x, nrow = k, ncol = k),
+             extra_scale_x * extra_x)
+  Y <- cbind(Qy_shared %*% diag(scale_y, nrow = k, ncol = k),
+             extra_scale_y * extra_y)
+
+  list(X = X, Y = Y, canonical_corrs = c(canonical_corrs, 0))
+}
+
 test_that("run_cross_ladder validates recipe geometry", {
   ensure_default_adapters()
   rec_one <- infer_recipe(geometry = "oneblock", relation = "variance",
@@ -126,20 +154,75 @@ test_that("run_cross_ladder covariance recovers exact noiseless shared cross ran
   expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
 })
 
-test_that("run_cross_ladder correlation is validity-capped at the first root", {
+test_that("run_cross_ladder correlation recovers exact shared canonical rank under paired rows", {
   ensure_default_adapters()
   set.seed(402)
-  dat <- make_exact_cross_correlation_engine(
-    n = 30,
-    scales_x = c(5, 2, 1),
-    scales_y = c(4, 3, 0.5)
+  dat <- make_exact_canonical_correlation_engine(
+    n = 36,
+    canonical_corrs = c(0.95, 0.7, 0.4),
+    scale_x = c(5, 2, 1),
+    scale_y = c(4, 3, 0.5),
+    extra_scale_x = 1.5,
+    extra_scale_y = 1.2
   )
   rec <- infer_recipe(geometry = "cross", relation = "correlation",
                       adapter = "cross_svd")
-  res <- run_cross_ladder(rec, dat$X, dat$Y, B = 39L, alpha = 0.05, seed = 7L)
+  res <- run_cross_ladder(
+    rec, dat$X, dat$Y,
+    B = 39L, alpha = 0.05, seed = 7L, max_steps = 4L
+  )
+
+  expect_equal(res$ladder_result$rejected_through, 3L)
+  expect_equal(res$ladder_result$last_step_tested, 4L)
+  expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+test_that("run_cross_ladder correlation remains conservative for nuisance-adjusted designs", {
+  ensure_default_adapters()
+  set.seed(403)
+  dat <- make_exact_canonical_correlation_engine(
+    n = 36,
+    canonical_corrs = c(0.95, 0.7, 0.4),
+    scale_x = c(5, 2, 1),
+    scale_y = c(4, 3, 0.5),
+    extra_scale_x = 1.5,
+    extra_scale_y = 1.2
+  )
+  Z <- cbind(1, scale(seq_len(nrow(dat$X))))
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = nuisance_adjusted(Z),
+    adapter = "cross_svd"
+  )
+  res <- run_cross_ladder(
+    rec, dat$X, dat$Y,
+    B = 39L, alpha = 0.05, seed = 7L, max_steps = 4L
+  )
 
   expect_equal(res$ladder_result$last_step_tested, 1L)
   expect_true(res$ladder_result$rejected_through %in% c(0L, 1L))
   expect_equal(nrow(res$component_tests), 1L)
   expect_true(isTRUE(res$component_tests$selected[1L]))
+})
+
+test_that("run_cross_ladder correlation controls false positives on replicated null draws", {
+  ensure_default_adapters()
+  rec <- infer_recipe(geometry = "cross", relation = "correlation",
+                      adapter = "cross_svd")
+
+  n_rep <- 40L
+  hits <- integer(n_rep)
+  for (i in seq_len(n_rep)) {
+    dat <- bench_cross_null(
+      n = 50, p_x = 6, p_y = 6,
+      within_rank_x = 3, within_rank_y = 3,
+      seed = 800 + i
+    )
+    res <- run_cross_ladder(rec, dat$X, dat$Y, B = 39L, alpha = 0.05, seed = i)
+    hits[i] <- as.integer(res$ladder_result$rejected_through > 0L)
+  }
+
+  fpr <- mean(hits)
+  expect_true(fpr >= 0 && fpr <= 0.15, info = sprintf("empirical FPR = %.3f", fpr))
 })
