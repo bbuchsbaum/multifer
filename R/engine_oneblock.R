@@ -25,7 +25,11 @@
 #' @param recipe A compiled \code{multifer_infer_recipe}. Must have
 #'   geometry \code{"oneblock"} and relation \code{"variance"}.
 #' @param X Numeric matrix, n x p. Centered internally.
-#' @param B Number of Monte Carlo draws per rung. Default \code{1000}.
+#' @param B Per-rung cap on Monte Carlo draws. Default \code{1000}.
+#' @param B_total Optional integer global Monte Carlo budget shared
+#'   across ladder rungs. Defaults to `B * max_steps`.
+#' @param batch_size Positive integer, Besag-Clifford batch size within
+#'   each rung. Default `32L`.
 #' @param alpha Significance threshold. Default \code{0.05}.
 #' @param max_steps Maximum number of ladder rungs. Default
 #'   \code{min(nrow(X), ncol(X)) - 1}, capped at 50 for Phase 1.

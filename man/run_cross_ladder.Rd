@@ -26,7 +26,13 @@ run_cross_ladder(
 \item{Y}{Numeric matrix, n x q. Must have the same number of rows
 as \code{X}.}
 
-\item{B}{Number of Monte Carlo draws per rung.}
+\item{B}{Per-rung cap on Monte Carlo draws.}
+
+\item{B_total}{Optional integer global Monte Carlo budget shared
+across ladder rungs. Defaults to \code{B * max_steps}.}
+
+\item{batch_size}{Positive integer, Besag-Clifford batch size within
+each rung. Default \code{32L}.}
 
 \item{alpha}{Significance threshold.}
 

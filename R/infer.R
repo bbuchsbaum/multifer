@@ -38,12 +38,23 @@
 #'   \code{variable_significance}.
 #' @param strict Logical, passed to \code{\link{infer_recipe}()}.
 #'   Default \code{TRUE}.
-#' @param B Integer, number of Monte Carlo draws per ladder rung.
+#' @param B Integer, per-rung cap on Monte Carlo draws.
+#' @param B_total Optional integer, global Monte Carlo budget shared
+#'   across ladder rungs. Defaults to `B * max_steps`.
+#' @param mc_batch_size Positive integer, Besag-Clifford batch size
+#'   within each rung. Default `32L`.
 #' @param R Integer, number of bootstrap replicates.
 #' @param alpha Numeric, significance threshold for the test ladder.
 #' @param model Optional pre-fit object. When NULL, \code{adapter$refit(NULL, data)}
 #'   is called to produce the original fit.
 #' @param seed Optional integer seed.
+#' @param parallel One of `"sequential"`, `"mirai"`, `"auto"`. Controls
+#'   the bootstrap fan-out backend. `"sequential"` keeps the single-stream
+#'   Phase 1 loop. `"mirai"` / `"auto"` fan out per-replicate tasks to a
+#'   mirai daemon pool with deterministic per-task seeds.
+#' @param fast_path One of `"auto"`, `"off"`. `"auto"` uses the Phase 1.5
+#'   core()/update_core() fast path when the adapter exposes it.
+#'   `"off"` forces the refit path, useful for correctness validation.
 #'
 #' @return An \code{\link{infer_result}}.
 #' @export
@@ -63,10 +74,12 @@ infer <- function(adapter,
                   alpha         = 0.05,
                   model         = NULL,
                   seed          = NULL,
-                  parallel      = c("sequential", "mirai", "auto")) {
+                  parallel      = c("sequential", "mirai", "auto"),
+                  fast_path     = c("auto", "off")) {
 
   call <- match.call()
-  parallel <- match.arg(parallel)
+  parallel  <- match.arg(parallel)
+  fast_path <- match.arg(fast_path)
   t_start_total <- proc.time()[["elapsed"]]
 
   ## --- reset thin-SVD cache for this call ------------------------------------
@@ -217,7 +230,8 @@ infer <- function(adapter,
       R            = R,
       method_align = "sign",
       seed         = seed,
-      parallel     = parallel
+      parallel     = parallel,
+      fast_path    = fast_path
     )
 
     if ("variable_stability" %in% resolved_targets) {

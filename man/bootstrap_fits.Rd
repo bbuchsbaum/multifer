@@ -13,7 +13,9 @@ bootstrap_fits(
   R = 500L,
   method_align = c("sign", "procrustes"),
   seed = NULL,
-  parallel = c("sequential", "mirai", "auto")
+  parallel = c("sequential", "mirai", "auto"),
+  fast_path = c("auto", "off"),
+  core_rank = 50L
 )
 }
 \arguments{
@@ -41,6 +43,20 @@ procrustes details.}
 \item{seed}{Integer or NULL for reproducibility. When non-NULL, the
 current RNG state is saved and restored on exit so the caller's RNG
 stream is unchanged.}
+
+\item{parallel}{One of \code{"sequential"}, \code{"mirai"}, \code{"auto"}.
+\code{"sequential"} runs the replicate loop in-process using a single
+RNG stream (Phase 1 behavior). \code{"mirai"} / \code{"auto"} fan out per-rep
+tasks to a mirai daemon pool with deterministic per-rep seeds.}
+
+\item{fast_path}{One of \code{"auto"}, \code{"off"}. \code{"auto"} uses the
+adapter's core()/update_core() hooks when available; \code{"off"}
+forces the refit path.}
+
+\item{core_rank}{Positive integer cap on the core rank used by the
+fast path, or NULL to leave the full thin SVD untruncated.
+Truncation is the knob that converts the §30 thin-SVD cache into
+actual wall-clock wins; defaults to \code{50L}.}
 }
 \value{
 An object of class \code{multifer_bootstrap_artifact}, a list

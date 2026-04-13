@@ -21,7 +21,8 @@ infer(
   alpha = 0.05,
   model = NULL,
   seed = NULL,
-  parallel = c("sequential", "mirai", "auto")
+  parallel = c("sequential", "mirai", "auto"),
+  fast_path = c("auto", "off")
 )
 }
 \arguments{
@@ -52,7 +53,13 @@ are ignored.}
 \item{strict}{Logical, passed to \code{\link{infer_recipe}()}.
 Default \code{TRUE}.}
 
-\item{B}{Integer, number of Monte Carlo draws per ladder rung.}
+\item{B}{Integer, per-rung cap on Monte Carlo draws.}
+
+\item{B_total}{Optional integer, global Monte Carlo budget shared
+across ladder rungs. Defaults to \code{B * max_steps}.}
+
+\item{mc_batch_size}{Positive integer, Besag-Clifford batch size
+within each rung. Default \code{32L}.}
 
 \item{R}{Integer, number of bootstrap replicates.}
 
@@ -62,6 +69,15 @@ Default \code{TRUE}.}
 is called to produce the original fit.}
 
 \item{seed}{Optional integer seed.}
+
+\item{parallel}{One of \code{"sequential"}, \code{"mirai"}, \code{"auto"}. Controls
+the bootstrap fan-out backend. \code{"sequential"} keeps the single-stream
+Phase 1 loop. \code{"mirai"} / \code{"auto"} fan out per-replicate tasks to a
+mirai daemon pool with deterministic per-task seeds.}
+
+\item{fast_path}{One of \code{"auto"}, \code{"off"}. \code{"auto"} uses the Phase 1.5
+core()/update_core() fast path when the adapter exposes it.
+\code{"off"} forces the refit path, useful for correctness validation.}
 }
 \value{
 An \code{\link{infer_result}}.

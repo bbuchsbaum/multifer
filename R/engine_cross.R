@@ -28,7 +28,11 @@
 #' @param X Numeric matrix, n x p.
 #' @param Y Numeric matrix, n x q. Must have the same number of rows
 #'   as \code{X}.
-#' @param B Number of Monte Carlo draws per rung.
+#' @param B Per-rung cap on Monte Carlo draws.
+#' @param B_total Optional integer global Monte Carlo budget shared
+#'   across ladder rungs. Defaults to `B * max_steps`.
+#' @param batch_size Positive integer, Besag-Clifford batch size within
+#'   each rung. Default `32L`.
 #' @param alpha Significance threshold.
 #' @param max_steps Maximum ladder rungs. Default
 #'   \code{min(nrow, ncol(X), ncol(Y)) - 1}, capped at 50.

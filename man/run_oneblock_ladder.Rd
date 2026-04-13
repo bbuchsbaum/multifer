@@ -21,7 +21,13 @@ geometry \code{"oneblock"} and relation \code{"variance"}.}
 
 \item{X}{Numeric matrix, n x p. Centered internally.}
 
-\item{B}{Number of Monte Carlo draws per rung. Default \code{1000}.}
+\item{B}{Per-rung cap on Monte Carlo draws. Default \code{1000}.}
+
+\item{B_total}{Optional integer global Monte Carlo budget shared
+across ladder rungs. Defaults to \code{B * max_steps}.}
+
+\item{batch_size}{Positive integer, Besag-Clifford batch size within
+each rung. Default \code{32L}.}
 
 \item{alpha}{Significance threshold. Default \code{0.05}.}
 
