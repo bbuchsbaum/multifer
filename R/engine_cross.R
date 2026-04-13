@@ -164,9 +164,10 @@ run_cross_ladder <- function(recipe,
     # Remove the rank-1 contribution of the top cross-pair from BOTH
     # blocks. For covariance: take the top left/right singular vectors
     # of crossprod(X, Y) and subtract their projection from X and Y.
-    # For correlation: same idea but using the whitened SVD.
+    # For correlation: same idea but using the whitened SVD. Only the
+    # top factor is needed, so route through the partial-SVD helper.
     if (rel_kind == "covariance") {
-      sv <- svd(crossprod(data$X, data$Y))
+      sv <- top_svd(crossprod(data$X, data$Y), 1L)
       u1 <- sv$u[, 1L, drop = FALSE]
       v1 <- sv$v[, 1L, drop = FALSE]
       Xn <- data$X - data$X %*% u1 %*% t(u1)
@@ -176,7 +177,7 @@ run_cross_ladder <- function(recipe,
       qy <- qr(data$Y)
       Qx <- qr.Q(qx)
       Qy <- qr.Q(qy)
-      sv <- svd(crossprod(Qx, Qy))
+      sv <- top_svd(crossprod(Qx, Qy), 1L)
       # Map whitened directions back to original variable space.
       Wx <- backsolve(qr.R(qx), sv$u[, 1L, drop = FALSE])
       Wy <- backsolve(qr.R(qy), sv$v[, 1L, drop = FALSE])

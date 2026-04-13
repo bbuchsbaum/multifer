@@ -39,3 +39,46 @@ top_singular_values <- function(X, k) {
   }
   base::svd(X)$d[seq_len(k)]
 }
+
+#' Top-k SVD triple (d, u, v)
+#'
+#' Returns the top `k` singular values and the corresponding left and
+#' right singular vectors of `X`. Used by `deflate_fn` in the one-block
+#' and cross engines: only the leading factor is needed to form the
+#' rank-1 deflation, so a partial SVD is much cheaper than a full one
+#' on large problems.
+#'
+#' @param X Numeric matrix.
+#' @param k Positive integer.
+#' @return A list with `d` (length-`k` numeric), `u` (nrow(X) x k),
+#'   `v` (ncol(X) x k).
+#' @keywords internal
+#' @noRd
+top_svd <- function(X, k) {
+  k <- as.integer(k)
+  mn <- min(dim(X))
+  if (k >= mn) {
+    sv <- base::svd(X)
+    return(list(d = sv$d, u = sv$u, v = sv$v))
+  }
+  if (requireNamespace("RSpectra", quietly = TRUE)) {
+    k_use <- min(k, mn - 1L)
+    if (k_use < 1L) {
+      sv <- base::svd(X)
+      return(list(d = sv$d, u = sv$u, v = sv$v))
+    }
+    res <- tryCatch(
+      RSpectra::svds(X, k = k_use),
+      error = function(e) NULL
+    )
+    if (!is.null(res) && length(res$d) == k_use) {
+      return(list(d = res$d, u = res$u, v = res$v))
+    }
+  }
+  sv <- base::svd(X)
+  list(
+    d = sv$d[seq_len(k)],
+    u = sv$u[, seq_len(k), drop = FALSE],
+    v = sv$v[, seq_len(k), drop = FALSE]
+  )
+}

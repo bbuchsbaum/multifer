@@ -150,9 +150,9 @@ run_oneblock_ladder <- function(recipe,
   }
 
   # deflate_fn: remove the rank-1 approximation from the top component.
-  # Uses the current SVD implicitly: data - s[1] * u[,1] %*% t(v[,1]).
+  # Uses the top-1 partial SVD: data - d[1] * u[,1] %*% t(v[,1]).
   deflate_fn <- function(step, data) {
-    sv <- base::svd(data)
+    sv <- top_svd(data, 1L)
     resid <- data - sv$d[1L] * (sv$u[, 1L, drop = FALSE] %*% t(sv$v[, 1L, drop = FALSE]))
     if (sum(resid^2) <= zero_tol) {
       return(matrix(0, nrow = nrow(data), ncol = ncol(data)))
