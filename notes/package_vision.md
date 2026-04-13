@@ -2,6 +2,10 @@
 
 This note states the intended relationship between the methods paper and the package.
 
+Companion note: for the explicit architecture rules that prioritize generality,
+performance, modularity, and abstraction over ad hoc special casing, see
+[architecture_rules.md](./architecture_rules.md).
+
 The package should do two things at once:
 
 1. serve as the **reference implementation** of the paper's core method,
