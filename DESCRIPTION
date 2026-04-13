@@ -6,12 +6,15 @@ Authors@R:
            family = "Buchsbaum",
            role = c("aut", "cre"),
            email = "brad.buchsbaum@gmail.com")
-Description: A shape-first inference layer for projector-based multivariate
-    models. Provides one coherent system for component significance,
-    variable and score stability, and subspace uncertainty across one-block,
-    cross-block, multiblock, and generalized-eigen shapes. Built around
-    typed shapes (geometry, relation, design), strict dispatch, machine-
-    enforced validity contracts, and latent-unit-centered output schemas.
+Description: A typed perturbation inference platform for latent-root
+    multivariate models. Ships mature support for PCA-family one-block
+    variance inference and covariance-mode two-block methods (PLSC-family),
+    qualified support for canonical-correlation models, and architectural
+    slots for planned generalized-eigen and predictive-cross engines. Built
+    around typed shapes (geometry, relation, design), strict dispatch,
+    machine-enforced validity contracts, latent-unit output schemas, and
+    a clean separation between permutation-based significance and
+    bootstrap-based stability.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

@@ -1,10 +1,18 @@
 # multifer
 
-`multifer` provides perturbation-based inference for latent multivariate models.
-It is the reference implementation of rank-matched residual randomization for
-latent-root inference in PCA-like and covariance two-block models, and it also
-provides a broader framework for stability analysis and method-specific
-inference across latent model families.
+`multifer` is a typed perturbation inference platform for latent-root
+multivariate models. It ships **mature support** for PCA-family one-block
+variance inference and covariance-mode two-block methods (PLSC-family) —
+both based on the exact collapsed Vitale P3 ladder and an exact core-space
+bootstrap — plus **qualified support** for canonical-correlation models,
+and **planned extensions** for generalized-eigen engines (LDA, contrastive
+PCA) and a separate supervised-predictive relation for PLS regression
+and reduced-rank regression.
+
+The design target is deliberately narrower than "one framework for all
+multivariate methods." It is maximally *reusable* across a small number
+of mathematically coherent inferential families, rather than maximally
+general.
 
 The package is built around three ideas:
 

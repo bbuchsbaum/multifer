@@ -1,70 +1,9 @@
-# exact core-space helpers for cross covariance
-
-.cross_covariance_core <- function(X, Y, tol = 1e-10) {
-  sv_x <- cached_svd(X)
-  sv_y <- cached_svd(Y)
-
-  keep_x <- sv_x$d > max(1, sv_x$d[1L]) * tol
-  keep_y <- sv_y$d > max(1, sv_y$d[1L]) * tol
-  if (!any(keep_x) || !any(keep_y)) {
-    return(list(
-      use_core = TRUE,
-      Ux = matrix(0, nrow = nrow(X), ncol = 0L),
-      dx = numeric(0),
-      Vx = matrix(0, nrow = ncol(X), ncol = 0L),
-      Uy = matrix(0, nrow = nrow(Y), ncol = 0L),
-      dy = numeric(0),
-      Vy = matrix(0, nrow = ncol(Y), ncol = 0L)
-    ))
-  }
-
-  Ux <- sv_x$u[, keep_x, drop = FALSE]
-  dx <- sv_x$d[keep_x]
-  Vx <- sv_x$v[, keep_x, drop = FALSE]
-  Uy <- sv_y$u[, keep_y, drop = FALSE]
-  dy <- sv_y$d[keep_y]
-  Vy <- sv_y$v[, keep_y, drop = FALSE]
-
-  list(
-    use_core = (length(dx) * length(dy)) < (ncol(X) * ncol(Y)),
-    Ux = Ux, dx = dx, Vx = Vx,
-    Uy = Uy, dy = dy, Vy = Vy
-  )
-}
-
-.cross_covariance_core_matrix <- function(core, Uy_view = core$Uy) {
-  if (length(core$dx) == 0L || length(core$dy) == 0L) {
-    return(matrix(0, nrow = 1L, ncol = 1L))
-  }
-  inner <- base::crossprod(core$Ux, Uy_view)
-  M <- base::sweep(inner, 1L, core$dx, `*`)
-  base::sweep(M, 2L, core$dy, `*`)
-}
-
-.cross_covariance_core_observed_sv2 <- function(core) {
-  M <- .cross_covariance_core_matrix(core)
-  s1 <- top_singular_values(M, 1L)[1L]
-  s1 * s1
-}
-
-.cross_covariance_core_null_sv2 <- function(core, perm) {
-  M <- .cross_covariance_core_matrix(core, core$Uy[perm, , drop = FALSE])
-  s1 <- top_singular_values(M, 1L)[1L]
-  s1 * s1
-}
-
-.cross_covariance_core_deflate <- function(core, X, Y) {
-  if (length(core$dx) == 0L || length(core$dy) == 0L) {
-    return(list(X = X, Y = Y))
-  }
-  sv_inner <- top_svd(.cross_covariance_core_matrix(core), 1L)
-  u1 <- core$Vx %*% sv_inner$u[, 1L, drop = FALSE]
-  v1 <- core$Vy %*% sv_inner$v[, 1L, drop = FALSE]
-  list(
-    X = X - X %*% u1 %*% t(u1),
-    Y = Y - Y %*% v1 %*% t(v1)
-  )
-}
+# CCA / nuisance design helpers
+#
+# The exact cross-covariance core-space helpers
+# (.cross_covariance_core*) live in R/core_space.R. This file keeps
+# only the CCA-specific permutation and nuisance-design helpers below,
+# plus the run_cross_ladder engine.
 
 .restricted_row_permutation <- function(groups) {
   groups <- as.factor(groups)
@@ -190,6 +129,12 @@
 #' @param max_steps Maximum ladder rungs. Default
 #'   \code{min(nrow, ncol(X), ncol(Y)) - 1}, capped at 50.
 #' @param seed Integer or NULL.
+#' @param cross_rank_cap Reserved opt-in for an approximate rank-capped
+#'   core path on very large problems. Default `NULL` (exact only, no
+#'   approximation). Setting a positive integer enables a truncated
+#'   block-SVD pre-projection whose top-1 statistic is biased and
+#'   whose use is NOT paper-faithful; it exists as a screening knob
+#'   only.
 #'
 #' @return A list with \code{units}, \code{component_tests},
 #'   \code{roots_observed}, and \code{ladder_result}, mirroring
@@ -205,7 +150,7 @@ run_cross_ladder <- function(recipe,
                              alpha          = 0.05,
                              max_steps      = NULL,
                              seed           = NULL,
-                             cross_rank_cap = 50L) {
+                             cross_rank_cap = NULL) {
 
   orth_basis <- function(M, tol = 1e-10) {
     q <- qr(M, tol = tol)
@@ -339,54 +284,26 @@ run_cross_ladder <- function(recipe,
     }
   }
 
-  # Phase 1.5 follow-up: rank-capped core approximation for rung 1.
+  # The paper-faithful fast path for (cross, covariance) lives in the
+  # exact core-space helpers from R/core_space.R
+  # (.cross_covariance_core / .cross_covariance_core_observed_sv2 /
+  # .cross_covariance_core_null_sv2 / .cross_covariance_core_deflate),
+  # which evaluate the collapsed Vitale P3 null in the full thin-SVD
+  # core and match refit bit-for-bit. Those helpers are wired into
+  # observed_stat_fn / null_stat_fn / deflate_fn below.
   #
-  # For (cross, covariance) the top singular value of Xc^T · Yc[perm,] is
-  # the quantity we need per null draw. If we thin-SVD both blocks once
-  # before the ladder, Xc = Ux Dx Vx^T and Yc = Uy Dy Vy^T, then
-  #   Xc^T · Yc[perm,]  =  Vx Dx (Ux^T · P Uy) Dy Vy^T
-  # where P permutes rows. Since Vx / Vy have orthonormal columns, the
-  # top singular value of that product equals the top singular value of
-  #   M  =  Dx · (Ux^T · Uy[perm,]) · Dy
-  # which is a k_x x k_y inner matrix. Truncating the thin SVDs to
-  # cross_rank_cap makes the per-draw work O(k_x * n * k_y) instead of
-  # O(n * p * q); with the default k = 50 on n=500, p=250, q=200 this is
-  # a ~20x drop in flops on the per-draw hot spot.
-  #
-  # The approximation only fires on rung 1 because deeper rungs see a
-  # deflated (Xd, Yd) that we do not have a cheap cached SVD for. Most
-  # ladder runs stop at rung 1 under null-ish data, so this is where
-  # the savings live.
-  use_fast_rung1 <- rel_kind == "covariance" &&
-                    is.numeric(cross_rank_cap) &&
-                    length(cross_rank_cap) == 1L &&
-                    cross_rank_cap >= 1L
-
-  core_Ux <- NULL; core_Dx <- NULL
-  core_Uy <- NULL; core_Dy <- NULL
-  if (use_fast_rung1) {
-    k_max_x <- min(as.integer(cross_rank_cap), nrow(Xc) - 1L, ncol(Xc))
-    k_max_y <- min(as.integer(cross_rank_cap), nrow(Yc) - 1L, ncol(Yc))
-    if (k_max_x >= 1L && k_max_y >= 1L) {
-      sv_x <- top_svd(Xc, k_max_x)
-      sv_y <- top_svd(Yc, k_max_y)
-      core_Ux <- sv_x$u
-      core_Dx <- sv_x$d
-      core_Uy <- sv_y$u
-      core_Dy <- sv_y$d
-    } else {
-      use_fast_rung1 <- FALSE
+  # `cross_rank_cap` is reserved for an **opt-in** rank-truncated
+  # approximate path. It is NOT paper-faithful (dropping the tail of
+  # the block SVDs biases the top-1 singular value low), so the default
+  # is NULL -- exact only. Users who want a rough screening statistic
+  # on very large problems can set it explicitly.
+  if (!is.null(cross_rank_cap)) {
+    if (!is.numeric(cross_rank_cap) || length(cross_rank_cap) != 1L ||
+        is.na(cross_rank_cap) || cross_rank_cap < 1L ||
+        cross_rank_cap != as.integer(cross_rank_cap)) {
+      stop("`cross_rank_cap` must be NULL or a positive integer scalar.",
+           call. = FALSE)
     }
-  }
-
-  rung1_top_sv2 <- function(Uy_view) {
-    # M = diag(Dx) · (Ux^T · Uy_view) · diag(Dy), a k_x x k_y inner matrix.
-    # Return the top singular value squared of M.
-    inner <- base::crossprod(core_Ux, Uy_view)          # k_x x k_y
-    M     <- base::sweep(inner, 1L, core_Dx, `*`)       # scale rows
-    M     <- base::sweep(M,     2L, core_Dy, `*`)       # scale columns
-    s1    <- top_singular_values(M, 1L)[1L]
-    s1 * s1
   }
 
   cov_step_cache <- new.env(parent = emptyenv())
@@ -405,11 +322,6 @@ run_cross_ladder <- function(recipe,
       if (isTRUE(core$use_core)) {
         return(.cross_covariance_core_observed_sv2(core))
       }
-    }
-    if (use_fast_rung1 && step == 1L) {
-      return(rung1_top_sv2(core_Uy))
-    }
-    if (rel_kind == "covariance") {
       M <- cross_matrix(data$X, data$Y)
     } else {
       M <- cross_matrix(data$Qx, data$Qy)
@@ -425,12 +337,6 @@ run_cross_ladder <- function(recipe,
         perm <- base::sample.int(nrow(core$Uy))
         return(.cross_covariance_core_null_sv2(core, perm))
       }
-    }
-    if (use_fast_rung1 && step == 1L) {
-      perm <- base::sample.int(nrow(core_Uy))
-      return(rung1_top_sv2(core_Uy[perm, , drop = FALSE]))
-    }
-    if (rel_kind == "covariance") {
       perm <- base::sample.int(nrow(data$Y))
       Yp   <- data$Y[perm, , drop = FALSE]
       M    <- cross_matrix(data$X, Yp)

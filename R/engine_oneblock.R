@@ -13,10 +13,7 @@
 #' singular value of the original matrix.
 #'
 #' The null generator permutes columns of \code{E_a} and evaluates the
-#' collapsed Vitale P3 null
-#'
-#'   T_a^*(M_b) = lambda_a(M_b) / sum_{q >= a} lambda_q(M_b)
-#'
+#' collapsed Vitale P3 null, \eqn{T_a^*(M_b) = \lambda_a(M_b) / \sum_{q \ge a} \lambda_q(M_b)},
 #' on the randomized residual \code{M_b}. No projected matrix is formed
 #' and no second SVD is needed; only the first \code{a} singular values
 #' of \code{M_b} are required.

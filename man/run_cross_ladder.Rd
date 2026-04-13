@@ -14,7 +14,7 @@ run_cross_ladder(
   alpha = 0.05,
   max_steps = NULL,
   seed = NULL,
-  cross_rank_cap = 50L
+  cross_rank_cap = NULL
 )
 }
 \arguments{
@@ -41,6 +41,13 @@ each rung. Default \code{32L}.}
 \code{min(nrow, ncol(X), ncol(Y)) - 1}, capped at 50.}
 
 \item{seed}{Integer or NULL.}
+
+\item{cross_rank_cap}{Reserved opt-in for an approximate rank-capped
+core path on very large problems. Default \code{NULL} (exact only, no
+approximation). Setting a positive integer enables a truncated
+block-SVD pre-projection whose top-1 statistic is biased and
+whose use is NOT paper-faithful; it exists as a screening knob
+only.}
 }
 \value{
 A list with \code{units}, \code{component_tests},
