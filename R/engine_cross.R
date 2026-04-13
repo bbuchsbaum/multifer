@@ -1,3 +1,71 @@
+# exact core-space helpers for cross covariance
+
+.cross_covariance_core <- function(X, Y, tol = 1e-10) {
+  sv_x <- cached_svd(X)
+  sv_y <- cached_svd(Y)
+
+  keep_x <- sv_x$d > max(1, sv_x$d[1L]) * tol
+  keep_y <- sv_y$d > max(1, sv_y$d[1L]) * tol
+  if (!any(keep_x) || !any(keep_y)) {
+    return(list(
+      use_core = TRUE,
+      Ux = matrix(0, nrow = nrow(X), ncol = 0L),
+      dx = numeric(0),
+      Vx = matrix(0, nrow = ncol(X), ncol = 0L),
+      Uy = matrix(0, nrow = nrow(Y), ncol = 0L),
+      dy = numeric(0),
+      Vy = matrix(0, nrow = ncol(Y), ncol = 0L)
+    ))
+  }
+
+  Ux <- sv_x$u[, keep_x, drop = FALSE]
+  dx <- sv_x$d[keep_x]
+  Vx <- sv_x$v[, keep_x, drop = FALSE]
+  Uy <- sv_y$u[, keep_y, drop = FALSE]
+  dy <- sv_y$d[keep_y]
+  Vy <- sv_y$v[, keep_y, drop = FALSE]
+
+  list(
+    use_core = (length(dx) * length(dy)) < (ncol(X) * ncol(Y)),
+    Ux = Ux, dx = dx, Vx = Vx,
+    Uy = Uy, dy = dy, Vy = Vy
+  )
+}
+
+.cross_covariance_core_matrix <- function(core, Uy_view = core$Uy) {
+  if (length(core$dx) == 0L || length(core$dy) == 0L) {
+    return(matrix(0, nrow = 1L, ncol = 1L))
+  }
+  inner <- base::crossprod(core$Ux, Uy_view)
+  M <- base::sweep(inner, 1L, core$dx, `*`)
+  base::sweep(M, 2L, core$dy, `*`)
+}
+
+.cross_covariance_core_observed_sv2 <- function(core) {
+  M <- .cross_covariance_core_matrix(core)
+  s1 <- top_singular_values(M, 1L)[1L]
+  s1 * s1
+}
+
+.cross_covariance_core_null_sv2 <- function(core, perm) {
+  M <- .cross_covariance_core_matrix(core, core$Uy[perm, , drop = FALSE])
+  s1 <- top_singular_values(M, 1L)[1L]
+  s1 * s1
+}
+
+.cross_covariance_core_deflate <- function(core, X, Y) {
+  if (length(core$dx) == 0L || length(core$dy) == 0L) {
+    return(list(X = X, Y = Y))
+  }
+  sv_inner <- top_svd(.cross_covariance_core_matrix(core), 1L)
+  u1 <- core$Vx %*% sv_inner$u[, 1L, drop = FALSE]
+  v1 <- core$Vy %*% sv_inner$v[, 1L, drop = FALSE]
+  list(
+    X = X - X %*% u1 %*% t(u1),
+    Y = Y - Y %*% v1 %*% t(v1)
+  )
+}
+
 #' Run the cross sequential deflation engine
 #'
 #' Implements the test ladder for (cross, covariance) and
@@ -253,7 +321,23 @@ run_cross_ladder <- function(recipe,
     s1 * s1
   }
 
+  cov_step_cache <- new.env(parent = emptyenv())
+  get_cov_step_core <- function(step, data) {
+    key <- as.character(step)
+    hit <- cov_step_cache[[key]]
+    if (!is.null(hit)) return(hit)
+    core <- .cross_covariance_core(data$X, data$Y)
+    cov_step_cache[[key]] <- core
+    core
+  }
+
   observed_stat_fn <- function(step, data) {
+    if (rel_kind == "covariance") {
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        return(.cross_covariance_core_observed_sv2(core))
+      }
+    }
     if (use_fast_rung1 && step == 1L) {
       return(rung1_top_sv2(core_Uy))
     }
@@ -267,6 +351,13 @@ run_cross_ladder <- function(recipe,
   }
 
   null_stat_fn <- function(step, data) {
+    if (rel_kind == "covariance") {
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        perm <- base::sample.int(nrow(core$Uy))
+        return(.cross_covariance_core_null_sv2(core, perm))
+      }
+    }
     if (use_fast_rung1 && step == 1L) {
       perm <- base::sample.int(nrow(core_Uy))
       return(rung1_top_sv2(core_Uy[perm, , drop = FALSE]))
@@ -291,11 +382,18 @@ run_cross_ladder <- function(recipe,
     # For correlation: same idea but using the whitened SVD. Only the
     # top factor is needed, so route through the partial-SVD helper.
     if (rel_kind == "covariance") {
-      sv <- top_svd(crossprod(data$X, data$Y), 1L)
-      u1 <- sv$u[, 1L, drop = FALSE]
-      v1 <- sv$v[, 1L, drop = FALSE]
-      Xn <- data$X - data$X %*% u1 %*% t(u1)
-      Yn <- data$Y - data$Y %*% v1 %*% t(v1)
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        next_xy <- .cross_covariance_core_deflate(core, data$X, data$Y)
+        Xn <- next_xy$X
+        Yn <- next_xy$Y
+      } else {
+        sv <- top_svd(crossprod(data$X, data$Y), 1L)
+        u1 <- sv$u[, 1L, drop = FALSE]
+        v1 <- sv$v[, 1L, drop = FALSE]
+        Xn <- data$X - data$X %*% u1 %*% t(u1)
+        Yn <- data$Y - data$Y %*% v1 %*% t(v1)
+      }
     } else {
       if (ncol(data$Qx) == 0L || ncol(data$Qy) == 0L) {
         return(list(Qx = data$Qx, Qy = data$Qy))

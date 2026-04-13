@@ -182,6 +182,42 @@ test_that("run_cross_ladder covariance recovers exact noiseless shared cross ran
   expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
 })
 
+test_that("cross covariance exact core helpers match full matrix computations", {
+  set.seed(405)
+  dat <- make_exact_cross_covariance_engine(
+    n = 30,
+    p_x = 8,
+    p_y = 7,
+    scale_x = c(6, 2, 0.8),
+    scale_y = c(5, 1.5, 0.4)
+  )
+
+  core <- .cross_covariance_core(dat$X, dat$Y)
+  expect_true(isTRUE(core$use_core))
+
+  full_obs <- {
+    s1 <- top_singular_values(crossprod(dat$X, dat$Y), 1L)[1L]
+    s1 * s1
+  }
+  expect_equal(.cross_covariance_core_observed_sv2(core), full_obs, tolerance = 1e-12)
+
+  perm <- sample.int(nrow(dat$Y))
+  full_null <- {
+    s1 <- top_singular_values(crossprod(dat$X, dat$Y[perm, , drop = FALSE]), 1L)[1L]
+    s1 * s1
+  }
+  expect_equal(.cross_covariance_core_null_sv2(core, perm), full_null, tolerance = 1e-12)
+
+  deflated_core <- .cross_covariance_core_deflate(core, dat$X, dat$Y)
+  sv_full <- top_svd(crossprod(dat$X, dat$Y), 1L)
+  deflated_full <- list(
+    X = dat$X - dat$X %*% sv_full$u[, 1L, drop = FALSE] %*% t(sv_full$u[, 1L, drop = FALSE]),
+    Y = dat$Y - dat$Y %*% sv_full$v[, 1L, drop = FALSE] %*% t(sv_full$v[, 1L, drop = FALSE])
+  )
+  expect_equal(deflated_core$X, deflated_full$X, tolerance = 1e-12)
+  expect_equal(deflated_core$Y, deflated_full$Y, tolerance = 1e-12)
+})
+
 test_that("run_cross_ladder correlation recovers exact shared canonical rank under paired rows", {
   ensure_default_adapters()
   set.seed(402)
