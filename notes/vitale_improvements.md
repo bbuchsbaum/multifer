@@ -6,6 +6,8 @@
 
 **Companion note:** For the intended methods-paper framing and the precise theoretical boundary between direct SVD/eigen latent-root extensions and later supervised / generalized-eigen engines, see [paper1_rank_matched_residual_randomization.md](./paper1_rank_matched_residual_randomization.md).
 
+**Companion note:** For the package-level positioning, the **mature / qualified / planned** support taxonomy, and the seven-point roadmap to paper-quality v1 (which is authoritative for scope decisions), see [package_vision.md](./package_vision.md).
+
 **Architecture note:** For the package-level design rules that prioritize generality, performance, modularity, and abstraction over ad hoc special casing, see [architecture_rules.md](./architecture_rules.md).
 
 **Scope shift (from Part 2).** The project is no longer "improve Vitale's PCA permutation test." It is: **turn sequential deflated permutation inference into a general latent-operator inference framework** covering PCA, PLSC, CCA, and later multi-block / generalized-eigen settings, with one shared inferential scaffold and method-specific latent targets where needed.

@@ -68,16 +68,50 @@ literal reuse of an `X^T Y` root statistic.
 
 `multifer` should be presented as:
 
-**The reference implementation of rank-matched residual randomization for latent-root inference, plus a general perturbation-inference framework for latent multivariate models.**
+**A typed perturbation inference platform for latent-root multivariate models, with mature support for PCA and covariance-mode two-block methods, qualified support for canonical-correlation models, and planned extensions to predictive cross models and generalized eigenvalue problems.**
 
 That wording matters.
 
 It says:
 
-- some parts of the package are directly justified by the paper's main results,
-- other parts belong to the same framework but may require method-specific validity conditions or later engines.
+- some parts of the package are directly justified by the paper's main results ("mature"),
+- some parts are in the framework and run today but have validity qualifications that have not yet been fully settled ("qualified"),
+- other parts belong to the same framework but are architectural slots awaiting real engines ("planned").
 
 This is honest and strong.
+
+### What we do *not* claim
+
+The tempting phrase "maximally general inference machinery" is not the target. The target is narrower and more defensible:
+
+**Maximally reusable across a small number of mathematically coherent inferential families.**
+
+Those families are ordered-root SVD models, canonical-correlation models, generalized-eigen / metric-weighted models, and supervised predictive-increment models. The paper's mainline theorem covers the first of those; the package exists to reuse as much of that scaffold as possible across the other three without pretending every multivariate method reduces to the same root test.
+
+## Support maturity levels
+
+Every inferential family the package ships is labeled with one of three maturity levels. This taxonomy is canonical and every public doc should match it.
+
+### Mature — in Paper 1 scope, exact results, production-ready
+
+- **One-block variance** (PCA-family): `adapter_svd`, `adapter_prcomp`, `multivarious_pca`. Collapsed Vitale P3 ladder is exact and tested against the original projected construction. Core-space bootstrap via the Fisher identity is exact.
+- **Cross-block covariance** (PLSC-family): `adapter_cross_svd` in covariance mode, `multivarious_plsc`. Exact core-space bootstrap path via `(V_x, D_x, V_y, D_y)` identity is in place and machine-precision verified against refit across six shape/SNR regimes in `notes/cross_core_bootstrap_study.md`.
+
+These are what the paper claims. These are what the README should lead with.
+
+### Qualified — running today, but validity story is not yet fully settled
+
+- **Cross-block correlation** (CCA-family): `adapter_cross_svd` in correlation mode, `adapter_cancor`. The architecture is ready. The reference adapter's multi-root deflation is currently a "safe simplification" that is exact for paired-rows and nuisance-adjusted designs but a conservative first-root-only cap for more complex designs. `checked_assumptions` is still partly declarative.
+
+The package runs these, reports valid first-root p-values, and labels multi-root claims carefully. The next maturity step requires exact whitened-space stepwise deflation + design-aware null actions for paired-rows, nuisance-adjusted, and grouped-exchangeability designs, plus concrete validity checks. Until that lands, CCA is marketed as the *beginning* of a CCA family, not the finished version.
+
+### Planned — architectural slot, no engine yet
+
+- **Multi-block** geometry: declared in the vocabulary and the capability matrix; `bootstrap_fits()` explicitly refuses. Needs a real engine with the generalized core-space identity for `K = sum_{ij} X_i^T W_{ij} Y_j`.
+- **Generalized eigenvalue** geometry (`geneig`): declared; no engine. Needs operator pair, metric-aware deflation, root statistic, and null family. LDA, contrastive PCA, and metric-weighted PCA land here as special cases.
+- **Supervised / predictive** relation (PLS regression, reduced-rank regression): not in the relation vocabulary yet. Needs its own relation family whose inferential target is a *successive predictive increment* (`Yhat_a - Yhat_{a-1}` or a cross-fitted predictive-strength measure), not an association root. Reusing `covariance` for PLSR would corrupt the meaning of the covariance relation and is explicitly ruled out.
+
+These show up in documentation as future work, not as present-tense capability. Public framing never says they work today.
 
 ## The two-layer architecture
 
@@ -172,7 +206,7 @@ without forking the package architecture.
 
 The cleanest public story is:
 
-`multifer` is the reference implementation of the paper's method for PCA and PLSC, and a broader perturbation-inference framework for latent models whose exact validity depends on the engine and null action.
+`multifer` is a typed perturbation inference platform for latent-root multivariate models. It delivers mature, paper-backed inference for PCA-family and covariance two-block methods, qualified support for canonical-correlation models, and a scaffold ready to host predictive-cross and generalized-eigen engines.
 
 That sentence is strong enough for a README, a package website, or a software paper.
 
@@ -180,13 +214,35 @@ That sentence is strong enough for a README, a package website, or a software pa
 
 If a top-level `README` is added, the opening positioning language should be close to this:
 
-> `multifer` provides perturbation-based inference for latent multivariate models.
-> It is the reference implementation of rank-matched residual randomization for latent-root inference in PCA-like and covariance two-block models, and it also provides a broader framework for stability analysis and method-specific inference across latent model families.
-> The package emphasizes strict validity contracts: it prefers refusing ambiguous or invalid analyses over silently guessing.
+> `multifer` provides perturbation-based inference for latent-root multivariate models. It ships a typed inferential scaffold — ordered latent objects, sequential deflation, rank-matched residual randomization, stop-at-first-non-rejection testing, and latent-unit stability summaries — and applies that scaffold across a small set of mathematically coherent method families.
+>
+> **Mature support** (paper-backed, exact): PCA-family one-block variance inference and covariance-mode two-block methods (PLSC-family), both with the exact collapsed Vitale P3 ladder and exact core-space bootstrap.
+>
+> **Qualified support**: canonical-correlation models, currently valid for the leading canonical root and for paired-rows / nuisance-adjusted stepwise designs, with the full multi-root validity machinery tracked as an upcoming release.
+>
+> **Planned extensions**: generalized eigenvalue / LDA / contrastive PCA engines, and a separate supervised-predictive relation for PLS regression and reduced-rank regression whose inferential target is a successive predictive increment rather than an association root.
+>
+> The package emphasizes strict validity contracts: it prefers refusing ambiguous or invalid analyses over silently guessing, and distinguishes component significance (permutation-based) from stability reliability (bootstrap-based) at the schema level.
 
-Then a short second paragraph:
+## Roadmap to paper-quality v1
 
-> The core statistical engine is based on sequential deflation, rank-matched residual randomization, and stop-at-first-non-rejection testing of ordered latent structure. Around that core, `multifer` provides practical R workflows for component significance, variable stability, score stability, and subspace uncertainty.
+The concrete next milestone is a paper-quality v1 boundary: mature core, qualified CCA track, explicit planned engines. This is the seven-point program the package should execute against before Paper 1 submission.
+
+1. **Freeze the theorem-bearing core around latent-root SVD models.** One-block variance and cross-block covariance are where the math is cleanest and the speed story is strongest. The collapsed Vitale P3 simplification and the exact core-space bootstrap identity both live here. Every future claim should point back to this core.
+
+2. **Downgrade CCA from "general support" to "qualified support" until exactified.** Keep `adapter_cancor` and correlation-mode `cross_svd` in the shipping set, but label them as the beginning of a CCA family, not the finished version. The next step is exact whitened-space stepwise deflation plus design-aware null actions for paired rows, nuisance-adjusted rows, and grouped exchangeability.
+
+3. **Create a new supervised relation for PLS regression / reduced-rank regression.** Do not reuse `covariance`. Add a relation whose inferential target is predictive gain — a held-out or cross-fitted statistic, or a `Yhat_a − Yhat_{a-1}` increment — rather than a cross-covariance root. This keeps the meaning of `covariance` uncorrupted and gives PLSR its own validity story.
+
+4. **Build a real `geneig` engine.** The vocabulary already has `geneig` / `generalized_eigen`; give them actual mathematics: operator pair, metric-aware deflation, root statistic, and null family. Contrastive PCA, LDA, and metric-weighted PCA land as special cases. Until this engine exists, generalized-eigen support is declared, not present-tense.
+
+5. **Make validity contracts executable, not just declared.** Every mature adapter should populate `checked_assumptions` with concrete functions: paired-row checks, centering checks, rank/conditioning checks, nuisance-design checks, grouped-exchangeability checks. This turns "strict dispatch" from an API idea into a statistical guarantee.
+
+6. **Keep significance and stability separate.** The schema already does this: `component_tests` are permutation-based, `variable_stability` / `score_stability` / `subspace_stability` are bootstrap-based. Preserve that line — McIntosh-style PLS workflows have always distinguished LV significance from salience reliability, and this distinction is part of what makes the platform trustworthy.
+
+7. **Promote subspace inference as the default higher-level object.** `form_units()` and `subspace_stability_from_bootstrap()` already treat near-tied roots as subspace bundles. Lean into that: when roots are close or ties are detected, user-facing output should show subspaces and principal angles, not signed loading vectors, as the primary inferential object.
+
+The v1 boundary is reached when (1)–(6) are done, (7) is the default user experience, and the speed story is tight enough to make the §40 benchmarks pass with the exact engines.
 
 ## Paper / package split
 
