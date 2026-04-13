@@ -204,10 +204,10 @@ test_that("bootstrap_fits: sign alignment guarantees non-negative inner products
 })
 
 # ---------------------------------------------------------------------------
-# Test 4b: Procrustes is legacy-only
+# Test 4b: Procrustes remains available for legacy comparisons
 # ---------------------------------------------------------------------------
 
-test_that("bootstrap_fits warns when legacy procrustes alignment is requested", {
+test_that("bootstrap_fits still supports legacy procrustes alignment", {
   clear_adapter_registry()
 
   set.seed(41)
@@ -219,7 +219,7 @@ test_that("bootstrap_fits warns when legacy procrustes alignment is requested", 
   original_fit <- adapter$refit(NULL, X)
   units        <- form_units(adapter$roots(original_fit))
 
-  expect_warning(
+  expect_no_error(
     result <- bootstrap_fits(
       recipe       = recipe,
       adapter      = adapter,
@@ -229,8 +229,7 @@ test_that("bootstrap_fits warns when legacy procrustes alignment is requested", 
       R            = 4L,
       method_align = "procrustes",
       seed         = 13L
-    ),
-    "legacy-only"
+    )
   )
 
   expect_equal(result$method_align, "procrustes")

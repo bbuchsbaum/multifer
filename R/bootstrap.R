@@ -37,8 +37,8 @@
 #' @param R Integer >= 1, number of bootstrap replicates.
 #' @param method_align Character, one of \code{"sign"} or
 #'   \code{"procrustes"} (default \code{"sign"}). Passed to
-#'   \code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only
-#'   and emits a warning; see section on score alignment for details.
+#'   \code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only;
+#'   see section on score alignment for details.
 #' @param seed Integer or NULL for reproducibility. When non-NULL, the
 #'   current RNG state is saved and restored on exit so the caller's RNG
 #'   stream is unchanged.
@@ -107,17 +107,6 @@ bootstrap_fits <- function(recipe,
   method_align <- match.arg(method_align)
   parallel     <- match.arg(parallel)
   fast_path    <- match.arg(fast_path)
-  if (identical(method_align, "procrustes")) {
-    warning(
-      paste(
-        "`method_align = \"procrustes\"` is legacy-only and retained for",
-        "backward compatibility.",
-        "Prefer `\"sign\"` for separated components and subspace summaries",
-        "for tied or near-tied roots."
-      ),
-      call. = FALSE
-    )
-  }
   if (!is.logical(store_aligned_scores) || length(store_aligned_scores) != 1L ||
       is.na(store_aligned_scores)) {
     stop("`store_aligned_scores` must be TRUE or FALSE.", call. = FALSE)

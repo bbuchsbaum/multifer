@@ -38,8 +38,8 @@ original (unperturbed) data. Used as the alignment reference.}
 
 \item{method_align}{Character, one of \code{"sign"} or
 \code{"procrustes"} (default \code{"sign"}). Passed to
-\code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only
-and emits a warning; see section on score alignment for details.}
+\code{\link{align_loadings}()}. \code{"procrustes"} is legacy-only;
+see section on score alignment for details.}
 
 \item{seed}{Integer or NULL for reproducibility. When non-NULL, the
 current RNG state is saved and restored on exit so the caller's RNG
