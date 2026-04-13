@@ -1074,28 +1074,35 @@ Phase 1 in §22.17 is still too large. Insert **Phase 0** explicitly:
 - `tests/testthat/test-integration-phase15.R` — decision-agreement tests across all four Phase 0 bench suites comparing `fast_path = "off"` vs `"auto"`. Plus Wave-specific tests: `test-linear-operator.R`, `test-thin-svd-cache.R`, `test-core-update-oneblock.R`, `test-core-update-cross.R`, `test-mc-sequential.R`, `test-budget-allocator.R`, `test-parallel-bootstrap.R`.
 - Full test suite: 1146 passing, 0 failures. `R CMD check → Status: OK` (0 errors / 0 warnings; only the system-time note remains).
 
-**§40 benchmark status (measured on the reference machine, 2026-04-13):**
+**§40 benchmark status (measured on the reference machine, 2026-04-13, after commit `34ae10c`):**
 
-| Suite                                   | Refit  | Fast  | Speedup | §40 target |
-|-----------------------------------------|--------|-------|---------|-----------|
-| oneblock medium (n=300, p=80)           |  0.82s | 0.72s | 1.13×   | ≥ 5×      |
-| oneblock large  (n=500, p=300)          |  7.82s | 1.48s | **5.30×** ✓ | ≥ 5×  |
-| cross cov medium (n=300, p=50, q=40)    |  0.55s | 0.62s | 0.89×   | ≥ 5×      |
-| cross cov large  (n=500, p=250, q=200)  |  7.20s | 2.30s | 3.12×   | ≥ 10×     |
+| Suite                                   | Refit  | Fast  | Speedup      | §40 target |
+|-----------------------------------------|--------|-------|--------------|-----------|
+| oneblock medium (n=300, p=80)           |  0.63s | 0.45s | 1.42×        | ≥ 5×      |
+| oneblock large  (n=500, p=300)          |  6.95s | 1.30s | **5.35×** ✓  | ≥ 5×      |
+| cross cov medium (n=300, p=50, q=40)    |  0.38s | 0.41s | 0.93×        | ≥ 5×      |
+| cross cov large  (n=500, p=250, q=200)  |  5.81s | 1.97s | 2.95×        | ≥ 10×     |
 
-Numbers after the partial-SVD follow-up commit `91cc382` (§30 rank 5). The oneblock large case now meets the §40 "medium" target of ≥ 5×. The cross large case is still short of the ≥ 10× target, and the medium cases are still effectively flat because the problem size is small enough that the shared fixed costs dominate.
+Optimizations applied across Phase 1.5:
+- Thin-SVD cache for the original fit (§30 rank 1, Wave 1).
+- `core()` / `update_core()` fast paths for oneblock and cross-covariance (§17, Waves 2–3).
+- Besag-Clifford sequential MC + global budget allocator (§28, Wave 4).
+- `core_rank = 50L` truncation cap (Wave 6) that turns the thin-SVD cache into a real speedup.
+- Partial-SVD null draws via `RSpectra::svds` in `null_stat_fn` and `observed_stat_fn` (§30 rank 5, commit `91cc382`).
+- Partial-SVD deflation via `top_svd(X, 1)` in both engines' `deflate_fn` (commit `34ae10c`).
+- `matrixStats::rowQuantiles` in `.row_quantile_pair` (commit `34ae10c`).
 
-**Where the remaining time goes (profiling after this commit):**
-- For the cross large case, the top-1 dominant cost has shifted to `score_stability_from_bootstrap` / `.row_quantile_pair` / `sort.default` — roughly 41% of total. This is row-wise quantile computation over bootstrap-reconstructed score trajectories and lives in the stability consumer rather than the engine.
-- `base::crossprod` on the per-draw cross-product matrix is 26%.
-- The ladder's `null_stat_fn` / `top_singular_values` is ~29% (down from 72% before the partial-SVD wiring).
+**Final profile of the cross covariance large fast path (1.97s total):**
+- `base::crossprod` per-draw cross-matrix build: ~33% (0.64s)
+- `score_stability_from_bootstrap` including `.row_quantile_pair`: ~31% (0.61s)
+- `null_stat_fn` partial SVD: remaining ladder cost ~6%
+- Bootstrap `update_core` + alignment: ~17%
 
-**Next optimizations (not in scope for this pass):**
-- Vectorized / matrixStats-backed row quantiles in `score_stability_from_bootstrap`. Currently tracked as the major blocker for cross covariance >= 10× speedup.
-- Tighter medium-scale gains: at p <= core_rank the core-update path has no truncation benefit, so the only lever is in-place alignment and avoiding the cross-product reconstruction in the ladder path.
-- A partial randomized SVD (`RSpectra::svds` already wired) could be extended to the engines' deflation step, which currently still calls a full `base::svd()` per rung in `deflate_fn`.
+**Why §40 hard targets are not fully met:**
+- **Medium cases (p ≤ 80, q ≤ 40)** are dominated by fixed costs (original fit, ladder rung setup, stability consumer overhead). The partial-SVD tricks don't help at p=50–80 because `RSpectra::svds` only beats `base::svd` when `k << min(n, p)`, and at these sizes the absolute times are already sub-second. Hitting 5× here requires amortizing fixed costs, not inner-loop tuning.
+- **Cross covariance large (≥10×)** is blocked on the per-draw `base::crossprod(X, Y[perm, ])`. That's an unavoidable `O(n·p·q)` operation under the paired-row null, and no partial-SVD or vectorized-quantile trick skips it. Closing this gap requires either a randomized sketch on X/Y before the ladder (approximate, would affect calibration), a score-space null draw that avoids forming the full cross matrix, or `§30 rank 5`-style randomized partial SVD applied at the pair-wise level. All three are structural changes deferred to follow-up work.
 
-The core-update mechanism is correct (decision agreement verified on all four Phase 0 bench suites). Large oneblock hits `§40` medium; cross large is close; medium cases and cross >= 10× are tracked as follow-ups.
+The core-update mechanism is **correct** (decision agreement verified on all four Phase 0 bench suites). The large oneblock case **meets** the §40 "medium" target. Large cross covariance and both medium cases remain short of their targets and are tracked as follow-ups.
 
 - Tracked in `bd` as epic `multifer-3c0`.
 
