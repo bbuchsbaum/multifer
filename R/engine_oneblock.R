@@ -92,7 +92,7 @@ run_oneblock_ladder <- function(recipe,
 
   ## --- full observed roots (for form_units) -----------------------------------
 
-  roots_observed <- svd(Xc)$d^2
+  roots_observed <- cached_svd(Xc)$d^2
   zero_tol <- max(1, sum(Xc^2)) * .Machine$double.eps
 
   ## --- max_steps default ------------------------------------------------------

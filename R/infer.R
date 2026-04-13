@@ -65,6 +65,10 @@ infer <- function(adapter,
   call <- match.call()
   t_start_total <- proc.time()[["elapsed"]]
 
+  ## --- reset thin-SVD cache for this call ------------------------------------
+  # Cache hit rate is reported in the $cost block; see Phase 1.5 §30 item 1.
+  svd_cache_reset()
+
   ## --- resolve adapter --------------------------------------------------------
 
   if (is.character(adapter) && length(adapter) == 1L) {
@@ -246,11 +250,13 @@ infer <- function(adapter,
   )
 
   t_total_end <- proc.time()[["elapsed"]]
+  cache_rate  <- svd_cache_rate()
+  if (is.na(cache_rate)) cache_rate <- 0
   cost_block <- infer_cost(
     full_data_ops    = 1L,
     core_updates     = 0L,
     mc_budget_spent  = as.integer(B * max(1L, length(step_results))),
-    cache_hits       = 0,
+    cache_hits       = cache_rate,
     wall_time_phases = c(
       engine = t_engine_end - t_engine_start,
       mc     = t_engine_end - t_engine_start,

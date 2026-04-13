@@ -93,7 +93,7 @@ run_cross_ladder <- function(recipe,
 
   cross_stat <- if (rel_kind == "covariance") {
     function(Xr, Yr) {
-      svd(crossprod(Xr, Yr))$d
+      cached_svd(crossprod(Xr, Yr))$d
     }
   } else {
     function(Xr, Yr) {
@@ -102,7 +102,7 @@ run_cross_ladder <- function(recipe,
       qy <- qr(Yr)
       Qx <- qr.Q(qx)
       Qy <- qr.Q(qy)
-      svd(crossprod(Qx, Qy))$d
+      cached_svd(crossprod(Qx, Qy))$d
     }
   }
 
