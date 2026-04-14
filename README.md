@@ -1,23 +1,40 @@
 # multifer
 
-`multifer` is a typed perturbation inference platform for latent-root
-multivariate models. It ships **mature support** for PCA-family one-block
-variance inference and covariance-mode two-block methods (PLSC-family) —
-both based on the exact collapsed Vitale P3 ladder and an exact core-space
-bootstrap — and **qualified support** for canonical-correlation models.
+`multifer` is a typed perturbation **inference layer** for latent-root
+multivariate models. It is not a fitting framework: you fit your model
+with [multivarious](https://github.com/bbuchsbaum/multivarious) (or
+any compatible package that provides the required accessors via a
+thin adapter) and `multifer` provides the inference layer on top —
+the exact collapsed Vitale P3 ladder under sequential deflation,
+rank-matched residual randomization, the paired-bootstrap stability
+consumers (variable / score / subspace), and the unit-centered
+result schema.
+
+It ships **mature support** for PCA-family one-block variance
+inference and covariance-mode two-block methods (PLSC-family), both
+based on the exact collapsed Vitale P3 ladder and an exact core-space
+bootstrap, and **qualified support** for canonical-correlation models.
 
 The package is **extensible by design**. A new inferential family is
-added by writing an `infer_adapter()` that implements the shared
-typed-shape contract (`geometry × relation × design`): the ladder
-driver, the null-action machinery, the bootstrap loop, and the stability
-consumers all apply uniformly to whatever latent-root family an adapter
-declares. The goal is to stay maximally general *within* the ordered-
-latent-root paradigm without pretending every multivariate method
-reduces to the same root test. Methods whose inferential target is not
-an association root (for example supervised stagewise predictive
-methods) are not in the current vocabulary; they belong to a different
-inferential family and would be added through the same adapter contract
-when their validity story is worked out.
+added by writing an `infer_adapter()` that implements the accessor
+contract over a fitted model: how to read its loadings, its scores,
+its latent roots, and how to refit it on a perturbed data matrix.
+The ladder driver, the null-action machinery, the bootstrap loop, and
+the stability consumers all apply uniformly to whatever fitted-model
+class an adapter declares. The goal is to stay maximally general
+*within* the ordered-latent-root paradigm without pretending every
+multivariate method reduces to the same root test. Methods whose
+inferential target is not an association root (for example supervised
+stagewise predictive methods) are not in the current vocabulary; they
+belong to a different inferential family and would be added through
+the same adapter contract when their validity story is worked out.
+
+The base-R reference adapters (`svd_oneblock`, `prcomp_oneblock`,
+`cross_svd`, `cancor_cross`) are kept as working examples of the
+adapter contract — a concrete place to point to when explaining
+"here is what it takes to plug a fitted-model class into `multifer`."
+They are not the recommended fitting path: the recommended path is
+to fit with `multivarious` and pass the projector via `model = `.
 
 The package is built around three ideas:
 

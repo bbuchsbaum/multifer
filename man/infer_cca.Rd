@@ -9,7 +9,8 @@ infer_cca(X, Y, adapter = "cross_svd", ...)
 \arguments{
 \item{X}{Numeric matrix for the first block.}
 
-\item{Y}{Numeric matrix for the second block. Must have the same number of rows as \code{X}.}
+\item{Y}{Numeric matrix for the second block. Must have the same
+number of rows as \code{X}.}
 
 \item{adapter}{Adapter id or object. Defaults to \code{"cross_svd"}.}
 
@@ -19,7 +20,16 @@ infer_cca(X, Y, adapter = "cross_svd", ...)
 An \link{infer_result}.
 }
 \description{
-Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block correlation models.
-Current validity is strongest for the paired-row design and supported
-nuisance-adjusted variants described in the package README and vignettes.
+Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block correlation
+models. Current validity is strongest for the paired-row design and
+supported nuisance-adjusted variants described in the package README
+and vignettes.
+}
+\details{
+CCA inference currently uses the \code{"cross_svd"} reference adapter in
+correlation mode: it ships the QR-whitened stepwise deflation and
+the design-aware null actions (\code{paired_rows}, \code{nuisance_adjusted},
+\code{blocked_rows}). A \code{multivarious}-backed CCA adapter is a natural
+extension point but has not been written yet; see
+\code{notes/package_vision.md} for the roadmap.
 }

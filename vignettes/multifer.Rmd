@@ -36,17 +36,22 @@ leading component, the null distribution of the *next* root depends on the
 one you just removed. And when two true roots are close, the individual
 loadings aren't identifiable at all — only the subspace they span is.
 
-`multifer` is a **typed perturbation inference platform** built to answer
-that question specifically, for PCA-family, two-block covariance (PLSC), and
-canonical-correlation models. It implements an exact collapsed Vitale P3
-ladder under sequential deflation, automatic subspace detection when roots
-are near-tied, and executable validity contracts that fail fast on bad
-input.
+`multifer` is a **typed perturbation inference layer** for that question.
+It is not a fitting framework — you fit your model in `multivarious`
+(or any other package that provides the required accessors via a thin
+adapter) and `multifer` provides the inference layer on top: the exact
+collapsed Vitale P3 ladder under sequential deflation, automatic
+subspace detection when roots are near-tied, and executable validity
+contracts that fail fast on bad input. The division of labor is
+deliberate: `multifer` should not be in the business of reinventing
+PCA / PLSC / CCA fitters, and `multivarious` already ships a tested
+projector hierarchy.
 
-## First win
+## First win: fit once, then infer
 
-The shortest useful call in the package is `infer_pca()`. Here is a 40 × 8
-matrix with three true signal components planted on top of Gaussian noise:
+The shortest workflow is "fit with `multivarious::pca()`, pass the
+fitted projector to `infer_pca()`." Here is a 40 × 8 matrix with three
+true signal components planted on top of Gaussian noise:
 
 ```{r make-data}
 dat <- bench_oneblock_shadowing(
@@ -58,15 +63,32 @@ dim(dat$X)
 dat$meta$true_rank
 ```
 
-```{r first-infer}
-res <- infer_pca(dat$X, B = 99, R = 20, seed = 2)
+```{r fit-and-infer}
+fit <- multivarious::pca(dat$X)
+res <- infer_pca(dat$X, model = fit, B = 99, R = 20, seed = 2)
 res
 ```
 
-Read the header: the ladder tested the latent ordering, rejected through
-rung 3, and froze 3 selected component units. That is the answer — three
-components are statistically detectable at the chosen α. Everything else is
-in the result object, ready for downstream use.
+Read the header: the ladder tested the latent ordering, rejected
+through rung 3, and froze 3 selected component units. That is the
+answer — three components are statistically detectable at the chosen
+α. Everything else is in the result object, ready for downstream use.
+
+### Or let the wrapper fit for you
+
+If you do not need the fit object for anything else, `infer_pca()`
+will fit with the default adapter (`"multivarious_pca"`) under the
+hood, so the shortest valid call is one line:
+
+```{r infer-only, eval = FALSE}
+infer_pca(dat$X, B = 99, R = 20, seed = 2)
+```
+
+This is exactly equivalent to fitting with `multivarious::pca()` and
+passing the result via `model = `. The point of the pre-fit path is
+that you can reuse the same fit for prediction, projection, bootstrap
+analysis via `multivarious::bootstrap_pca()`, and `multifer`-style
+ladder inference without ever refitting.
 
 ## The mental model: typed shapes
 
