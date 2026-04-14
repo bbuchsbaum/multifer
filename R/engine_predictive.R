@@ -213,7 +213,12 @@ run_predictive_ladder <- function(recipe,
     units           = units,
     component_tests = component_tests,
     roots_observed  = roots_observed,
-    ladder_result   = ladder_result
+    ladder_result   = ladder_result,
+    labels          = list(
+      statistic = "cross-fit incremental held-out predictive gain",
+      null      = "row permutation of Y (adapter-supplied null_action)",
+      estimand  = "held-out predictive gain"
+    )
   )
 }
 

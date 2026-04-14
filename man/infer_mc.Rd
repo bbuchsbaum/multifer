@@ -11,7 +11,10 @@ infer_mc(
   batch_schedule = integer(0),
   stop_iteration = NA_integer_,
   total_draws_used = NA_integer_,
-  exceedance_counts = integer(0)
+  exceedance_counts = integer(0),
+  statistic_label = NA_character_,
+  null_label = NA_character_,
+  estimand_label = NA_character_
 )
 }
 \arguments{
@@ -29,10 +32,39 @@ anytime-valid stopping boundary.}
 \item{total_draws_used}{Integer.}
 
 \item{exceedance_counts}{Named integer vector, one per unit.}
+
+\item{statistic_label}{Character, the engine's label for the
+observed rung statistic. Defaults to \code{NA_character_}.}
+
+\item{null_label}{Character, the engine's label for the null
+action. Defaults to \code{NA_character_}.}
+
+\item{estimand_label}{Character, the engine's label for the
+ordered estimand the ladder tests. Defaults to \code{NA_character_}.}
 }
 \value{
 A list with class \code{multifer_mc}.
 }
 \description{
 Implements Part 5 section 41.
+}
+\details{
+The three \verb{*_label} slots are \strong{engine-provenance labels}. Each
+engine is responsible for populating them so that \code{infer_result}
+never needs top-level dispatch logic to describe what statistic,
+null action, or estimand a given result reflects. The contract is:
+\itemize{
+\item \code{statistic_label} names the observed rung statistic (for example
+\code{"Vitale P3 tail-ratio on latent variance roots"} for the oneblock
+engine, or \code{"cross-fit incremental R^2"} for the predictive
+engine).
+\item \code{null_label} names the null action the engine applied to form
+null draws. It is a single engine-level label and is distinct
+from \code{component_tests$null_label}, which may vary per rung.
+\item \code{estimand_label} names the ordered object the ladder tests (for
+example \code{"latent variance roots"}, \code{"canonical correlations"},
+\code{"held-out predictive gain"}). \code{print.infer_result} shows this
+label in its header so predictive and geneig results never read
+like a generic latent-root printout.
+}
 }

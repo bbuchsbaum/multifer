@@ -319,6 +319,24 @@ infer_assumptions <- function(declared = character(0),
 #'
 #' Implements Part 5 section 41.
 #'
+#' The three `*_label` slots are **engine-provenance labels**. Each
+#' engine is responsible for populating them so that `infer_result`
+#' never needs top-level dispatch logic to describe what statistic,
+#' null action, or estimand a given result reflects. The contract is:
+#'
+#' - `statistic_label` names the observed rung statistic (for example
+#'   `"Vitale P3 tail-ratio on latent variance roots"` for the oneblock
+#'   engine, or `"cross-fit incremental R^2"` for the predictive
+#'   engine).
+#' - `null_label` names the null action the engine applied to form
+#'   null draws. It is a single engine-level label and is distinct
+#'   from `component_tests$null_label`, which may vary per rung.
+#' - `estimand_label` names the ordered object the ladder tests (for
+#'   example `"latent variance roots"`, `"canonical correlations"`,
+#'   `"held-out predictive gain"`). `print.infer_result` shows this
+#'   label in its header so predictive and geneig results never read
+#'   like a generic latent-root printout.
+#'
 #' @param rng_seed Integer or character.
 #' @param rng_kind Character (e.g. `"Mersenne-Twister"`).
 #' @param stopping_boundary Numeric or character describing the
@@ -327,6 +345,12 @@ infer_assumptions <- function(declared = character(0),
 #' @param stop_iteration Integer.
 #' @param total_draws_used Integer.
 #' @param exceedance_counts Named integer vector, one per unit.
+#' @param statistic_label Character, the engine's label for the
+#'   observed rung statistic. Defaults to `NA_character_`.
+#' @param null_label Character, the engine's label for the null
+#'   action. Defaults to `NA_character_`.
+#' @param estimand_label Character, the engine's label for the
+#'   ordered estimand the ladder tests. Defaults to `NA_character_`.
 #'
 #' @return A list with class `multifer_mc`.
 #' @export
@@ -336,7 +360,10 @@ infer_mc <- function(rng_seed = NA_integer_,
                      batch_schedule = integer(0),
                      stop_iteration = NA_integer_,
                      total_draws_used = NA_integer_,
-                     exceedance_counts = integer(0)) {
+                     exceedance_counts = integer(0),
+                     statistic_label = NA_character_,
+                     null_label = NA_character_,
+                     estimand_label = NA_character_) {
   structure(
     list(
       rng_seed = rng_seed,
@@ -345,7 +372,10 @@ infer_mc <- function(rng_seed = NA_integer_,
       batch_schedule = as.integer(batch_schedule),
       stop_iteration = as.integer(stop_iteration),
       total_draws_used = as.integer(total_draws_used),
-      exceedance_counts = exceedance_counts
+      exceedance_counts = exceedance_counts,
+      statistic_label = as.character(statistic_label),
+      null_label = as.character(null_label),
+      estimand_label = as.character(estimand_label)
     ),
     class = "multifer_mc"
   )
@@ -528,7 +558,20 @@ print.infer_result <- function(x, ...) {
   n_sig <- if (n_units > 0L) sum(x$units$selected) else 0L
   n_subspace <- if (n_units > 0L) sum(x$units$unit_type == "subspace") else 0L
 
+  estimand_lab <- x$mc$estimand_label
+  statistic_lab <- x$mc$statistic_label
+  null_lab <- x$mc$null_label
+
   cat("<infer_result>\n")
+  if (length(estimand_lab) == 1L && !is.na(estimand_lab) && nzchar(estimand_lab)) {
+    cat("  estimand:         ", estimand_lab, "\n", sep = "")
+  }
+  if (length(statistic_lab) == 1L && !is.na(statistic_lab) && nzchar(statistic_lab)) {
+    cat("  statistic:        ", statistic_lab, "\n", sep = "")
+  }
+  if (length(null_lab) == 1L && !is.na(null_lab) && nzchar(null_lab)) {
+    cat("  null:             ", null_lab, "\n", sep = "")
+  }
   cat("  units:            ", n_units,
       " (", n_subspace, " subspace, ",
       max(n_units - n_subspace, 0L), " component)\n", sep = "")

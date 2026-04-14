@@ -147,7 +147,12 @@ run_geneig_ladder <- function(recipe,
     units           = units,
     component_tests = component_tests,
     roots_observed  = roots_observed,
-    ladder_result   = ladder_result
+    ladder_result   = ladder_result,
+    labels          = list(
+      statistic = "Vitale P3 tail-ratio on generalized eigenvalues",
+      null      = "label permutation",
+      estimand  = "generalized eigenvalues (B-metric)"
+    )
   )
 }
 

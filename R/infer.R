@@ -338,6 +338,15 @@ infer <- function(adapter,
   batch_schedule_agg <- as.integer(ladder_res_meta$batch_schedule %||% integer(0L))
   stop_boundary_lab  <- ladder_res_meta$stopping_boundary %||% "fixed_B"
 
+  engine_labels <- engine_out$labels %||% list()
+  label_or_na <- function(key) {
+    val <- engine_labels[[key]]
+    if (is.null(val) || length(val) == 0L) {
+      return(NA_character_)
+    }
+    as.character(val[[1L]])
+  }
+
   mc_block <- infer_mc(
     rng_seed          = if (is.null(seed)) NA_integer_ else as.integer(seed),
     rng_kind          = RNGkind()[1L],
@@ -349,7 +358,10 @@ infer <- function(adapter,
       step_results,
       function(sr) as.integer(sr$r),
       integer(1L)
-    )
+    ),
+    statistic_label = label_or_na("statistic"),
+    null_label      = label_or_na("null"),
+    estimand_label  = label_or_na("estimand")
   )
 
   t_total_end <- proc.time()[["elapsed"]]

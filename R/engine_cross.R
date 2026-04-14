@@ -461,10 +461,40 @@ run_cross_ladder <- function(recipe,
     stringsAsFactors = FALSE
   )
 
+  estimand_txt <- if (rel_kind == "covariance") {
+    "cross-covariance singular roots"
+  } else {
+    "canonical correlations"
+  }
+  statistic_txt <- if (rel_kind == "covariance") {
+    "Vitale P3 tail-ratio on cross-covariance roots"
+  } else {
+    "Vitale P3 tail-ratio on canonical correlations"
+  }
+  null_txt <- if (rel_kind == "covariance") {
+    "row permutation of Y"
+  } else if (design_kind == "nuisance_adjusted" &&
+             is.null(recipe$shape$design$groups)) {
+    "row permutation of Y in nuisance residual basis"
+  } else if (design_kind == "nuisance_adjusted") {
+    "row permutation of Y in nuisance residual basis, within block"
+  } else if (design_kind == "blocked_rows") {
+    "row permutation of Y within block"
+  } else if (design_kind == "paired_rows") {
+    "row permutation of Y"
+  } else {
+    "row permutation of Y (first-root only, conservative fallback)"
+  }
+
   list(
     units           = units,
     component_tests = component_tests,
     roots_observed  = roots_observed,
-    ladder_result   = ladder_result
+    ladder_result   = ladder_result,
+    labels          = list(
+      statistic = statistic_txt,
+      null      = null_txt,
+      estimand  = estimand_txt
+    )
   )
 }
