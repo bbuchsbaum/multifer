@@ -4,15 +4,20 @@
 multivariate models. It ships **mature support** for PCA-family one-block
 variance inference and covariance-mode two-block methods (PLSC-family) —
 both based on the exact collapsed Vitale P3 ladder and an exact core-space
-bootstrap — plus **qualified support** for canonical-correlation models,
-and **planned extensions** for generalized-eigen engines (LDA, contrastive
-PCA) and a separate supervised-predictive relation for PLS regression
-and reduced-rank regression.
+bootstrap — and **qualified support** for canonical-correlation models.
 
-The design target is deliberately narrower than "one framework for all
-multivariate methods." It is maximally *reusable* across a small number
-of mathematically coherent inferential families, rather than maximally
-general.
+The package is **extensible by design**. A new inferential family is
+added by writing an `infer_adapter()` that implements the shared
+typed-shape contract (`geometry × relation × design`): the ladder
+driver, the null-action machinery, the bootstrap loop, and the stability
+consumers all apply uniformly to whatever latent-root family an adapter
+declares. The goal is to stay maximally general *within* the ordered-
+latent-root paradigm without pretending every multivariate method
+reduces to the same root test. Methods whose inferential target is not
+an association root (for example supervised stagewise predictive
+methods) are not in the current vocabulary; they belong to a different
+inferential family and would be added through the same adapter contract
+when their validity story is worked out.
 
 The package is built around three ideas:
 
@@ -28,10 +33,11 @@ The package is unified at the level of its inferential scaffold:
 - stop-at-first-non-rejection testing,
 - latent-unit stability summaries.
 
-Direct latent-root methods such as PCA, PLSC, CCA, and later `geneig` engines
-fit that scaffold directly. Supervised stagewise methods such as PLS regression
-can still belong in the framework, but may require a different inner target,
-such as predictive increments rather than a literal `X^T Y` root test.
+Direct latent-root methods such as PCA, PLSC, and CCA fit that scaffold
+directly today. Additional ordered-latent-root families can be brought
+into the same scaffold through new `infer_adapter()` objects without
+modifying the engine — that is what it means for `multifer` to be a
+platform rather than a fixed set of methods.
 
 The default execution path is exact. Approximate screening hooks are opt-in only
 and are not part of the paper-faithful core.

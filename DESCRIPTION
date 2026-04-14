@@ -8,13 +8,15 @@ Authors@R:
            email = "brad.buchsbaum@gmail.com")
 Description: A typed perturbation inference platform for latent-root
     multivariate models. Ships mature support for PCA-family one-block
-    variance inference and covariance-mode two-block methods (PLSC-family),
-    qualified support for canonical-correlation models, and architectural
-    slots for planned generalized-eigen and predictive-cross engines. Built
-    around typed shapes (geometry, relation, design), strict dispatch,
-    machine-enforced validity contracts, latent-unit output schemas, and
-    a clean separation between permutation-based significance and
-    bootstrap-based stability.
+    variance inference and covariance-mode two-block methods (PLSC-family)
+    and qualified support for canonical-correlation models. Built around
+    typed shapes (geometry, relation, design), strict dispatch, machine-
+    enforced validity contracts, latent-unit output schemas, and a clean
+    separation between permutation-based significance and bootstrap-based
+    stability. The adapter and typed-shape architecture is extensible:
+    new ordered-latent-root inferential families plug into the shared
+    ladder driver, null-action machinery, and stability consumers through
+    the infer_adapter() contract without modifying the engine.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

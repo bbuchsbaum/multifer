@@ -68,7 +68,7 @@ literal reuse of an `X^T Y` root statistic.
 
 `multifer` should be presented as:
 
-**A typed perturbation inference platform for latent-root multivariate models, with mature support for PCA and covariance-mode two-block methods, qualified support for canonical-correlation models, and planned extensions to predictive cross models and generalized eigenvalue problems.**
+**A typed perturbation inference platform for latent-root multivariate models, with mature support for PCA and covariance-mode two-block methods, qualified support for canonical-correlation models, and an extensible adapter / typed-shape architecture that brings new ordered-latent-root families into the same shared ladder engine without modifying it.**
 
 That wording matters.
 
@@ -210,7 +210,7 @@ without forking the package architecture.
 
 The cleanest public story is:
 
-`multifer` is a typed perturbation inference platform for latent-root multivariate models. It delivers mature, paper-backed inference for PCA-family and covariance two-block methods, qualified support for canonical-correlation models, and a scaffold ready to host predictive-cross and generalized-eigen engines.
+`multifer` is a typed perturbation inference platform for latent-root multivariate models. It delivers mature, paper-backed inference for PCA-family and covariance two-block methods, qualified support for canonical-correlation models, and an extensible adapter / typed-shape architecture so new ordered-latent-root families can be brought into the same ladder engine without modifying it.
 
 That sentence is strong enough for a README, a package website, or a software paper.
 
@@ -224,7 +224,7 @@ If a top-level `README` is added, the opening positioning language should be clo
 >
 > **Qualified support**: canonical-correlation models, currently valid for the leading canonical root and for paired-rows / nuisance-adjusted stepwise designs, with the full multi-root validity machinery tracked as an upcoming release.
 >
-> **Planned extensions**: generalized eigenvalue / LDA / contrastive PCA engines, and a separate supervised-predictive relation for PLS regression and reduced-rank regression whose inferential target is a successive predictive increment rather than an association root.
+> **Extensible by design**: new ordered-latent-root inferential families are added through the shared `infer_adapter()` contract, so the ladder driver, null-action machinery, bootstrap loop, and stability consumers apply uniformly to whatever family an adapter declares. The goal is to stay maximally general *within* the ordered-latent-root paradigm rather than to absorb every multivariate method.
 >
 > The package emphasizes strict validity contracts: it prefers refusing ambiguous or invalid analyses over silently guessing, and distinguishes component significance (permutation-based) from stability reliability (bootstrap-based) at the schema level.
 
