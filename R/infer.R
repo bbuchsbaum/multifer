@@ -219,20 +219,12 @@ infer <- function(adapter,
   ct_null_lab <- character(0)
   ct_validity <- character(0)
 
-  null_label <- if (geom_kind == "oneblock") {
-    "column_permute"
-  } else if (geom_kind == "geneig") {
-    "permute_labels"
-  } else if (rel_kind == "correlation" &&
-             recipe$shape$design$kind == "nuisance_adjusted" &&
-             is.null(recipe$shape$design$groups)) {
-    "row_permute_y_resid_basis"
-  } else if (rel_kind == "correlation" &&
-             recipe$shape$design$kind == "nuisance_adjusted") {
-    "row_permute_y_resid_basis_within_block"
-  } else {
-    "row_permute_y"
-  }
+  # The per-rung null label is the engine's own null label. Dispatch no
+  # longer inspects geometry or design to guess what null the engine
+  # ran -- that was the architectural smell multifer-5ow was filed
+  # against. Engines populate labels$null via infer_result.R's
+  # engine-provenance contract; here we just read it.
+  null_label <- engine_out$labels$null %||% NA_character_
   validity   <- adapter_obj$validity_level
   if (!is.null(recipe$downgrade_reason) && !is.na(recipe$downgrade_reason)) {
     validity <- recipe$validity_level

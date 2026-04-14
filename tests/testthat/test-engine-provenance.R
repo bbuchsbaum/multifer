@@ -75,6 +75,32 @@ test_that("infer_mc carries engine-provenance labels for PLSR predictive results
   expect_match(res$mc$null_label, "row permutation of Y")
 })
 
+test_that("component_tests$null_label is supplied by the engine, not dispatch", {
+  skip_if_not_installed("MASS")
+  ensure_default_adapters()
+
+  set.seed(7100)
+  labels <- factor(rep(c("a", "b", "c"), each = 15L))
+  X <- matrix(rnorm(45 * 4), 45, 4)
+  X[labels == "b", 1L] <- X[labels == "b", 1L] + 1.5
+
+  res <- infer_lda(X, labels, B = 29L)
+
+  # The per-rung null label in component_tests is now the engine's own
+  # string, not the legacy "permute_labels" dispatch constant.
+  expect_true(all(res$component_tests$null_label == "label permutation"))
+  expect_false(any(res$component_tests$null_label == "permute_labels"))
+})
+
+test_that("R/infer.R dispatch contains no geometry-specific null-label branches", {
+  infer_src <- readLines(test_path("..", "..", "R", "infer.R"))
+  expect_false(any(grepl("geom_kind == \"geneig\"", infer_src, fixed = TRUE) &
+                   grepl("permute_labels", infer_src, fixed = FALSE)))
+  expect_false(any(grepl("\"permute_labels\"", infer_src, fixed = TRUE)))
+  expect_false(any(grepl("\"row_permute_y_resid_basis\"", infer_src, fixed = TRUE)))
+  expect_false(any(grepl("\"column_permute\"", infer_src, fixed = TRUE)))
+})
+
 test_that("print.infer_result header includes the engine estimand label", {
   ensure_default_adapters()
 
