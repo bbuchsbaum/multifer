@@ -1,8 +1,8 @@
 # multifer
 
-`multifer` is one platform with two engine families: a **latent-root**
-family and a **predictive-gain** family. It is not a fitting framework:
-you fit your model with
+**A typed perturbation inference platform for latent multivariate models, with mature support for one-block variance and two-block latent-root families, narrower but shipped surfaces for generalized-eigen and predictive-gain inference, and an extensible adapter / typed-shape architecture that brings new ordered-latent families into the same shared scaffold without modifying it.**
+
+`multifer` is not a fitting framework: you fit your model with
 [multivarious](https://github.com/bbuchsbaum/multivarious) (or any
 compatible package that provides the required accessors via a thin
 adapter) and `multifer` provides the inference layer on top — the exact
@@ -10,16 +10,17 @@ collapsed Vitale P3 ladder under sequential deflation, rank-matched
 residual randomization, the paired-bootstrap stability consumers
 (variable / score / subspace), and the unit-centered result schema.
 
-Today the **mature latent-root tier** covers PCA-family one-block
-variance inference, covariance-mode two-block methods (PLSC-family),
-and the shipped CCA path on its supported paired and nuisance-adjusted
-designs. The **narrow public surfaces** add the
+The package uses exactly three maturity labels — **mature**, **narrow**,
+**planned** — and uses them identically in its adapter table, its
+wrapper documentation, and its registry output. Today the **mature**
+tier covers PCA-family one-block variance inference, covariance-mode
+two-block methods (PLSC-family), and the shipped CCA path on its
+supported paired and nuisance-adjusted designs. The **narrow** public
+surfaces add the
 [generalized-eigen engine](vignettes/lda-inference.Rmd) through
 `infer_lda()` and the [predictive relation](vignettes/plsr-inference.Rmd)
 through `infer_plsr()`. `multiblock` remains **planned** rather than
-shipped. The package uses exactly three maturity labels —
-**mature**, **narrow**, **planned** — and uses them identically in
-its adapter table, its wrapper docs, and its registry output.
+shipped.
 
 The package is **extensible by design**. A new inferential family is
 added by writing an `infer_adapter()` that implements the accessor

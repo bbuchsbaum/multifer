@@ -95,6 +95,37 @@ test_that("README adapter table is consistent with the live registry", {
   }
 })
 
+test_that("README opener is byte-equal to the package_vision positioning paragraph", {
+  readme_path <- file.path(pkg_root(), "README.md")
+  vision_path <- file.path(pkg_root(), "notes", "package_vision.md")
+  skip_if_not(file.exists(readme_path))
+  skip_if_not(file.exists(vision_path))
+
+  readme_lines <- readLines(readme_path, warn = FALSE)
+  vision_lines <- readLines(vision_path, warn = FALSE)
+
+  # Find the vision paragraph under '## Recommended positioning'.
+  vision_header <- which(vision_lines == "## Recommended positioning")
+  skip_if(length(vision_header) == 0L,
+          "'Recommended positioning' header not found in package_vision.md")
+  vision_tail <- vision_lines[seq(vision_header[[1L]] + 1L,
+                                  length(vision_lines))]
+  vision_para_lines <- vision_tail[grepl("^\\*\\*.+\\*\\*$", vision_tail)]
+  skip_if(length(vision_para_lines) == 0L,
+          "positioning paragraph not found in package_vision.md")
+  vision_para <- vision_para_lines[[1L]]
+
+  # The README opener must contain that exact paragraph verbatim.
+  readme_has_it <- any(readme_lines == vision_para)
+  expect_true(
+    readme_has_it,
+    info = paste0(
+      "README opener does not contain the verbatim positioning ",
+      "paragraph from notes/package_vision.md."
+    )
+  )
+})
+
 test_that("README adapter table uses only canonical maturity labels", {
   readme_path <- file.path(pkg_root(), "README.md")
   skip_if_not(file.exists(readme_path))
