@@ -212,6 +212,7 @@ work on the exchangeability side.
 | `cross_svd` (cov)      | cross     | covariance  | **mature** |
 | `cross_svd` (cor)      | cross     | correlation | **mature** |
 | `cancor_cross`         | cross     | correlation | **mature** |
+| `multivarious_cca`     | cross     | correlation | present    |
 | `multivarious_pca`     | oneblock  | variance    | **mature** |
 | `multivarious_plsc`    | cross     | covariance  | **mature** |
 | `lda_refit`            | geneig    | generalized_eigen | present |
@@ -222,6 +223,10 @@ families. On the correlation side that means the plain paired-row design,
 common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
 within-block exchangeability. *Present* adapters are public and tested, but
 their family surface is intentionally narrower than the mature tier.
+
+For CCA specifically, `infer_cca()` still defaults to `cancor_cross`. The new
+`multivarious_cca` adapter is available as an alternate backend, but it is not
+the public default until parity with the shipped path is pinned more broadly.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data

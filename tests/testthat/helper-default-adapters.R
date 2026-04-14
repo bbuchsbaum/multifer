@@ -12,6 +12,8 @@ ensure_default_adapters <- function() {
                            adapter_multivarious_pca(),  overwrite = TRUE)
     register_infer_adapter("multivarious_plsc",
                            adapter_multivarious_plsc(), overwrite = TRUE)
+    register_infer_adapter("multivarious_cca",
+                           adapter_multivarious_cca(),  overwrite = TRUE)
   }
   if (requireNamespace("MASS", quietly = TRUE)) {
     register_infer_adapter("lda_refit",

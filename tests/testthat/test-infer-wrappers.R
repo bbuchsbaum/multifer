@@ -111,6 +111,37 @@ test_that("infer_cca forwards supported nuisance-adjusted designs through the de
                   wrapped$component_tests$p_value <= 1))
 })
 
+test_that("multivarious_cca agrees with cancor_cross on supported paired-row CCA", {
+  skip_if_not_installed("multivarious")
+  ensure_default_adapters()
+  set.seed(906)
+  X <- matrix(rnorm(200), 40, 5)
+  Y <- matrix(rnorm(160), 40, 4)
+
+  mv <- infer(
+    adapter = "multivarious_cca",
+    data = list(X = X, Y = Y),
+    geometry = "cross",
+    relation = "correlation",
+    B = 29L,
+    R = 4L,
+    seed = 29L
+  )
+  cc <- infer(
+    adapter = "cancor_cross",
+    data = list(X = X, Y = Y),
+    geometry = "cross",
+    relation = "correlation",
+    B = 29L,
+    R = 4L,
+    seed = 29L
+  )
+
+  expect_true(is_infer_result(mv))
+  expect_equal(mv$component_tests, cc$component_tests, tolerance = 1e-8)
+  expect_equal(mv$units, cc$units)
+})
+
 test_that("infer_plsr matches direct infer() call on a synthetic fixture", {
   skip_if_not_installed("pls")
   ensure_default_adapters()
