@@ -4,7 +4,7 @@
 \alias{infer_plsc}
 \title{Infer PLSC-family significance and stability}
 \usage{
-infer_plsc(X, Y, adapter = "multivarious_plsc", ...)
+infer_plsc(X, Y, adapter = NULL, ...)
 }
 \arguments{
 \item{X}{Numeric matrix for the first block.}
@@ -12,7 +12,9 @@ infer_plsc(X, Y, adapter = "multivarious_plsc", ...)
 \item{Y}{Numeric matrix for the second block. Must have the same
 number of rows as \code{X}.}
 
-\item{adapter}{Adapter id or object. Defaults to \code{"multivarious_plsc"}.}
+\item{adapter}{Adapter id or object. Defaults to \code{NULL}, which chooses
+\code{"multivarious_plsc"} when available and otherwise falls back to
+\code{"cross_svd"}.}
 
 \item{...}{Additional arguments forwarded to \code{\link[=infer]{infer()}}. In particular
 \verb{model = } accepts a pre-fit projector (e.g. \code{multivarious::plsc(X, Y)}).}
@@ -22,10 +24,9 @@ An \link{infer_result}.
 }
 \description{
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block covariance models.
-The default adapter is \code{"multivarious_plsc"}, which wraps
-\code{multivarious::plsc()} and is the recommended fitting path for
-PLSC-family inference. The base-R adapter \code{"cross_svd"} remains
-available as a reference example and fall-back fitting routine.
+When the \code{multivarious_plsc} adapter is registered, \code{infer_plsc()}
+uses it by default. Otherwise it falls back to the base-R
+\code{"cross_svd"} adapter.
 }
 \details{
 If you have already fit a model via \code{multivarious::plsc()}, pass it

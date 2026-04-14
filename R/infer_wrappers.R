@@ -1,19 +1,19 @@
 #' Infer PCA-family significance and stability
 #'
 #' Thin convenience wrapper over [infer()] for one-block variance models.
-#' The default adapter is `"multivarious_pca"`, which wraps
-#' `multivarious::pca()` and is the recommended fitting path for
-#' PCA-family inference in `multifer`. The base-R adapters
-#' `"svd_oneblock"` and `"prcomp_oneblock"` remain available as reference
-#' examples and as fall-back fitting routines when `multivarious` is not
-#' convenient.
+#' When the `multivarious_pca` adapter is registered, `infer_pca()` uses
+#' it by default. Otherwise it falls back to the base-R
+#' `"prcomp_oneblock"` adapter. The base-R adapters remain available as
+#' reference examples and as a zero-extra-dependency fitting path.
 #'
 #' If you have already fit a model via `multivarious::pca()` (or any
 #' other compatible fitter), pass it through `model = ` and `infer_pca()`
 #' will reuse your fit directly instead of refitting the original data.
 #'
 #' @param X Numeric matrix with observations in rows and variables in columns.
-#' @param adapter Adapter id or object. Defaults to `"multivarious_pca"`.
+#' @param adapter Adapter id or object. Defaults to `NULL`, which chooses
+#'   `"multivarious_pca"` when available and otherwise falls back to
+#'   `"prcomp_oneblock"`.
 #' @param ... Additional arguments forwarded to [infer()]. In particular
 #'   `model = ` accepts a pre-fit projector (e.g. `multivarious::pca(X)`)
 #'   so you can fit once and re-infer.
@@ -21,8 +21,14 @@
 #' @return An [infer_result].
 #' @export
 infer_pca <- function(X,
-                      adapter = "multivarious_pca",
+                      adapter = NULL,
                       ...) {
+  adapter <- .resolve_wrapper_adapter(
+    adapter = adapter,
+    preferred = "multivarious_pca",
+    fallbacks = c("prcomp_oneblock", "svd_oneblock"),
+    wrapper = "infer_pca"
+  )
   infer(
     adapter = adapter,
     data = X,
@@ -35,10 +41,9 @@ infer_pca <- function(X,
 #' Infer PLSC-family significance and stability
 #'
 #' Thin convenience wrapper over [infer()] for two-block covariance models.
-#' The default adapter is `"multivarious_plsc"`, which wraps
-#' `multivarious::plsc()` and is the recommended fitting path for
-#' PLSC-family inference. The base-R adapter `"cross_svd"` remains
-#' available as a reference example and fall-back fitting routine.
+#' When the `multivarious_plsc` adapter is registered, `infer_plsc()`
+#' uses it by default. Otherwise it falls back to the base-R
+#' `"cross_svd"` adapter.
 #'
 #' If you have already fit a model via `multivarious::plsc()`, pass it
 #' through `model = ` and `infer_plsc()` will reuse your fit directly.
@@ -46,7 +51,9 @@ infer_pca <- function(X,
 #' @param X Numeric matrix for the first block.
 #' @param Y Numeric matrix for the second block. Must have the same
 #'   number of rows as `X`.
-#' @param adapter Adapter id or object. Defaults to `"multivarious_plsc"`.
+#' @param adapter Adapter id or object. Defaults to `NULL`, which chooses
+#'   `"multivarious_plsc"` when available and otherwise falls back to
+#'   `"cross_svd"`.
 #' @param ... Additional arguments forwarded to [infer()]. In particular
 #'   `model = ` accepts a pre-fit projector (e.g. `multivarious::plsc(X, Y)`).
 #'
@@ -54,8 +61,14 @@ infer_pca <- function(X,
 #' @export
 infer_plsc <- function(X,
                        Y,
-                       adapter = "multivarious_plsc",
+                       adapter = NULL,
                        ...) {
+  adapter <- .resolve_wrapper_adapter(
+    adapter = adapter,
+    preferred = "multivarious_plsc",
+    fallbacks = "cross_svd",
+    wrapper = "infer_plsc"
+  )
   infer(
     adapter = adapter,
     data = list(X = X, Y = Y),
@@ -131,6 +144,29 @@ infer_plsr <- function(X,
       ),
       dots
     )
+  )
+}
+
+.resolve_wrapper_adapter <- function(adapter, preferred, fallbacks, wrapper) {
+  if (!is.null(adapter)) {
+    return(adapter)
+  }
+
+  registered <- list_infer_adapters()
+  candidates <- c(preferred, fallbacks)
+  hits <- candidates[candidates %in% registered]
+
+  if (length(hits) >= 1L) {
+    return(hits[[1L]])
+  }
+
+  stop(
+    sprintf(
+      "`%s()` could not find any registered default adapters among: %s.",
+      wrapper,
+      paste(sprintf('"%s"', candidates), collapse = ", ")
+    ),
+    call. = FALSE
   )
 }
 

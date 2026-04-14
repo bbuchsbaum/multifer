@@ -46,6 +46,15 @@ default_adapter_negative_fixture <- function(adapter_id) {
       relation = "covariance",
       pattern = "cross_columns_have_variance"
     ),
+    "multivarious_cca" = list(
+      data = list(
+        X = cbind(matrix(stats::rnorm(40), nrow = 10L), 1),
+        Y = matrix(stats::rnorm(30), nrow = 10L)
+      ),
+      geometry = "cross",
+      relation = "correlation",
+      pattern = "cross_columns_have_variance"
+    ),
     "lda_refit" = list(
       data = list(
         X = matrix(stats::rnorm(24), nrow = 8L),

@@ -31,11 +31,11 @@ Depends:
 Imports:
     digest,
     matrixStats,
-    mirai,
-    multivarious
+    mirai
 Suggests:
     knitr,
     MASS,
+    multivarious,
     pls,
     rmarkdown,
     RSpectra,

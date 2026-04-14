@@ -76,9 +76,9 @@ end-user package. The current implementation is strongest for:
 Current limitations are deliberate:
 
 - cross correlation / CCA supports multi-root testing for the plain paired-row
-  design, for common-`Z` nuisance-adjusted designs, and for nuisance-adjusted
-  designs with within-block exchangeability; richer structured correlation
-  designs still need more exchangeability work,
+  design, for common-`Z` nuisance-adjusted designs, for nuisance-adjusted
+  designs with within-block exchangeability, and for `blocked_rows(groups)`;
+  richer structured correlation designs still need more exchangeability work,
 - the current `geneig` public surface is intentionally narrow: LDA is shipped,
   while broader metric-weighted / contrastive generalized-eigen models remain
   planned,
@@ -108,8 +108,10 @@ remotes::install_github("bbuchsbaum/multifer")
 Optional packages:
 
 - `RSpectra` improves the partial-SVD fast path on larger problems.
-- `multivarious` enables the `multivarious_pca` and `multivarious_plsc`
-  adapters when installed.
+- `multivarious` enables the multivarious-backed adapters. When it is
+  installed, `infer_pca()` defaults to `multivarious_pca` and
+  `infer_plsc()` defaults to `multivarious_plsc`; otherwise those
+  wrappers fall back to `prcomp_oneblock` and `cross_svd`.
 - `MASS` enables the `lda_refit` adapter and the `infer_lda()` wrapper.
 
 ## What `infer()` returns
@@ -220,9 +222,10 @@ work on the exchangeability side.
 
 *Mature* adapters are the paper-backed exact path for the shipped latent-root
 families. On the correlation side that means the plain paired-row design,
-common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
-within-block exchangeability. *Present* adapters are public and tested, but
-their family surface is intentionally narrower than the mature tier.
+common-`Z` nuisance-adjusted designs, nuisance-adjusted designs with
+within-block exchangeability, and `blocked_rows(groups)`. *Present* adapters
+are public and tested, but their family surface is intentionally narrower than
+the mature tier.
 
 For CCA specifically, `infer_cca()` still defaults to `cancor_cross`. The new
 `multivarious_cca` adapter is available as an alternate backend, but it is not
@@ -285,11 +288,11 @@ prevent accidental use of the wrong inferential target.
 
 The package favors conservative or partial validity claims over broad but weak
 ones. A concrete example is current CCA support: multi-root inference is only
-claimed for the supported paired-row and nuisance-adjusted designs, and richer
-exchangeability structures are still treated conservatively. Likewise, bootstrap
-stability defaults to sign alignment rather than Procrustes rotation, because
-the package treats subspace uncertainty as the primary target when roots are
-near-tied.
+claimed for the supported paired-row, `blocked_rows(groups)`, and
+nuisance-adjusted designs, and richer exchangeability structures are still
+treated conservatively. Likewise, bootstrap stability defaults to sign
+alignment rather than Procrustes rotation, because the package treats subspace
+uncertainty as the primary target when roots are near-tied.
 
 ## Benchmarks and synthetic test generators
 
@@ -316,7 +319,8 @@ Current Phase 1 core:
 - oneblock significance and stability
 - cross covariance significance and stability
 - correlation-mode multi-root inference for paired rows, common-`Z`
-  nuisance-adjusted designs, and nuisance-adjusted within-block designs
+  nuisance-adjusted designs, nuisance-adjusted within-block designs, and
+  `blocked_rows(groups)`
 - generalized-eigen component significance for LDA via label permutation and
   B-metric deflation
 - sequential Monte Carlo ladder infrastructure

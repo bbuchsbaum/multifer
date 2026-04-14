@@ -44,6 +44,20 @@ test_that("infer_pca matches direct infer() call", {
   expect_equal(wrapped$units, direct$units)
 })
 
+test_that("infer_pca falls back to base-R adapters when multivarious is unavailable", {
+  clear_adapter_registry()
+  register_infer_adapter("svd_oneblock", adapter_svd(), overwrite = TRUE)
+  register_infer_adapter("prcomp_oneblock", adapter_prcomp(), overwrite = TRUE)
+
+  set.seed(9011)
+  X <- matrix(rnorm(120), 30, 4)
+
+  wrapped <- infer_pca(X, B = 29L, R = 4L, seed = 17L)
+
+  expect_true(is_infer_result(wrapped))
+  expect_equal(wrapped$provenance$adapter_id, "prcomp_oneblock")
+})
+
 test_that("infer_plsc matches direct infer() call", {
   ensure_default_adapters()
   set.seed(902)
@@ -64,6 +78,20 @@ test_that("infer_plsc matches direct infer() call", {
   expect_true(is_infer_result(wrapped))
   expect_equal(wrapped$component_tests, direct$component_tests)
   expect_equal(wrapped$units, direct$units)
+})
+
+test_that("infer_plsc falls back to cross_svd when multivarious is unavailable", {
+  clear_adapter_registry()
+  register_infer_adapter("cross_svd", adapter_cross_svd(), overwrite = TRUE)
+
+  set.seed(9021)
+  X <- matrix(rnorm(200), 40, 5)
+  Y <- matrix(rnorm(160), 40, 4)
+
+  wrapped <- infer_plsc(X, Y, B = 29L, R = 4L, seed = 19L)
+
+  expect_true(is_infer_result(wrapped))
+  expect_equal(wrapped$provenance$adapter_id, "cross_svd")
 })
 
 test_that("infer_cca matches direct infer() call", {
