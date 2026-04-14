@@ -35,6 +35,11 @@
 #' @param max_steps Maximum number of ladder rungs. Default
 #'   \code{min(nrow(X), ncol(X)) - 1}, capped at 50 for Phase 1.
 #' @param seed Integer or NULL.
+#' @param auto_subspace Logical. When `TRUE` (default), near-tied
+#'   roots are automatically bundled into a subspace unit via
+#'   [form_units()] `group_near_ties = TRUE`.
+#' @param tie_threshold Positive numeric. Relative-gap threshold used
+#'   when `auto_subspace = TRUE`. Default `0.01`.
 #'
 #' @return A list with elements:
 #'   \describe{

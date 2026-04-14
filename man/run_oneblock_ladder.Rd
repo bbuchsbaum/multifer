@@ -37,6 +37,13 @@ each rung. Default \code{32L}.}
 \code{min(nrow(X), ncol(X)) - 1}, capped at 50 for Phase 1.}
 
 \item{seed}{Integer or NULL.}
+
+\item{auto_subspace}{Logical. When \code{TRUE} (default), near-tied
+roots are automatically bundled into a subspace unit via
+\code{\link[=form_units]{form_units()}} \code{group_near_ties = TRUE}.}
+
+\item{tie_threshold}{Positive numeric. Relative-gap threshold used
+when \code{auto_subspace = TRUE}. Default \code{0.01}.}
 }
 \value{
 A list with elements:

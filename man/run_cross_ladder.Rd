@@ -50,6 +50,13 @@ approximation). Setting a positive integer enables a truncated
 block-SVD pre-projection whose top-1 statistic is biased and
 whose use is NOT paper-faithful; it exists as a screening knob
 only.}
+
+\item{auto_subspace}{Logical. When \code{TRUE} (default), near-tied
+roots are automatically bundled into a subspace unit via
+\code{\link[=form_units]{form_units()}} \code{group_near_ties = TRUE}.}
+
+\item{tie_threshold}{Positive numeric. Relative-gap threshold used
+when \code{auto_subspace = TRUE}. Default \code{0.01}.}
 }
 \value{
 A list with \code{units}, \code{component_tests},

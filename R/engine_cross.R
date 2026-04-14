@@ -135,6 +135,11 @@
 #'   block-SVD pre-projection whose top-1 statistic is biased and
 #'   whose use is NOT paper-faithful; it exists as a screening knob
 #'   only.
+#' @param auto_subspace Logical. When `TRUE` (default), near-tied
+#'   roots are automatically bundled into a subspace unit via
+#'   [form_units()] `group_near_ties = TRUE`.
+#' @param tie_threshold Positive numeric. Relative-gap threshold used
+#'   when `auto_subspace = TRUE`. Default `0.01`.
 #'
 #' @return A list with \code{units}, \code{component_tests},
 #'   \code{roots_observed}, and \code{ladder_result}, mirroring

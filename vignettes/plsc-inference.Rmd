@@ -1,0 +1,118 @@
+---
+title: "PLSC / two-block covariance inference with multifer"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{PLSC / two-block covariance inference with multifer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette walks the two-block covariance case: cross-block
+inference where the test target is the ordered singular values of
+`X^T Y`. This is the **PLSC** (partial least squares, covariance) family
+in classical multivariate terminology, and it is the second
+mature-tier family in `multifer`.
+
+## Geometry and relation
+
+- geometry: `"cross"` — paired blocks `X` and `Y`
+- relation: `"covariance"` — we care about the roots of `X^T Y`
+- design: defaults to `paired_rows()` — rows of `X` and `Y` are a
+  matched pairing (observation `i` is the same unit in both blocks)
+
+Under the hood, the engine uses an **exact core-space resampling
+identity**: given the block thin SVDs
+`X = Ux Dx Vx^T` and `Y = Uy Dy Vy^T`, the centered resampled cross
+product factors as `Vx M Vy^T` with
+`M = Dx · (Ux^T · Uy[perm, ]) · Dy`. The top singular value of the
+full product equals the top singular value of the `k_x × k_y` inner
+core M, so null draws collapse to a small inner matrix instead of
+reforming the full `p × q` cross product at every permutation.
+
+## Setup
+
+```{r setup}
+library(multifer)
+```
+
+## A synthetic PLSC example with a shared latent factor
+
+```{r synthetic-cross}
+set.seed(1)
+n   <- 40
+p_x <- 8
+p_y <- 6
+k   <- 2
+U   <- qr.Q(qr(matrix(rnorm(n * k), n, k)))
+Wx  <- qr.Q(qr(matrix(rnorm(p_x * k), p_x, k)))
+Wy  <- qr.Q(qr(matrix(rnorm(p_y * k), p_y, k)))
+sig <- c(5, 2.5)
+X <- U %*% diag(sig, nrow = k) %*% t(Wx) +
+  matrix(rnorm(n * p_x, sd = 0.5), n, p_x)
+Y <- U %*% diag(sig, nrow = k) %*% t(Wy) +
+  matrix(rnorm(n * p_y, sd = 0.5), n, p_y)
+```
+
+## Running `infer()`
+
+```{r infer-plsc}
+res <- infer(
+  adapter  = "cross_svd",
+  data     = list(X = X, Y = Y),
+  geometry = "cross",
+  relation = "covariance",
+  B        = 99,
+  R        = 20,
+  alpha    = 0.05,
+  seed     = 2
+)
+res
+```
+
+## Reading the result
+
+```{r cross-units}
+res$units
+res$component_tests
+```
+
+For cross problems, stability summaries are indexed by `(unit_id,
+domain)` where `domain` is `"X"` or `"Y"`:
+
+```{r cross-stability}
+head(res$variable_stability, 10)
+head(res$score_stability, 10)
+```
+
+## Subspace stability for tied canonical pairs
+
+When two singular values of `X^T Y` are close, the corresponding
+cross-pair is only identifiable up to a 2-dimensional rotation. The
+right object to report in that case is the **subspace stability**
+(mean and max principal angles between the reference and each
+bootstrap fit), which `multifer` exposes directly:
+
+```{r subspace-stability}
+head(res$subspace_stability)
+```
+
+## Validity contracts
+
+Cross covariance adapters carry the same executable validity
+contracts as one-block: numeric matrices, paired rows, finite values,
+column variance, and full column rank.
+
+```{r validity, error = TRUE}
+bad_X <- X
+bad_X[, 2L] <- 1.0  # constant column, zero variance
+infer(adapter = "cross_svd", data = list(X = bad_X, Y = Y),
+      geometry = "cross", relation = "covariance",
+      B = 49, R = 4, seed = 3)
+```

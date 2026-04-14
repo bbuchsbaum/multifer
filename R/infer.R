@@ -55,6 +55,12 @@
 #' @param fast_path One of `"auto"`, `"off"`. `"auto"` uses the Phase 1.5
 #'   core()/update_core() fast path when the adapter exposes it.
 #'   `"off"` forces the refit path, useful for correctness validation.
+#' @param auto_subspace Logical. When `TRUE` (default), near-tied
+#'   roots are automatically bundled into a subspace unit via
+#'   [form_units()] `group_near_ties = TRUE`. Subspace units cause
+#'   `print.infer_result()` to lead with principal-angle stability.
+#' @param tie_threshold Positive numeric. Relative-gap threshold used
+#'   when `auto_subspace = TRUE`. Default `0.01`.
 #'
 #' @return An \code{\link{infer_result}}.
 #' @export

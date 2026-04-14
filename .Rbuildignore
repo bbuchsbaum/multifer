@@ -15,3 +15,5 @@
 ^\.beads-credential-key$
 ^repomix-output\.txt$
 ^tools$
+^doc$
+^Meta$

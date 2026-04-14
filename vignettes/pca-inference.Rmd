@@ -1,0 +1,135 @@
+---
+title: "PCA inference with multifer"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{PCA inference with multifer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+`multifer` provides **typed perturbation inference** for latent-root
+multivariate models. This vignette walks the PCA-family case: how to
+ask `multifer` a significance / stability question about a one-block
+variance decomposition, and how to read the result object.
+
+## What PCA inference looks like in `multifer`
+
+Every call to `infer()` is described by three orthogonal pieces:
+
+- a **geometry** — here `"oneblock"`, meaning "a single data matrix"
+- a **relation** — here `"variance"`, meaning "we care about the
+  ordered eigenvalues of `X^T X`"
+- a **design** — here the default `paired_rows()` is not used; for
+  oneblock problems the design is trivial (row exchangeability)
+
+The combination `(oneblock, variance)` is the first **mature-tier**
+family in the package. It is paper-backed: the collapsed Vitale P3
+tail-root statistic is the observed test statistic, column-permutation
+is the null action, and the ladder drives rung-by-rung
+stop-at-first-non-rejection.
+
+## Setup
+
+```{r setup}
+library(multifer)
+```
+
+## A synthetic PCA example with three true components
+
+We build a `40 x 8` matrix with three real signal directions plus
+Gaussian noise.
+
+```{r synthetic-data}
+set.seed(1)
+n <- 40
+p <- 8
+k <- 3
+U <- qr.Q(qr(matrix(rnorm(n * k), n, k)))
+V <- qr.Q(qr(matrix(rnorm(p * k), p, k)))
+signal <- U %*% diag(c(6, 3, 1.5), nrow = k) %*% t(V)
+noise  <- matrix(rnorm(n * p, sd = 0.3), n, p)
+X <- signal + noise
+```
+
+## Running `infer()`
+
+```{r infer-pca}
+res <- infer(
+  adapter  = "svd_oneblock",
+  data     = X,
+  geometry = "oneblock",
+  relation = "variance",
+  B        = 99,
+  R        = 20,
+  alpha    = 0.05,
+  seed     = 2
+)
+res
+```
+
+The header line counts **units** (latent objects to test) and
+distinguishes component units from subspace units. `auto_subspace = TRUE`
+is the default, so near-tied roots automatically bundle into a
+subspace unit and `print()` leads with the principal-angle stability
+summary when one is present.
+
+## Reading the result schema
+
+An `infer_result` is a frozen unit-centered object. The key blocks are:
+
+```{r result-schema}
+res$units
+res$component_tests
+```
+
+`component_tests` carries one row per tested rung with the observed
+statistic, the Besag-Clifford sequential p-value, the MC standard
+error, and the Phipson-Smyth count `r` of extreme null draws.
+
+Variable and score stability are bootstrap-based stability summaries,
+*not* p-values. The schema explicitly separates the two lines (roadmap
+point 6 in `notes/package_vision.md`).
+
+```{r stability}
+head(res$variable_stability)
+head(res$score_stability)
+head(res$subspace_stability)
+```
+
+## Validity contracts fire before the engine runs
+
+Every mature-tier adapter carries **executable** `checked_assumptions`.
+A non-numeric-matrix input, non-finite values, zero-variance columns,
+or too-small matrices all fail fast with a named reason.
+
+```{r validity, error = TRUE}
+bad <- X
+bad[1L, 1L] <- NA_real_
+infer(adapter = "svd_oneblock", data = bad,
+      geometry = "oneblock", relation = "variance",
+      B = 49, R = 4, seed = 3)
+```
+
+The checked assumptions are also recorded in the result for the
+successful path:
+
+```{r checked-passes}
+res$assumptions$checked
+```
+
+## What this vignette does *not* cover
+
+- `variable_stability` is a stability measure, not a significance
+  test; variable-level significance is deferred to a later phase of
+  the package.
+- For supervised latent-root inference (PLS regression, reduced-rank
+  regression), see the planned `predictive` relation — covariance
+  mode is the wrong inferential target for those methods and the
+  package refuses to silently reuse it.

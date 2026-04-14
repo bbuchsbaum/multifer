@@ -22,7 +22,9 @@ infer(
   model = NULL,
   seed = NULL,
   parallel = c("sequential", "mirai", "auto"),
-  fast_path = c("auto", "off")
+  fast_path = c("auto", "off"),
+  auto_subspace = TRUE,
+  tie_threshold = 0.01
 )
 }
 \arguments{
@@ -78,6 +80,14 @@ mirai daemon pool with deterministic per-task seeds.}
 \item{fast_path}{One of \code{"auto"}, \code{"off"}. \code{"auto"} uses the Phase 1.5
 core()/update_core() fast path when the adapter exposes it.
 \code{"off"} forces the refit path, useful for correctness validation.}
+
+\item{auto_subspace}{Logical. When \code{TRUE} (default), near-tied
+roots are automatically bundled into a subspace unit via
+\code{\link[=form_units]{form_units()}} \code{group_near_ties = TRUE}. Subspace units cause
+\code{print.infer_result()} to lead with principal-angle stability.}
+
+\item{tie_threshold}{Positive numeric. Relative-gap threshold used
+when \code{auto_subspace = TRUE}. Default \code{0.01}.}
 }
 \value{
 An \code{\link{infer_result}}.

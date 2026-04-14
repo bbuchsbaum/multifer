@@ -1,0 +1,123 @@
+---
+title: "CCA / two-block correlation inference with multifer"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CCA / two-block correlation inference with multifer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette walks the **canonical correlation** case: inference on
+the ordered correlations between paired blocks `X` and `Y`. This is
+`multifer`'s **qualified-tier** cross-block family. Qualified means:
+
+- the exact whitened-space stepwise deflation is implemented for the
+  paired-row design, common-`Z` nuisance-adjusted designs, and
+  nuisance-adjusted designs with within-block exchangeability
+- richer structured designs fall back to the conservative first-root
+  cap until their validity story is fully settled
+
+## Setup
+
+```{r setup}
+library(multifer)
+```
+
+## A paired-row CCA example
+
+```{r synthetic-cca}
+set.seed(1)
+n   <- 60
+p_x <- 6
+p_y <- 5
+k   <- 2
+U   <- qr.Q(qr(matrix(rnorm(n * k), n, k)))
+Ax  <- matrix(rnorm(p_x * k), p_x, k)
+Ay  <- matrix(rnorm(p_y * k), p_y, k)
+# Correlated latent factor with noise on each block
+X <- U %*% t(Ax) + matrix(rnorm(n * p_x, sd = 0.4), n, p_x)
+Y <- U %*% t(Ay) + matrix(rnorm(n * p_y, sd = 0.4), n, p_y)
+```
+
+## Running `infer()` with the `cross_svd` adapter in correlation mode
+
+The `cross_svd` adapter claims **both** `(cross, covariance)` and
+`(cross, correlation)` capabilities. Under strict dispatch, that means
+you must spell out `relation` — calling `infer(geometry = "cross", ...)`
+alone is an error because the relation is ambiguous.
+
+```{r infer-cca}
+res <- infer(
+  adapter  = "cross_svd",
+  data     = list(X = X, Y = Y),
+  geometry = "cross",
+  relation = "correlation",
+  design   = paired_rows(),
+  B        = 99,
+  R        = 20,
+  alpha    = 0.05,
+  seed     = 2
+)
+res
+```
+
+## Using the `cancor_cross` adapter
+
+If you want a correlation-only adapter with no ambiguity at all,
+`cancor_cross` wraps `stats::cancor()` and claims only
+`(cross, correlation)`:
+
+```{r infer-cancor}
+res2 <- infer(
+  adapter  = "cancor_cross",
+  data     = list(X = X, Y = Y),
+  geometry = "cross",
+  relation = "correlation",
+  B        = 99,
+  R        = 20,
+  alpha    = 0.05,
+  seed     = 3
+)
+res2
+```
+
+## What "qualified" means in practice
+
+1. First-root inference is always valid under the paired-row design.
+2. Stepwise multi-root inference is valid when the engine can project
+   both blocks into an exchangeability-preserving residual basis —
+   which is done automatically for `paired_rows()`, for
+   `nuisance_adjusted(Z)`, and for `nuisance_adjusted(Z, groups)` with
+   grouped exchangeability.
+3. For a design not yet in the exact multi-root list,
+   `run_cross_ladder()` caps `max_steps` at 1 automatically. The
+   first-root rejection is still valid; the package simply refuses
+   to make a stepwise claim it cannot yet back up.
+
+The rank-deficient failure mode has an executable check:
+
+```{r validity, error = TRUE}
+bad_X <- X
+bad_X[, p_x] <- 2 * bad_X[, 1L] + 0.5 * bad_X[, 2L]  # exact collinearity
+infer(adapter = "cross_svd", data = list(X = bad_X, Y = Y),
+      geometry = "cross", relation = "correlation",
+      B = 49, R = 4, seed = 4)
+```
+
+## Reading subspace stability first
+
+When canonical correlations are close, the canonical pairs are only
+identifiable up to rotation. `auto_subspace = TRUE` (the default)
+bundles tied roots into a subspace unit and `print()` leads with the
+principal-angle stability.
+
+```{r subspace-cca}
+head(res$subspace_stability)
+```
