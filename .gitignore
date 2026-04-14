@@ -16,3 +16,9 @@
 # System
 .DS_Store
 .omc/
+/docs/
+/.claude/
+/.albersdown.bak/
+/repomix-output.txt
+/doc/
+/Meta/
