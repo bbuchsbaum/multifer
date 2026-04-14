@@ -10,6 +10,42 @@
 # Skip on CRAN because they are expensive relative to unit tests.
 # Local test run should finish in 1-3 minutes.
 
+test_that("calibration matrix rows stay inside binomial bands", {
+  # multifer-hor.1: the offline calibration matrix lives in
+  # tools/results/calibration_matrix/summary.csv.  CI does not
+  # regenerate it; the test only reads the cached summary and
+  # asserts each row is inside a k-SE binomial band around its
+  # nominal alpha.
+  csv_path <- file.path(
+    testthat::test_path("..", ".."),
+    "tools", "results", "calibration_matrix", "summary.csv"
+  )
+  skip_if_not(file.exists(csv_path),
+              "calibration matrix summary not present -- run tools/calibration_matrix.R")
+
+  matrix_summary <- utils::read.csv(csv_path, stringsAsFactors = FALSE)
+  expect_true(nrow(matrix_summary) > 0L)
+  expect_true(all(c("engine", "alpha", "n", "B", "n_sim", "rate") %in%
+                    colnames(matrix_summary)))
+
+  # Each row must fall inside a k=3 binomial band around its alpha.
+  # k=3 is loose enough to survive the light-n_sim regime used in
+  # the checked-in summary (~60 draws) while still catching any
+  # engine-level regression that would double the empirical rate.
+  for (i in seq_len(nrow(matrix_summary))) {
+    row <- matrix_summary[i, ]
+    band_i <- local({
+      se <- sqrt(row$alpha * (1 - row$alpha) / row$n_sim)
+      c(lower = max(0, row$alpha - 3 * se),
+        upper = min(1, row$alpha + 3 * se))
+    })
+    label <- sprintf("engine=%s alpha=%.3f n=%d B=%d",
+                     row$engine, row$alpha, row$n, row$B)
+    expect_gte(row$rate, band_i[["lower"]], label = label)
+    expect_lte(row$rate, band_i[["upper"]], label = label)
+  }
+})
+
 calibration_band <- function(alpha, n_sim, k = 3) {
   # k-SE binomial band around alpha. k = 3 makes the band loose enough
   # to survive CI noise; k = 2 is the formal 95% test but it is too

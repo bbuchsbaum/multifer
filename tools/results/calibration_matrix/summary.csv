@@ -1,0 +1,13 @@
+"engine","alpha","n","B","n_sim","rejections","rate","seed_offset"
+"oneblock_variance",0.01,60,199,60,0,0,101111
+"oneblock_variance",0.01,150,199,60,1,0.0166666666666667,101121
+"oneblock_variance",0.05,60,199,60,3,0.05,101211
+"oneblock_variance",0.05,150,199,60,2,0.0333333333333333,101221
+"cross_covariance",0.01,60,199,60,0,0,102111
+"cross_covariance",0.01,150,199,60,0,0,102121
+"cross_covariance",0.05,60,199,60,2,0.0333333333333333,102211
+"cross_covariance",0.05,150,199,60,4,0.0666666666666667,102221
+"cross_correlation_paired",0.01,60,199,60,0,0,103111
+"cross_correlation_paired",0.01,150,199,60,2,0.0333333333333333,103121
+"cross_correlation_paired",0.05,60,199,60,2,0.0333333333333333,103211
+"cross_correlation_paired",0.05,150,199,60,3,0.05,103221
