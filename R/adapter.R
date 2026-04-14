@@ -247,7 +247,7 @@ infer_adapter <- function(adapter_id,
           paste(required, collapse = ", "),
           ". ",
           paste(detail, collapse = "; "),
-          "."
+          ". See notes/engine_predictive_spec.md for the gate contract."
         ),
         call. = FALSE
       )
