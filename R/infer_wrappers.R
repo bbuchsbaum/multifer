@@ -65,6 +65,71 @@ infer_plsc <- function(X,
   )
 }
 
+#' Infer PLSR-family significance and stability
+#'
+#' Thin convenience wrapper over [infer()] for two-block predictive
+#' models. The inferential target is **cross-fitted held-out predictive
+#' gain**, not an `X^T Y` cross-covariance root. In other words,
+#' `infer_plsr()` asks whether the next latent predictor improves
+#' out-of-sample prediction of `Y` beyond the previous ones.
+#'
+#' The default adapter is `"plsr_refit"`, a Tier-1 wrapper around
+#' `pls::plsr()`. For the predictive-relation doctrine and the
+#' registration-time cross-fit gate, see
+#' `vignette("writing-adapters")`, especially the section
+#' "The predictive relation is stricter on purpose".
+#'
+#' As elsewhere in v1, `variable_significance` remains out of scope.
+#' Component p-values are significance outputs; variable / score /
+#' subspace summaries remain bootstrap stability outputs.
+#'
+#' @param X Numeric matrix for the predictor block.
+#' @param Y Numeric matrix for the response block. Must have the same
+#'   number of rows as `X`.
+#' @param adapter Adapter id or object. Defaults to `"plsr_refit"`.
+#' @param ... Additional arguments forwarded to [infer()].
+#'
+#' @return An [infer_result].
+#' @export
+infer_plsr <- function(X,
+                       Y,
+                       adapter = "plsr_refit",
+                       ...) {
+  dots <- list(...)
+
+  if (!is.null(dots$relation) && !identical(dots$relation, "predictive")) {
+    stop(
+      paste0(
+        "`infer_plsr()` uses relation = \"predictive\". ",
+        "Do not request covariance-style inference through this wrapper."
+      ),
+      call. = FALSE
+    )
+  }
+  if (!is.null(dots$geometry) && !identical(dots$geometry, "cross")) {
+    stop(
+      "`infer_plsr()` uses geometry = \"cross\" and does not accept another geometry.",
+      call. = FALSE
+    )
+  }
+
+  dots$relation <- NULL
+  dots$geometry <- NULL
+
+  do.call(
+    infer,
+    c(
+      list(
+        adapter = adapter,
+        data = list(X = X, Y = Y),
+        geometry = "cross",
+        relation = "predictive"
+      ),
+      dots
+    )
+  )
+}
+
 #' Infer CCA-family significance and stability
 #'
 #' Thin convenience wrapper over [infer()] for two-block correlation
@@ -101,6 +166,56 @@ infer_cca <- function(X,
     data = list(X = X, Y = Y),
     geometry = "cross",
     relation = "correlation",
+    ...
+  )
+}
+
+#' Infer discriminant-root significance for LDA-family models
+#'
+#' Thin convenience wrapper over [infer()] for `(geneig,
+#' generalized_eigen)` models driven by class labels. The default adapter
+#' is `"lda_refit"`, which wraps `MASS::lda()` and tests the ordered
+#' discriminant roots, not specific variables and not pairwise class
+#' contrasts.
+#'
+#' The estimand is the number of discriminant roots that rise above
+#' noise. The ladder is therefore naturally short: with `K` classes,
+#' there are at most `K - 1` non-zero discriminant roots to test.
+#'
+#' For the current engine doctrine and the B-metric deflation rule, see
+#' `notes/engine_geneig_spec.md`.
+#'
+#' @param X Numeric matrix with observations in rows and variables in columns.
+#' @param labels Factor of class labels with one entry per row of `X`.
+#' @param targets Requested inferential targets. Defaults to
+#'   `"component_significance"` because the geneig bootstrap/stability
+#'   path is not yet part of the public wrapper surface.
+#' @param adapter Adapter id or object. Defaults to `"lda_refit"`.
+#' @param ... Additional arguments forwarded to [infer()].
+#'
+#' @return An [infer_result].
+#' @export
+infer_lda <- function(X,
+                      labels,
+                      targets = "component_significance",
+                      adapter = "lda_refit",
+                      ...) {
+  if (!is.matrix(X) || !is.numeric(X)) {
+    stop("`X` must be a numeric matrix.", call. = FALSE)
+  }
+  if (!is.factor(labels)) {
+    stop("`labels` must be a factor.", call. = FALSE)
+  }
+  if (length(labels) != nrow(X)) {
+    stop("`labels` must have one value per row of `X`.", call. = FALSE)
+  }
+
+  infer(
+    adapter = adapter,
+    data = list(X = X, y = labels),
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    targets = targets,
     ...
   )
 }

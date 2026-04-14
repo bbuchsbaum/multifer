@@ -61,7 +61,7 @@ capability_matrix <- function(...) {
 
   valid_geom <- c("oneblock", "cross", "multiblock", "geneig")
   valid_rel  <- c("variance", "covariance", "correlation",
-                  "generalized_eigen")
+                  "generalized_eigen", "predictive")
   valid_tgt  <- valid_capability_targets()
 
   rows_geom <- character(0)
@@ -89,6 +89,13 @@ capability_matrix <- function(...) {
       stop(sprintf(
         "entry %d: `relation` must be one of %s.",
         i, paste(valid_rel, collapse = ", ")
+      ), call. = FALSE)
+    }
+    if (identical(e$relation, "predictive") && !identical(e$geometry, "cross")) {
+      stop(sprintf(
+        paste0("entry %d: relation 'predictive' is cross-only in v1; ",
+               "got geometry '%s'."),
+        i, e$geometry
       ), call. = FALSE)
     }
     if (!is.character(e$targets) || length(e$targets) == 0L) {

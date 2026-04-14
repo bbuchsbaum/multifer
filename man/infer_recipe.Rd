@@ -23,9 +23,10 @@ arguments are ignored.}
 \code{"multiblock"}, \code{"geneig"}.  Used when \code{shape} is \code{NULL}.}
 
 \item{relation}{Character scalar -- one of \code{"variance"},
-\code{"covariance"}, \code{"correlation"}, \code{"generalized_eigen"}.  Used when
-\code{shape} is \code{NULL}.  May be \code{NULL} if the adapter has exactly one
-relation for the given geometry (strict mode errors if it has more).}
+\code{"covariance"}, \code{"correlation"}, \code{"generalized_eigen"},
+\code{"predictive"}.  Used when \code{shape} is \code{NULL}.  May be \code{NULL} if the
+adapter has exactly one relation for the given geometry (strict mode
+errors if it has more).}
 
 \item{design}{A \code{multifer_design} object (see \code{\link[=exchangeable_rows]{exchangeable_rows()}},
 \code{\link[=paired_rows]{paired_rows()}}, \code{\link[=blocked_rows]{blocked_rows()}}, \code{\link[=nuisance_adjusted]{nuisance_adjusted()}}).  Used

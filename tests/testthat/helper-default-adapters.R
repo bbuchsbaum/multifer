@@ -13,5 +13,13 @@ ensure_default_adapters <- function() {
     register_infer_adapter("multivarious_plsc",
                            adapter_multivarious_plsc(), overwrite = TRUE)
   }
+  if (requireNamespace("MASS", quietly = TRUE)) {
+    register_infer_adapter("lda_refit",
+                           adapter_lda_refit(), overwrite = TRUE)
+  }
+  if (requireNamespace("pls", quietly = TRUE)) {
+    register_infer_adapter("plsr_refit",
+                           adapter_plsr_refit(), overwrite = TRUE)
+  }
   invisible(NULL)
 }

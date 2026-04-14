@@ -55,6 +55,9 @@
 #'
 #' @param adapter A `multifer_adapter`.
 #' @param data The raw `data` argument passed to `infer()`.
+#' @param recipe Optional compiled `multifer_infer_recipe`. When supplied,
+#'   check functions receive it via `recipe = ` and may use it for
+#'   relation- or design-specific validity logic.
 #' @param strict Logical. When `TRUE`, any failed check raises an error
 #'   with the concatenated details; when `FALSE`, violations are
 #'   returned in the results list for downstream reporting.
@@ -65,7 +68,7 @@
 #'
 #' @keywords internal
 #' @noRd
-run_adapter_checks <- function(adapter, data, strict = TRUE) {
+run_adapter_checks <- function(adapter, data, recipe = NULL, strict = TRUE) {
   checks <- adapter$checked_assumptions
   if (length(checks) == 0L) {
     return(list())
@@ -84,7 +87,10 @@ run_adapter_checks <- function(adapter, data, strict = TRUE) {
     default_detail <- if (!is.null(entry$detail)) as.character(entry$detail) else name
 
     result <- tryCatch(
-      .normalize_check_result(entry$check(data), default_detail),
+      .normalize_check_result(
+        entry$check(data, recipe = recipe, adapter = adapter),
+        default_detail
+      ),
       error = function(e) {
         list(
           passed = FALSE,

@@ -174,6 +174,51 @@ test_that("infer_result print method runs and mentions stability-vs-p-value", {
   expect_true(any(grepl("STABILITY measure, not a p-value", out)))
 })
 
+test_that("print and summary show subspace units before singleton units", {
+  units <- infer_units(
+    unit_id = c("u1", "u2"),
+    unit_type = c("subspace", "component"),
+    members = list(c(1L, 2L), 3L),
+    identifiable = c(FALSE, TRUE),
+    selected = c(TRUE, FALSE)
+  )
+  tests <- infer_component_tests(
+    unit_id = c("u1", "u2"),
+    statistic = c(5.2, 1.1),
+    p_value = c(0.01, 0.2),
+    mc_uncertainty = c(0.001, 0.02),
+    stopped_at = c(500L, 500L),
+    null_label = c("permute", "permute"),
+    validity_level = c("conditional", "conditional")
+  )
+  sub <- infer_subspace_stability(
+    unit_id = "u1",
+    principal_angle_mean = 0.05,
+    principal_angle_max = 0.10,
+    alignment_method = "subspace",
+    stability_label = "tied"
+  )
+
+  r <- infer_result(
+    units = units,
+    component_tests = tests,
+    subspace_stability = sub
+  )
+
+  printed <- paste(capture.output(print(r)), collapse = "\n")
+  summarized <- paste(capture.output(summary(r)), collapse = "\n")
+
+  expect_match(printed, "Subspace inference")
+  expect_match(printed, "Singleton units")
+  expect_match(printed, "mean angle = 0\\.050, max angle = 0\\.100")
+  expect_lt(regexpr("Subspace inference", printed)[1], regexpr("Singleton units", printed)[1])
+
+  expect_match(summarized, "Subspace inference")
+  expect_match(summarized, "Singleton units")
+  expect_match(summarized, "mean angle = 0\\.050, max angle = 0\\.100")
+  expect_lt(regexpr("Subspace inference", summarized)[1], regexpr("Singleton units", summarized)[1])
+})
+
 test_that("infer_result rejects non-schema sub-blocks", {
   expect_error(
     infer_result(units = data.frame(unit_id = "u1")),

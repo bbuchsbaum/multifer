@@ -1,0 +1,41 @@
+template:
+  package: albersdown
+  bootstrap: 5.0
+articles:
+  - title: Latent-root family
+    navbar: Latent-root family
+    contents:
+      - pca-inference
+      - plsc-inference
+      - cca-inference
+      - lda-inference
+  - title: Predictive-gain family
+    navbar: Predictive-gain family
+    contents:
+      - plsr-inference
+  - title: Extension
+    navbar: Extension
+    contents:
+      - writing-adapters
+reference:
+  - title: Latent-root family
+    contents:
+      - infer_pca
+      - infer_plsc
+      - infer_cca
+      - infer_lda
+      - run_geneig_ladder
+  - title: Predictive-gain family
+    contents:
+      - infer_plsr
+      - run_predictive_ladder
+      - matches("^adapter_plsr")
+  - title: Shared scaffold
+    contents:
+      - infer
+      - infer_result
+      - infer_adapter
+      - infer_adapter_contract
+  - title: Other exported objects
+    contents:
+      - matches(".*")

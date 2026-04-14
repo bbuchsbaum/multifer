@@ -1,3 +1,28 @@
+make_lda_wrapper_fixture <- function(n_per_class = 24L, seed = 1L) {
+  set.seed(seed)
+  labels <- factor(rep(c("a", "b", "c"), each = n_per_class))
+  means <- rbind(
+    c(-4, 0, 0, 0),
+    c( 0, 0, 0, 0),
+    c( 4, 0, 0, 0)
+  )
+  X <- do.call(rbind, lapply(seq_len(nrow(means)), function(i) {
+    matrix(stats::rnorm(n_per_class * ncol(means), sd = 0.4), ncol = ncol(means)) +
+      matrix(means[i, ], nrow = n_per_class, ncol = ncol(means), byrow = TRUE)
+  }))
+  list(X = X, labels = labels)
+}
+
+make_plsr_wrapper_fixture <- function(n = 54L, p = 6L, q = 2L, seed = 1L) {
+  set.seed(seed)
+  t1 <- scale(rnorm(n), center = TRUE, scale = FALSE)[, 1L]
+  X <- matrix(rnorm(n * p, sd = 0.14), nrow = n, ncol = p)
+  Y <- matrix(rnorm(n * q, sd = 0.10), nrow = n, ncol = q)
+  X <- X + t1 %o% c(1.4, -0.9, 0.7, 0, 0, 0)
+  Y <- Y + t1 %o% c(1.2, -1.0)
+  list(X = X, Y = Y)
+}
+
 test_that("infer_pca matches direct infer() call", {
   ensure_default_adapters()
   set.seed(901)
@@ -84,4 +109,86 @@ test_that("infer_cca forwards supported nuisance-adjusted designs through the de
   expect_equal(wrapped$provenance$adapter_id, "cancor_cross")
   expect_true(all(wrapped$component_tests$p_value >= 0 &
                   wrapped$component_tests$p_value <= 1))
+})
+
+test_that("infer_plsr matches direct infer() call on a synthetic fixture", {
+  skip_if_not_installed("pls")
+  ensure_default_adapters()
+  dat <- make_plsr_wrapper_fixture(seed = 904)
+
+  wrapped <- infer_plsr(
+    dat$X,
+    dat$Y,
+    targets = "component_significance",
+    B = 29L,
+    seed = 37L
+  )
+  direct <- infer(
+    adapter = "plsr_refit",
+    data = list(X = dat$X, Y = dat$Y),
+    geometry = "cross",
+    relation = "predictive",
+    targets = "component_significance",
+    B = 29L,
+    seed = 37L
+  )
+
+  expect_true(is_infer_result(wrapped))
+  expect_equal(wrapped$component_tests, direct$component_tests)
+  expect_equal(wrapped$units, direct$units)
+  expect_equal(wrapped$provenance$adapter_id, "plsr_refit")
+})
+
+test_that("infer_plsr refuses covariance requests through the predictive wrapper", {
+  skip_if_not_installed("pls")
+  dat <- make_plsr_wrapper_fixture(seed = 905)
+
+  expect_error(
+    infer_plsr(dat$X, dat$Y, relation = "covariance"),
+    "relation = \"predictive\""
+  )
+})
+
+test_that("infer_lda recovers planted discriminant rank through the geneig wrapper", {
+  skip_if_not_installed("MASS")
+  ensure_default_adapters()
+  dat <- make_lda_wrapper_fixture(seed = 905)
+
+  wrapped <- infer_lda(
+    dat$X,
+    dat$labels,
+    B = 39L,
+    seed = 41L
+  )
+  direct <- infer(
+    adapter = "lda_refit",
+    data = list(X = dat$X, y = dat$labels),
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    targets = "component_significance",
+    B = 39L,
+    seed = 41L
+  )
+
+  expect_true(is_infer_result(wrapped))
+  expect_equal(wrapped$component_tests, direct$component_tests)
+  expect_equal(wrapped$units, direct$units)
+  expect_true(wrapped$units$selected[1L])
+  expect_false(tail(wrapped$units$selected, 1L))
+  expect_equal(wrapped$provenance$adapter_id, "lda_refit")
+})
+
+test_that("infer_lda refuses invalid labels", {
+  skip_if_not_installed("MASS")
+  ensure_default_adapters()
+  X <- matrix(rnorm(60), 15, 4)
+
+  expect_error(
+    infer_lda(X, labels = rep("a", nrow(X))),
+    "`labels` must be a factor"
+  )
+  expect_error(
+    infer_lda(X, labels = factor(rep("a", nrow(X) - 1L))),
+    "one value per row"
+  )
 })

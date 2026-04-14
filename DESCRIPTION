@@ -6,20 +6,22 @@ Authors@R:
            family = "Buchsbaum",
            role = c("aut", "cre"),
            email = "brad.buchsbaum@gmail.com")
-Description: A typed perturbation inference layer for latent-root
-    multivariate models. The package is not a fitting framework: you
-    fit your model with multivarious (or any compatible package that
-    provides the required accessors via a thin adapter) and multifer
-    provides the inference layer on top -- the collapsed Vitale P3
-    ladder, sequential-deflation significance, rank-matched bootstrap,
-    and variable / score / subspace stability summaries. Ships mature
-    support for PCA-family one-block variance inference and
-    covariance-mode two-block methods (PLSC-family) and qualified
-    support for canonical-correlation models. Built around typed shapes
-    (geometry, relation, design), strict dispatch, machine-enforced
-    validity contracts, latent-unit output schemas, and a clean
-    separation between permutation-based significance and
-    bootstrap-based stability.
+Description: One platform with two engine families: a latent-root
+    family and a predictive-gain family. The package is not a fitting
+    framework: you fit your model with multivarious (or any compatible
+    package that provides the required accessors via a thin adapter)
+    and multifer provides the inference layer on top -- the collapsed
+    Vitale P3 ladder, sequential-deflation significance, rank-matched
+    bootstrap, and variable / score / subspace stability summaries.
+    The mature tier covers PCA-family one-block variance inference,
+    covariance-mode two-block methods (PLSC-family), and shipped CCA
+    paths on the supported paired and nuisance-adjusted designs. The
+    present tier adds generalized-eigen inference via LDA and
+    predictive-gain inference via PLSR; multiblock remains planned.
+    Built around typed shapes (geometry, relation, design), strict
+    dispatch, machine-enforced validity contracts, latent-unit output
+    schemas, and a clean separation between permutation-based
+    significance and bootstrap-based stability.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -33,6 +35,8 @@ Imports:
     multivarious
 Suggests:
     knitr,
+    MASS,
+    pls,
     rmarkdown,
     RSpectra,
     testthat (>= 3.0.0)
@@ -40,3 +44,4 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 URL: https://github.com/bbuchsbaum/multifer
 BugReports: https://github.com/bbuchsbaum/multifer/issues
+Config/Needs/website: albersdown

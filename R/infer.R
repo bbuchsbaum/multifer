@@ -7,7 +7,9 @@
 #'   \item compile a recipe via \code{\link{infer_recipe}()} with
 #'     strict dispatch by default;
 #'   \item dispatch on geometry to \code{\link{run_oneblock_ladder}()}
-#'     or \code{\link{run_cross_ladder}()};
+#'     or \code{\link{run_cross_ladder}()} or
+#'     \code{\link{run_predictive_ladder}()} or
+#'     \code{\link{run_geneig_ladder}()};
 #'   \item fit (or use the supplied) original fit, then run
 #'     \code{\link{bootstrap_fits}()} to produce a perturbation
 #'     artifact;
@@ -23,7 +25,9 @@
 #' @param adapter Either a \code{multifer_adapter} object or a string
 #'   id registered with \code{\link{register_infer_adapter}()}.
 #' @param data For oneblock, a numeric matrix. For cross, a list with
-#'   elements \code{X} and \code{Y}.
+#'   elements \code{X} and \code{Y}. For geneig, a data payload accepted
+#'   by the adapter's operator constructor (currently the LDA wrapper
+#'   uses a list with \code{X} and \code{y}).
 #' @param ... Reserved for future use.
 #' @param recipe Optional pre-compiled
 #'   \code{multifer_infer_recipe}; if supplied, \code{geometry},
@@ -35,7 +39,9 @@
 #' @param design A \code{multifer_design} object.
 #' @param targets Character vector of requested targets, or
 #'   \code{"default"} to expand to all supported targets except
-#'   \code{variable_significance}.
+#'   \code{variable_significance}. Geneig wrappers currently default to
+#'   \code{"component_significance"} until the public stability path is
+#'   added.
 #' @param strict Logical, passed to \code{\link{infer_recipe}()}.
 #'   Default \code{TRUE}.
 #' @param B Integer, per-rung cap on Monte Carlo draws.
@@ -127,7 +133,12 @@ infer <- function(adapter,
   ## --- executable validity checks --------------------------------------------
   # Every mature adapter ships concrete checked_assumptions; strict mode
   # (the default) errors on any violation before the engine starts.
-  check_results <- run_adapter_checks(adapter_obj, data, strict = strict)
+  check_results <- run_adapter_checks(
+    adapter_obj,
+    data,
+    recipe = recipe,
+    strict = strict
+  )
 
   ## --- engine: sequential deflation ladder ------------------------------------
 
@@ -148,14 +159,42 @@ infer <- function(adapter,
       stop("For cross geometry, `data` must be a list with X and Y.",
            call. = FALSE)
     }
-    engine_out <- run_cross_ladder(
-      recipe = recipe, X = data$X, Y = data$Y,
-      B = B, B_total = B_total, batch_size = mc_batch_size,
-      alpha = alpha, seed = seed,
-      auto_subspace = auto_subspace, tie_threshold = tie_threshold
+    if (rel_kind == "predictive") {
+      engine_out <- run_predictive_ladder(
+        recipe = recipe, X = data$X, Y = data$Y,
+        B = B, B_total = B_total, batch_size = mc_batch_size,
+        alpha = alpha, seed = seed,
+        auto_subspace = auto_subspace, tie_threshold = tie_threshold
+      )
+    } else {
+      engine_out <- run_cross_ladder(
+        recipe = recipe, X = data$X, Y = data$Y,
+        B = B, B_total = B_total, batch_size = mc_batch_size,
+        alpha = alpha, seed = seed,
+        auto_subspace = auto_subspace, tie_threshold = tie_threshold
+      )
+    }
+  } else if (geom_kind == "geneig") {
+    payload <- .as_geneig_payload(data)
+    operator <- geneig_operator(
+      A = payload$A,
+      B = payload$B,
+      metric = payload$metric
+    )
+    engine_out <- run_geneig_ladder(
+      recipe = recipe,
+      operator = operator,
+      state = payload$state,
+      B = B,
+      B_total = B_total,
+      batch_size = mc_batch_size,
+      alpha = alpha,
+      seed = seed,
+      auto_subspace = auto_subspace,
+      tie_threshold = tie_threshold
     )
   } else {
-    stop(sprintf("Phase 1 supports only 'oneblock' and 'cross'; got '%s'.",
+    stop(sprintf("Phase 1 supports only 'oneblock', 'cross', and 'geneig'; got '%s'.",
                  geom_kind), call. = FALSE)
   }
 
@@ -182,6 +221,8 @@ infer <- function(adapter,
 
   null_label <- if (geom_kind == "oneblock") {
     "column_permute"
+  } else if (geom_kind == "geneig") {
+    "permute_labels"
   } else if (rel_kind == "correlation" &&
              recipe$shape$design$kind == "nuisance_adjusted" &&
              is.null(recipe$shape$design$groups)) {
@@ -236,6 +277,12 @@ infer <- function(adapter,
   t_boot_end    <- t_boot_start
 
   if (needs_bootstrap && R > 0L) {
+    if (geom_kind == "geneig") {
+      stop(
+        "Bootstrap stability for geneig wrappers is not wired through infer() yet. Request `targets = \"component_significance\"` for now.",
+        call. = FALSE
+      )
+    }
 
     if (is.null(model)) {
       original_fit <- if (geom_kind == "oneblock") {

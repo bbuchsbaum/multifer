@@ -1,19 +1,22 @@
 # multifer
 
-`multifer` is a typed perturbation **inference layer** for latent-root
-multivariate models. It is not a fitting framework: you fit your model
-with [multivarious](https://github.com/bbuchsbaum/multivarious) (or
-any compatible package that provides the required accessors via a
-thin adapter) and `multifer` provides the inference layer on top —
-the exact collapsed Vitale P3 ladder under sequential deflation,
-rank-matched residual randomization, the paired-bootstrap stability
-consumers (variable / score / subspace), and the unit-centered
-result schema.
+`multifer` is one platform with two engine families: a **latent-root**
+family and a **predictive-gain** family. It is not a fitting framework:
+you fit your model with
+[multivarious](https://github.com/bbuchsbaum/multivarious) (or any
+compatible package that provides the required accessors via a thin
+adapter) and `multifer` provides the inference layer on top — the exact
+collapsed Vitale P3 ladder under sequential deflation, rank-matched
+residual randomization, the paired-bootstrap stability consumers
+(variable / score / subspace), and the unit-centered result schema.
 
-It ships **mature support** for PCA-family one-block variance
-inference and covariance-mode two-block methods (PLSC-family), both
-based on the exact collapsed Vitale P3 ladder and an exact core-space
-bootstrap, and **qualified support** for canonical-correlation models.
+Today the **mature latent-root tier** covers PCA-family one-block
+variance inference, covariance-mode two-block methods (PLSC-family),
+and the shipped CCA path on its supported paired and nuisance-adjusted
+designs. The **present but narrower tier** adds the
+[generalized-eigen engine](vignettes/lda-inference.Rmd) through
+`infer_lda()` and the [predictive relation](vignettes/plsr-inference.Rmd)
+through `infer_plsr()`. `multiblock` remains planned rather than shipped.
 
 The package is **extensible by design**. A new inferential family is
 added by writing an `infer_adapter()` that implements the accessor
@@ -21,13 +24,12 @@ contract over a fitted model: how to read its loadings, its scores,
 its latent roots, and how to refit it on a perturbed data matrix.
 The ladder driver, the null-action machinery, the bootstrap loop, and
 the stability consumers all apply uniformly to whatever fitted-model
-class an adapter declares. The goal is to stay maximally general
+class an adapter declares. The goal is to stay extensible
 *within* the ordered-latent-root paradigm without pretending every
 multivariate method reduces to the same root test. Methods whose
 inferential target is not an association root (for example supervised
-stagewise predictive methods) are not in the current vocabulary; they
-belong to a different inferential family and would be added through
-the same adapter contract when their validity story is worked out.
+stagewise predictive methods) belong to a different inferential family
+with their own validity story.
 
 The base-R reference adapters (`svd_oneblock`, `prcomp_oneblock`,
 `cross_svd`, `cancor_cross`) are kept as working examples of the
@@ -66,18 +68,27 @@ end-user package. The current implementation is strongest for:
 
 - one-block variance models, such as PCA-like decompositions,
 - two-block covariance models, such as PLSC / cross-covariance SVD,
+- two-block correlation models through the shipped CCA path,
+- generalized-eigen discriminant models via `infer_lda()`,
+- predictive-gain models via `infer_plsr()`,
 - bootstrap-based variable, score, and subspace stability summaries.
 
 Current limitations are deliberate:
 
 - cross correlation / CCA supports multi-root testing for the plain paired-row
   design, for common-`Z` nuisance-adjusted designs, and for nuisance-adjusted
-  designs with within-block exchangeability,
+  designs with within-block exchangeability; richer structured correlation
+  designs still need more exchangeability work,
+- the current `geneig` public surface is intentionally narrow: LDA is shipped,
+  while broader metric-weighted / contrastive generalized-eigen models remain
+  planned,
+- the predictive-gain public surface is intentionally narrow: PLSR is shipped,
+  while broader predictive-cross models remain planned,
 - bootstrap stability defaults to sign alignment; Procrustes alignment is
   retained only for backward compatibility and is not an endorsed inferential
   target,
-- `multiblock` and `geneig` are part of the architecture but not yet shipped as
-  complete inference engines,
+- `multiblock` is part of the architecture but not yet shipped as a complete
+  inference engine,
 - variable significance is deferred; current variable-level output is stability,
   not p-values.
 
@@ -99,6 +110,7 @@ Optional packages:
 - `RSpectra` improves the partial-SVD fast path on larger problems.
 - `multivarious` enables the `multivarious_pca` and `multivarious_plsc`
   adapters when installed.
+- `MASS` enables the `lda_refit` adapter and the `infer_lda()` wrapper.
 
 ## What `infer()` returns
 
@@ -117,12 +129,13 @@ This is a deliberately unit-centered design: downstream tables refer to
 
 ## Minimal examples
 
-The package ships thin convenience wrappers for the mature and qualified
-families:
+The package ships thin convenience wrappers for the shipped families:
 
 - `infer_pca()` for one-block variance models
 - `infer_plsc()` for two-block covariance models
 - `infer_cca()` for two-block correlation models
+- `infer_lda()` for generalized-eigen discriminant models
+- `infer_plsr()` for predictive-gain models
 
 The lower-level `infer()` interface remains available when you want explicit
 control over adapter, geometry, relation, and design.
@@ -197,16 +210,18 @@ work on the exchangeability side.
 | `svd_oneblock`         | oneblock  | variance    | **mature** |
 | `prcomp_oneblock`      | oneblock  | variance    | **mature** |
 | `cross_svd` (cov)      | cross     | covariance  | **mature** |
+| `cross_svd` (cor)      | cross     | correlation | **mature** |
+| `cancor_cross`         | cross     | correlation | **mature** |
 | `multivarious_pca`     | oneblock  | variance    | **mature** |
 | `multivarious_plsc`    | cross     | covariance  | **mature** |
-| `cross_svd` (cor)      | cross     | correlation | qualified  |
-| `cancor_cross`         | cross     | correlation | qualified  |
+| `lda_refit`            | geneig    | generalized_eigen | present |
+| `plsr_refit`           | cross     | predictive  | present    |
 
-*Mature* adapters are the paper-backed exact path. *Qualified* adapters
-currently cover the paired-row design, common-`Z` nuisance-adjusted
-designs, and nuisance-adjusted designs with within-block exchangeability;
-richer structured designs on the correlation side are still being
-exactified.
+*Mature* adapters are the paper-backed exact path for the shipped latent-root
+families. On the correlation side that means the plain paired-row design,
+common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
+within-block exchangeability. *Present* adapters are public and tested, but
+their family surface is intentionally narrower than the mature tier.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data
@@ -297,6 +312,8 @@ Current Phase 1 core:
 - cross covariance significance and stability
 - correlation-mode multi-root inference for paired rows, common-`Z`
   nuisance-adjusted designs, and nuisance-adjusted within-block designs
+- generalized-eigen component significance for LDA via label permutation and
+  B-metric deflation
 - sequential Monte Carlo ladder infrastructure
 - exact covariance core-space null draws
 - partial-SVD and bootstrap/stability performance improvements
@@ -304,7 +321,8 @@ Current Phase 1 core:
 Deferred or later-phase work:
 
 - richer structured / hierarchical valid multi-root CCA
-- `multiblock` and `geneig` engines
+- broader `geneig` families beyond LDA
+- `multiblock` engine
 - variable significance
 - vignettes, package website, and broader user-facing docs
 
@@ -326,3 +344,8 @@ So the package should be read as both:
 ## License
 
 MIT
+
+<!-- albersdown:theme-note:start -->
+## Albers theme
+This package uses the albersdown theme. Existing vignette theme hooks are replaced so `albers.css` and local `albers.js` render consistently on CRAN and GitHub Pages. The defaults are configured via `params$family` and `params$preset` (family = 'red', preset = 'homage'). The pkgdown site uses `template: { package: albersdown }` together with generated `pkgdown/extra.css` and `pkgdown/extra.js` so the theme is linked and activated on site pages.
+<!-- albersdown:theme-note:end -->

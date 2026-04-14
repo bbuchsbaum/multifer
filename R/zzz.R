@@ -41,4 +41,6 @@
   register_cross_baser_adapters()
   register_multivarious_pca_adapter()
   register_multivarious_plsc_adapter()
+  register_lda_refit_adapter()
+  register_plsr_refit_adapter()
 }

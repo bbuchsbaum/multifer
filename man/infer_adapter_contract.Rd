@@ -28,8 +28,9 @@ packages should mimic.
 
 Hooks are passed by name through \code{...} to \code{\link[=infer_adapter]{infer_adapter()}}. The
 capability gate (Part 5 §36) enforces which hooks are required for
-which targets. There is no universally required hook: an adapter
-only has to provide the hooks needed for the targets it claims.
+which targets. There is no single hook required for every adapter:
+an adapter only has to provide the hooks needed for the targets it
+claims.
 
 \describe{
 \item{\code{roots(x)}}{\strong{Strongly recommended.} Return a numeric
@@ -93,11 +94,19 @@ alignment on matched loadings.}
 a column-wise permutation; for cross shapes it breaks the
 pairing by permuting rows of \code{Y}.}
 
-\item{\code{component_stat(x, data, k)}}{Required by
+\item{\code{component_stat(x, data, k, split = NULL)}}{Required by
 \code{component_significance}. Return the observed test statistic
 for rung \code{k} on \code{data}. Must be algebraically consistent with
 \code{null_action}: the ladder compares the observed statistic to
-repeated draws of \code{component_stat(x, null_action(x, data), k)}.}
+repeated draws of \code{component_stat(x, null_action(x, data), k)}.
+For \verb{(cross, predictive)}, the hook must accept a formal
+\code{split} argument and use it for held-out scoring rather than
+in-sample fit.}
+
+\item{\code{predict_response(x, new_data, k = NULL)}}{Optional at the
+contract level, required for \verb{(cross, predictive, component_significance)}. Return an \verb{n × q} matrix of fitted
+responses on \code{new_data} using the first \code{k} components (or all
+available components when \code{k = NULL}).}
 
 \item{\code{variable_stat(x, data, domain, k)}}{Optional alternative
 to \code{loadings} for \code{variable_stability}.}
@@ -115,6 +124,11 @@ capability without the hooks to back it. The rules are:
 \itemize{
 \item \code{component_significance} requires \code{null_action}, \code{component_stat},
 \strong{and} \code{residualize}.
+\item \verb{(cross, predictive, component_significance)} additionally
+requires \code{refit}, \code{predict_response}, and a split-aware
+\code{component_stat(..., split = NULL)}. This is the predictive
+cross-fit admissibility rule: in-sample predictive significance
+is refused at registration time.
 \item \code{variable_stability} requires a perturbation path — either \code{refit}
 or both \code{core} and \code{update_core} — \strong{and} one of
 \code{variable_stat} or \code{loadings}.
@@ -128,6 +142,19 @@ Claiming a capability without the backing hooks is an error at
 \code{\link[=infer_adapter]{infer_adapter()}} time, not at inference time. That is the point
 of the gate: strict dispatch refuses to build an adapter that
 cannot back up its claims.
+}
+
+\section{Geneig rule}{
+
+
+Geneig adapters carry one extra registration-time rule. If an
+adapter claims \verb{(geneig, generalized_eigen, component_significance)},
+its \code{residualize} hook must explicitly declare that it performs
+B-metric deflation by carrying \code{attr(residualize, "b_metric") <- TRUE},
+or must declare \code{attr(residualize, "delegates_geneig_deflation") <- TRUE}
+to signal that \code{run_geneig_ladder()} owns the deflation. Euclidean
+residualization is not admissible for the geneig family; the gate
+fails immediately with a pointer to \code{notes/engine_geneig_spec.md}.
 }
 
 \section{Executable validity contracts}{

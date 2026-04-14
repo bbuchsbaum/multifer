@@ -67,6 +67,49 @@ clear_adapter_registry()
   )
 }
 
+.make_predictive_stub <- function(id = "stub_predictive") {
+  infer_adapter(
+    adapter_id      = id,
+    adapter_version = "0.0.1",
+    shape_kinds     = "cross",
+    capabilities    = capability_matrix(
+      list(geometry = "cross", relation = "predictive",
+           targets  = "component_significance")
+    ),
+    null_action    = function(x, data) data,
+    component_stat = function(x, data, k, split = NULL) 1.0,
+    residualize    = function(x, k, data) data,
+    refit          = function(x, new_data) x,
+    predict_response = function(x, new_data, k = NULL) {
+      if (is.null(new_data$Y)) {
+        return(matrix(0, nrow = nrow(new_data$X), ncol = 1L))
+      }
+      matrix(0, nrow = nrow(new_data$Y), ncol = ncol(new_data$Y))
+    },
+    validity_level = "conditional"
+  )
+}
+
+.make_geneig_stub <- function(id = "stub_geneig") {
+  residualize_geneig <- function(x, k, data) data
+  attr(residualize_geneig, "b_metric") <- TRUE
+
+  infer_adapter(
+    adapter_id      = id,
+    adapter_version = "0.0.1",
+    shape_kinds     = "geneig",
+    capabilities    = capability_matrix(
+      list(geometry = "geneig", relation = "generalized_eigen",
+           targets  = "component_significance")
+    ),
+    null_action    = function(x, data) data,
+    component_stat = function(x, data, k) 1.0,
+    residualize    = residualize_geneig,
+    refit          = function(x, new_data) x,
+    validity_level = "conditional"
+  )
+}
+
 # ---------------------------------------------------------------------------
 # 1. Happy path: oneblock PCA-style adapter
 # ---------------------------------------------------------------------------
@@ -151,6 +194,49 @@ test_that("cross adapter: covariance and correlation recipes differ", {
                           adapter = "stub_cross")
 
   expect_false(identical(r_cov$shape$relation$kind, r_corr$shape$relation$kind))
+})
+
+test_that("cross predictive adapter compiles when it declares the triple", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_predictive", .make_predictive_stub())
+
+  r <- infer_recipe(
+    geometry = "cross",
+    relation = "predictive",
+    adapter  = "stub_predictive"
+  )
+
+  expect_true(is_infer_recipe(r))
+  expect_equal(r$shape$geometry$kind, "cross")
+  expect_equal(r$shape$relation$kind, "predictive")
+})
+
+test_that("predictive relation is rejected for non-cross geometry at recipe compile time", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_predictive", .make_predictive_stub())
+
+  expect_error(
+    infer_recipe(
+      geometry = "oneblock",
+      relation = "predictive",
+      adapter  = "stub_predictive"
+    ),
+    regexp = "requires geometry 'cross'"
+  )
+})
+
+test_that("predictive relation errors cleanly when adapter does not support the triple", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_cross", .make_cross_stub())
+
+  expect_error(
+    infer_recipe(
+      geometry = "cross",
+      relation = "predictive",
+      adapter  = "stub_cross"
+    ),
+    regexp = "declares no supported targets|not supported"
+  )
 })
 
 # ---------------------------------------------------------------------------
@@ -424,6 +510,36 @@ test_that("NULL design for multiblock geometry defaults to exchangeable_rows", {
   )
 
   expect_equal(r$shape$design$kind, "exchangeable_rows")
+})
+
+test_that("geneig geometry defaults to exchangeable_rows and compiles", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_geneig", .make_geneig_stub())
+
+  r <- infer_recipe(
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    design   = NULL,
+    adapter  = "stub_geneig"
+  )
+
+  expect_true(is_infer_recipe(r))
+  expect_equal(r$shape$design$kind, "exchangeable_rows")
+  expect_equal(r$shape$relation$kind, "generalized_eigen")
+})
+
+test_that("infer_recipe refuses geneig with any non-generalized_eigen relation", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_geneig", .make_geneig_stub())
+
+  expect_error(
+    infer_recipe(
+      geometry = "geneig",
+      relation = "variance",
+      adapter  = "stub_geneig"
+    ),
+    regexp = "requires relation 'generalized_eigen'"
+  )
 })
 
 # ---------------------------------------------------------------------------

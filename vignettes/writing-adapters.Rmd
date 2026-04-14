@@ -1,19 +1,45 @@
 ---
-title: "Writing a multifer adapter"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Writing a multifer adapter}
-  %\VignetteEngine{knitr::knitr}
-  %\VignetteEncoding{UTF-8}
+title: Writing a multifer adapter
+output:
+  rmarkdown::html_vignette:
+    toc: yes
+    toc_depth: 2.0
+    css: albers.css
+    includes:
+      in_header: albers-header.html
+params:
+  family: red
+  preset: homage
+resource_files:
+- albers.css
+- albers.js
+- albers-header.html
+
+vignette: |
+  %\VignetteIndexEntry{Writing a multifer adapter} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
+if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
   message  = FALSE,
   warning  = FALSE
 )
+```
+
+```{r albers-classes, echo=FALSE, results='asis'}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family,
+  params$preset
+))
 ```
 
 ```{r load}
@@ -140,9 +166,33 @@ build the adapter if any claimed target is missing its required hook.
   relevant exchangeability assumption. For oneblock variance this
   is a column permutation; for cross-block shapes it breaks the
   pairing by permuting rows of `Y`.
-- `component_stat(x, data, k)` returns the observed test statistic
-  for rung `k` on `data`. The engine compares this to many draws of
-  `component_stat(x, null_action(x, data), k)`.
+- `component_stat(x, data, k, split = NULL)` returns the observed
+  test statistic for rung `k` on `data`. The engine compares this to
+  many draws of `component_stat(x, null_action(x, data), k)`. For
+  predictive relations, `split` is the held-out fold contract.
+
+## The predictive relation is stricter on purpose
+
+Predictive adapters are the one place where `multifer` refuses the
+usual latent-root shortcut. If you claim
+`(cross, predictive, component_significance)`, registration-time
+validation expects three extra things:
+
+- `predict_response(x, new_data, k = NULL)`, so the engine can score
+  held-out responses.
+- `refit(x, new_data)`, because predictive significance is evaluated
+  by refitting on training folds rather than recycling the original
+  fit in-sample.
+- `component_stat(x, data, k, split = NULL)` with a formal `split`
+  argument. The `split` object carries `$train` and `$test` indices,
+  and the hook is expected to compute an out-of-sample gain rather
+  than an in-sample covariance or root proxy.
+
+That gate is deliberate. For predictive models such as PLS
+regression, an in-sample statistic will rise monotonically with extra
+components and badly overstate significance. The contract therefore
+builds the reviewer's admissibility rule directly into
+`infer_adapter()`: no held-out path, no registration.
 
 ## The realistic wrapper pattern
 

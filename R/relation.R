@@ -7,14 +7,15 @@
 #' dispatch is designed to prevent.
 #'
 #' @param kind One of `"variance"`, `"covariance"`, `"correlation"`,
-#'   `"generalized_eigen"`.
+#'   `"generalized_eigen"`, `"predictive"`.
 #'
 #' @return An object of class `multifer_relation` (and a `kind`-specific
 #'   subclass).
 #'
 #' @export
 relation <- function(kind) {
-  valid <- c("variance", "covariance", "correlation", "generalized_eigen")
+  valid <- c("variance", "covariance", "correlation",
+             "generalized_eigen", "predictive")
   if (!is.character(kind) || length(kind) != 1L || is.na(kind)) {
     stop("`kind` must be a single non-NA character string.", call. = FALSE)
   }

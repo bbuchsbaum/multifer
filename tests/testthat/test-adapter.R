@@ -41,6 +41,27 @@ clear_adapter_registry()
   )
 }
 
+.make_geneig_residualize <- function(mode = c("b_metric", "euclidean", "delegate")) {
+  mode <- match.arg(mode)
+  fn <- function(x, k, data) data
+  if (mode == "b_metric") {
+    attr(fn, "b_metric") <- TRUE
+  } else if (mode == "delegate") {
+    attr(fn, "delegates_geneig_deflation") <- TRUE
+  }
+  fn
+}
+
+.predictive_caps <- function() {
+  capability_matrix(
+    list(
+      geometry = "cross",
+      relation = "predictive",
+      targets  = "component_significance"
+    )
+  )
+}
+
 # ---------------------------------------------------------------------------
 # 1. Valid minimal PCA stub constructs cleanly
 # ---------------------------------------------------------------------------
@@ -124,6 +145,112 @@ test_that("claiming component_significance without residualize errors", {
       validity_level = "conditional"
     ),
     "residualize"
+  )
+})
+
+test_that("geneig component_significance refuses unmarked Euclidean residualize hooks", {
+  expect_error(
+    infer_adapter(
+      adapter_id      = "bad_geneig",
+      shape_kinds     = "geneig",
+      capabilities    = capability_matrix(
+        list(
+          geometry = "geneig",
+          relation = "generalized_eigen",
+          targets  = "component_significance"
+        )
+      ),
+      null_action    = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize    = .make_geneig_residualize("euclidean"),
+      refit          = function(x, new_data) x,
+      validity_level = "conditional"
+    ),
+    "B-metric deflation required - see notes/engine_geneig_spec.md"
+  )
+})
+
+test_that("geneig component_significance accepts a marked B-metric residualize hook", {
+  expect_no_error(
+    infer_adapter(
+      adapter_id      = "good_geneig",
+      shape_kinds     = "geneig",
+      capabilities    = capability_matrix(
+        list(
+          geometry = "geneig",
+          relation = "generalized_eigen",
+          targets  = "component_significance"
+        )
+      ),
+      null_action    = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize    = .make_geneig_residualize("b_metric"),
+      refit          = function(x, new_data) x,
+      validity_level = "conditional"
+    )
+  )
+})
+
+test_that("geneig component_significance accepts delegation to engine deflation", {
+  expect_no_error(
+    infer_adapter(
+      adapter_id      = "delegate_geneig",
+      shape_kinds     = "geneig",
+      capabilities    = capability_matrix(
+        list(
+          geometry = "geneig",
+          relation = "generalized_eigen",
+          targets  = "component_significance"
+        )
+      ),
+      null_action    = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize    = .make_geneig_residualize("delegate"),
+      refit          = function(x, new_data) x,
+      validity_level = "conditional"
+    )
+  )
+})
+
+test_that("adapter_lda_refit is accepted by the geneig registration-time gate", {
+  skip_if_not_installed("MASS")
+  expect_no_error(adapter_lda_refit())
+})
+
+test_that("predictive component_significance refuses in-sample component_stat hooks", {
+  expect_error(
+    infer_adapter(
+      adapter_id      = "bad_predictive",
+      shape_kinds     = "cross",
+      capabilities    = .predictive_caps(),
+      null_action     = function(x, data) data,
+      component_stat  = function(x, data, k) 1,
+      residualize     = function(x, k, data) data,
+      refit           = function(x, new_data) x,
+      predict_response = function(x, new_data, k = NULL) {
+        matrix(0, nrow = nrow(new_data$X), ncol = ncol(new_data$Y))
+      },
+      validity_level  = "conditional"
+    ),
+    "Predictive cross-fit admissibility rule"
+  )
+})
+
+test_that("predictive component_significance accepts split-aware held-out hooks", {
+  expect_no_error(
+    infer_adapter(
+      adapter_id      = "good_predictive",
+      shape_kinds     = "cross",
+      capabilities    = .predictive_caps(),
+      null_action     = function(x, data) data,
+      component_stat  = function(x, data, k, split = NULL) 1,
+      residualize     = function(x, k, data) data,
+      refit           = function(x, new_data) x,
+      predict_response = function(x, new_data, k = NULL) {
+        matrix(0, nrow = nrow(new_data$X), ncol = ncol(new_data$Y))
+      },
+      validity_level  = "conditional"
+    )
   )
 })
 

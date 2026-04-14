@@ -21,9 +21,10 @@
 #' @param geometry Character scalar -- one of `"oneblock"`, `"cross"`,
 #'   `"multiblock"`, `"geneig"`.  Used when `shape` is `NULL`.
 #' @param relation Character scalar -- one of `"variance"`,
-#'   `"covariance"`, `"correlation"`, `"generalized_eigen"`.  Used when
-#'   `shape` is `NULL`.  May be `NULL` if the adapter has exactly one
-#'   relation for the given geometry (strict mode errors if it has more).
+#'   `"covariance"`, `"correlation"`, `"generalized_eigen"`,
+#'   `"predictive"`.  Used when `shape` is `NULL`.  May be `NULL` if the
+#'   adapter has exactly one relation for the given geometry (strict mode
+#'   errors if it has more).
 #' @param design A `multifer_design` object (see [exchangeable_rows()],
 #'   [paired_rows()], [blocked_rows()], [nuisance_adjusted()]).  Used
 #'   when `shape` is `NULL`.  If `NULL`, a sensible default is chosen
@@ -96,6 +97,47 @@ infer_recipe <- function(shape    = NULL,
     geom_kind <- geometry
   }
 
+  if (!is.null(shape) &&
+      identical(rel_kind, "predictive") &&
+      !identical(geom_kind, "cross")) {
+    stop(
+      sprintf(
+        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        geom_kind
+      ),
+      call. = FALSE
+    )
+  }
+  if (!is.null(shape) &&
+      identical(geom_kind, "geneig") &&
+      !identical(rel_kind, "generalized_eigen")) {
+    stop(
+      "Geometry 'geneig' requires relation 'generalized_eigen' during recipe compilation.",
+      call. = FALSE
+    )
+  }
+  if (is.null(shape) &&
+      !is.null(relation) &&
+      identical(relation, "predictive") &&
+      !identical(geom_kind, "cross")) {
+    stop(
+      sprintf(
+        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        geom_kind
+      ),
+      call. = FALSE
+    )
+  }
+  if (is.null(shape) &&
+      !is.null(relation) &&
+      identical(geom_kind, "geneig") &&
+      !identical(relation, "generalized_eigen")) {
+    stop(
+      "Geometry 'geneig' requires relation 'generalized_eigen' during recipe compilation.",
+      call. = FALSE
+    )
+  }
+
   # -- strict dispatch rule 4: geometry must be in adapter$shape_kinds ---------
   if (!(geom_kind %in% adapter$shape_kinds)) {
     stop(sprintf(
@@ -165,7 +207,8 @@ infer_recipe <- function(shape    = NULL,
       if (!is.character(relation) || length(relation) != 1L || is.na(relation)) {
         stop("`relation` must be a single non-NA string.", call. = FALSE)
       }
-      valid_rel <- c("variance", "covariance", "correlation", "generalized_eigen")
+      valid_rel <- c("variance", "covariance", "correlation",
+                     "generalized_eigen", "predictive")
       if (!(relation %in% valid_rel)) {
         stop(sprintf("`relation` must be one of: %s.",
                      paste(valid_rel, collapse = ", ")),
@@ -190,6 +233,22 @@ infer_recipe <- function(shape    = NULL,
     )
   } else {
     rel_kind <- shape$relation$kind
+  }
+
+  if (identical(geom_kind, "geneig") && !identical(rel_kind, "generalized_eigen")) {
+    stop(
+      "Geometry 'geneig' requires relation 'generalized_eigen' during recipe compilation.",
+      call. = FALSE
+    )
+  }
+  if (identical(rel_kind, "predictive") && !identical(geom_kind, "cross")) {
+    stop(
+      sprintf(
+        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        geom_kind
+      ),
+      call. = FALSE
+    )
   }
 
   # -- resolve targets ----------------------------------------------------------

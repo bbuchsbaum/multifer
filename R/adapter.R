@@ -48,14 +48,21 @@
 #' - `update_core(core_obj, ...)` -- optional fast-path core update.
 #' - `align(xb, xref)` -- alignment (sign / legacy Procrustes / subspace).
 #' - `null_action(x, data)` -- generate one null resample.
-#' - `component_stat(x, data, k)` -- per-component test statistic.
+#' - `component_stat(x, data, k, split = NULL)` -- per-component test statistic.
+#' - `predict_response(x, new_data, k = NULL)` -- fitted responses for
+#'   predictive cross-family adapters.
 #' - `variable_stat(x, data, domain, k)` -- variable-level statistic.
 #' - `score_stat(x, data, domain, k)` -- score-level statistic.
 #'
 #' **Capability gate rules** (Part 5 section 36, point 1):
 #'
 #' - `component_significance` requires `null_action`, `component_stat`, AND
-#'   `residualize`.
+#'   `residualize`. For `(geneig, generalized_eigen)`, the `residualize`
+#'   hook must explicitly declare B-metric deflation via
+#'   `attr(residualize, "b_metric") <- TRUE` or
+#'   `attr(residualize, "delegates_geneig_deflation") <- TRUE`. For
+#'   `(cross, predictive)`, the adapter must also provide `refit`,
+#'   `predict_response`, and a split-aware `component_stat(..., split = NULL)`.
 #' - `variable_stability` requires at least one of `{refit, core+update_core}`
 #'   AND (`variable_stat` OR `loadings`).
 #' - `score_stability` requires at least one of `{refit, core+update_core}`
@@ -76,6 +83,10 @@ infer_adapter <- function(adapter_id,
                           validity_level,
                           declared_assumptions = character(0),
                           checked_assumptions = list()) {
+
+  .has_formal_arg <- function(fn, arg) {
+    is.function(fn) && arg %in% names(formals(fn))
+  }
 
   # -- scalar string checks ---------------------------------------------------
   if (!is.character(adapter_id) || length(adapter_id) != 1L ||
@@ -131,7 +142,8 @@ infer_adapter <- function(adapter_id,
   hooks_raw <- list(...)
   valid_hooks <- c("roots", "scores", "loadings", "truncate", "residualize",
                    "refit", "core", "update_core", "align", "null_action",
-                   "component_stat", "variable_stat", "score_stat")
+                   "component_stat", "predict_response",
+                   "variable_stat", "score_stat")
   bad_hooks <- setdiff(names(hooks_raw), valid_hooks)
   if (length(bad_hooks) > 0L) {
     stop(sprintf(
@@ -174,6 +186,71 @@ infer_adapter <- function(adapter_id,
         "null_action, component_stat, residualize",
         paste(missing_cs, collapse = ", ")
       ), call. = FALSE)
+    }
+  }
+
+  geneig_component_claim <- any(
+    capabilities$geometry == "geneig" &
+      capabilities$relation == "generalized_eigen" &
+      capabilities$target == "component_significance"
+  )
+  if (geneig_component_claim) {
+    residualize_hook <- hooks[["residualize"]]
+    has_b_metric_marker <- isTRUE(attr(residualize_hook, "b_metric")) ||
+      isTRUE(attr(residualize_hook, "delegates_geneig_deflation"))
+    if (!has_b_metric_marker) {
+      stop(
+        paste0(
+          "Claiming (geneig, generalized_eigen, component_significance) requires ",
+          "a residualize hook marked with `b_metric = TRUE` or ",
+          "`delegates_geneig_deflation = TRUE`. ",
+          "B-metric deflation required - see notes/engine_geneig_spec.md."
+        ),
+        call. = FALSE
+      )
+    }
+  }
+
+  predictive_component_claim <- any(
+    capabilities$geometry == "cross" &
+      capabilities$relation == "predictive" &
+      capabilities$target == "component_significance"
+  )
+  if (predictive_component_claim) {
+    missing_predictive <- character(0)
+    if (is.null(hooks[["refit"]])) {
+      missing_predictive <- c(missing_predictive, "refit")
+    }
+    if (is.null(hooks[["predict_response"]])) {
+      missing_predictive <- c(missing_predictive, "predict_response")
+    }
+    if (length(missing_predictive) > 0L || !.has_formal_arg(hooks[["component_stat"]], "split")) {
+      split_msg <- if (.has_formal_arg(hooks[["component_stat"]], "split")) {
+        NULL
+      } else {
+        "`component_stat` with a formal `split` argument"
+      }
+      required <- c("refit", "predict_response", split_msg)
+      required <- required[!vapply(required, is.null, logical(1))]
+      detail <- c(
+        if (length(missing_predictive) > 0L) {
+          paste0("missing: ", paste(missing_predictive, collapse = ", "))
+        },
+        if (!.has_formal_arg(hooks[["component_stat"]], "split")) {
+          "component_stat is not split-aware"
+        }
+      )
+      stop(
+        paste0(
+          "Predictive cross-fit admissibility rule: claiming ",
+          "(cross, predictive, component_significance) requires ",
+          paste(required, collapse = ", "),
+          ". ",
+          paste(detail, collapse = "; "),
+          "."
+        ),
+        call. = FALSE
+      )
     }
   }
 

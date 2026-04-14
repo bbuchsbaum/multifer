@@ -77,7 +77,9 @@ test_that("print.infer_result leads with subspace inference when subspaces are p
   output <- capture.output(print(res))
   joined <- paste(output, collapse = "\n")
   expect_match(joined, "Subspace inference")
+  expect_match(joined, "Singleton units")
   expect_match(joined, "mean angle")
+  expect_lt(regexpr("Subspace inference", joined)[1], regexpr("Singleton units", joined)[1])
 })
 
 test_that("auto_subspace passes through cross-covariance paired-root case", {

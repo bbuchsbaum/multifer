@@ -1,5 +1,6 @@
-test_that("relation accepts the four valid kinds", {
-  for (kind in c("variance", "covariance", "correlation", "generalized_eigen")) {
+test_that("relation accepts the five valid kinds", {
+  for (kind in c("variance", "covariance", "correlation",
+                 "generalized_eigen", "predictive")) {
     r <- relation(kind)
     expect_true(is_relation(r))
     expect_equal(r$kind, kind)

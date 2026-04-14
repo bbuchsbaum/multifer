@@ -22,8 +22,9 @@
 #'
 #' Hooks are passed by name through `...` to [infer_adapter()]. The
 #' capability gate (Part 5 §36) enforces which hooks are required for
-#' which targets. There is no universally required hook: an adapter
-#' only has to provide the hooks needed for the targets it claims.
+#' which targets. There is no single hook required for every adapter:
+#' an adapter only has to provide the hooks needed for the targets it
+#' claims.
 #'
 #' \describe{
 #'   \item{`roots(x)`}{**Strongly recommended.** Return a numeric
@@ -87,11 +88,20 @@
 #'     a column-wise permutation; for cross shapes it breaks the
 #'     pairing by permuting rows of `Y`.}
 #'
-#'   \item{`component_stat(x, data, k)`}{Required by
+#'   \item{`component_stat(x, data, k, split = NULL)`}{Required by
 #'     `component_significance`. Return the observed test statistic
 #'     for rung `k` on `data`. Must be algebraically consistent with
 #'     `null_action`: the ladder compares the observed statistic to
-#'     repeated draws of `component_stat(x, null_action(x, data), k)`.}
+#'     repeated draws of `component_stat(x, null_action(x, data), k)`.
+#'     For `(cross, predictive)`, the hook must accept a formal
+#'     `split` argument and use it for held-out scoring rather than
+#'     in-sample fit.}
+#'
+#'   \item{`predict_response(x, new_data, k = NULL)`}{Optional at the
+#'     contract level, required for `(cross, predictive,
+#'     component_significance)`. Return an `n × q` matrix of fitted
+#'     responses on `new_data` using the first `k` components (or all
+#'     available components when `k = NULL`).}
 #'
 #'   \item{`variable_stat(x, data, domain, k)`}{Optional alternative
 #'     to `loadings` for `variable_stability`.}
@@ -107,6 +117,11 @@
 #'
 #' - `component_significance` requires `null_action`, `component_stat`,
 #'   **and** `residualize`.
+#' - `(cross, predictive, component_significance)` additionally
+#'   requires `refit`, `predict_response`, and a split-aware
+#'   `component_stat(..., split = NULL)`. This is the predictive
+#'   cross-fit admissibility rule: in-sample predictive significance
+#'   is refused at registration time.
 #' - `variable_stability` requires a perturbation path — either `refit`
 #'   or both `core` and `update_core` — **and** one of
 #'   `variable_stat` or `loadings`.
@@ -119,6 +134,17 @@
 #' [infer_adapter()] time, not at inference time. That is the point
 #' of the gate: strict dispatch refuses to build an adapter that
 #' cannot back up its claims.
+#'
+#' @section Geneig rule:
+#'
+#' Geneig adapters carry one extra registration-time rule. If an
+#' adapter claims `(geneig, generalized_eigen, component_significance)`,
+#' its `residualize` hook must explicitly declare that it performs
+#' B-metric deflation by carrying `attr(residualize, "b_metric") <- TRUE`,
+#' or must declare `attr(residualize, "delegates_geneig_deflation") <- TRUE`
+#' to signal that `run_geneig_ladder()` owns the deflation. Euclidean
+#' residualization is not admissible for the geneig family; the gate
+#' fails immediately with a pointer to `notes/engine_geneig_spec.md`.
 #'
 #' @section Executable validity contracts:
 #'

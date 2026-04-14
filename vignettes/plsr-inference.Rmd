@@ -1,0 +1,158 @@
+---
+title: PLSR / predictive inference with multifer
+output:
+  rmarkdown::html_vignette:
+    toc: yes
+    toc_depth: 2.0
+    css: albers.css
+    includes:
+      in_header: albers-header.html
+params:
+  family: red
+  preset: homage
+resource_files:
+- albers.css
+- albers.js
+- albers-header.html
+
+vignette: |
+  %\VignetteIndexEntry{PLSR / predictive inference with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette covers **supervised predictive inference**. Unlike PLSC,
+which tests cross-covariance roots, PLSR inference in `multifer` tests
+whether each successive latent predictor adds **held-out predictive
+gain**. The ladder is therefore about out-of-sample improvement in `Y`,
+not about the singular values of `X^T Y`.
+
+The default public path is `infer_plsr()`, which uses the
+`"plsr_refit"` adapter on top of `pls::plsr()`.
+
+## Geometry and relation
+
+- geometry: `"cross"` — a predictor block `X` and a response block `Y`
+- relation: `"predictive"` — significance targets held-out predictive gain
+- design: defaults to `paired_rows()` — row `i` in `X` predicts row `i` in `Y`
+
+This is a different inferential family from covariance-mode PLSC. The
+predictive relation keeps that distinction explicit in the type system
+and at adapter registration time.
+
+## Setup
+
+```{r setup}
+if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
+library(multifer)
+if (!requireNamespace("pls", quietly = TRUE)) knitr::knit_exit()
+```
+
+```{r albers-classes, echo=FALSE, results='asis'}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family,
+  params$preset
+))
+```
+
+## A synthetic predictive example
+
+We build two latent predictors in `X`. Both help predict `Y`, but the
+first is stronger than the second.
+
+```{r synthetic-plsr}
+set.seed(1)
+n <- 72
+
+scores <- qr.Q(qr(scale(matrix(rnorm(n * 2L), nrow = n, ncol = 2L),
+                         center = TRUE, scale = FALSE)))
+
+x_loadings <- rbind(
+  c(1.3, -0.9, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0),
+  c(0.0,  0.0, 0.0, 1.1, -0.7, 0.5, 0.0, 0.0)
+)
+y_loadings <- rbind(
+  c(1.2, -1.0, 0.0, 0.0),
+  c(0.0,  0.0, 0.9, -0.7)
+)
+
+X <- matrix(rnorm(n * 8L, sd = 0.10), nrow = n, ncol = 8L) +
+  scores %*% diag(c(3.5, 1.8), nrow = 2L, ncol = 2L) %*% x_loadings
+Y <- matrix(rnorm(n * 4L, sd = 0.08), nrow = n, ncol = 4L) +
+  scores %*% diag(c(3.2, 1.4), nrow = 2L, ncol = 2L) %*% y_loadings
+```
+
+## Running `infer_plsr()`
+
+```{r infer-plsr}
+res <- infer_plsr(
+  X,
+  Y,
+  B = 79,
+  R = 12,
+  alpha = 0.05,
+  seed = 2
+)
+res
+```
+
+## Reading the result
+
+The component table reports p-values for successive **incremental
+predictive gains**. It is not a cross-covariance-root table.
+
+```{r component-tests}
+res$units
+res$component_tests
+```
+
+The first two latent predictors are selected; the third is not.
+
+## Stability remains a bootstrap layer, not significance
+
+As elsewhere in `multifer`, variable and score summaries are
+**stability** outputs. They are useful for reading the fitted latent
+predictors, but they are not p-values and do not make a claim of
+`variable_significance`, which remains out of scope in v1.
+
+```{r variable-stability}
+head(res$variable_stability, 12)
+```
+
+```{r score-stability}
+head(res$score_stability, 12)
+```
+
+You can already see the expected pattern: variables aligned with the
+first predictive direction are more stable than the trailing noise
+variables, and the leading score interval is tighter than the trailing
+noise unit.
+
+## Why predictive needs its own relation
+
+The predictive family is stricter than covariance-mode PLSC on purpose.
+`plsr_refit` is accepted only because it provides:
+
+- `predict_response()`
+- a refit path
+- a split-aware `component_stat(..., split = NULL)`
+
+That gate prevents in-sample pseudo-significance. For the adapter-side
+contract, see `vignette("writing-adapters")`, especially the section
+"The predictive relation is stricter on purpose".
+
+## Theory note
+
+For the engine doctrine and the held-out gain definition, see
+`notes/engine_predictive_spec.md`.

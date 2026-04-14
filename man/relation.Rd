@@ -8,7 +8,7 @@ relation(kind)
 }
 \arguments{
 \item{kind}{One of \code{"variance"}, \code{"covariance"}, \code{"correlation"},
-\code{"generalized_eigen"}.}
+\code{"generalized_eigen"}, \code{"predictive"}.}
 }
 \value{
 An object of class \code{multifer_relation} (and a \code{kind}-specific

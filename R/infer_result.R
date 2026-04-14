@@ -539,30 +539,13 @@ print.infer_result <- function(x, ...) {
   cat("  subspace_stab:    ", nrow(x$subspace_stability), " rows\n", sep = "")
   cat("  adapter:          ", x$provenance$adapter_id, "\n", sep = "")
 
-  # Promote subspace inference as the headline output when subspace
-  # units are present. Roadmap point 7 in notes/package_vision.md:
-  # near-tied roots should be read as a subspace bundle plus its
-  # principal-angle stability, not as individual signed loadings.
-  if (n_subspace > 0L && nrow(x$subspace_stability) > 0L) {
+  unit_section <- .format_infer_units_for_display(x)
+  if (length(unit_section) > 0L) {
     cat("\n")
-    cat("  Subspace inference (near-tied roots):\n")
-    subspace_unit_ids <- x$units$unit_id[x$units$unit_type == "subspace"]
-    for (uid in subspace_unit_ids) {
-      mask <- x$subspace_stability$unit_id == uid
-      if (!any(mask)) next
-      row <- x$subspace_stability[mask, , drop = FALSE]
-      mean_angle <- tryCatch(row$principal_angle_mean[1L], error = function(e) NA_real_)
-      max_angle  <- tryCatch(row$principal_angle_max[1L],  error = function(e) NA_real_)
-      cat(sprintf(
-        "    %s: mean angle = %s, max angle = %s\n",
-        uid,
-        if (is.finite(mean_angle)) sprintf("%.3f", mean_angle) else "NA",
-        if (is.finite(max_angle))  sprintf("%.3f", max_angle)  else "NA"
-      ))
-    }
+    cat(unit_section, sep = "\n")
+    cat("\n")
   }
 
-  cat("\n")
   cat("  NOTE: variable_stability is a STABILITY measure, not a p-value.\n")
   cat("        Variable significance is deferred to Phase 3 (Part 5 section 38).\n")
   invisible(x)
@@ -570,8 +553,96 @@ print.infer_result <- function(x, ...) {
 
 #' @export
 summary.infer_result <- function(object, ...) {
-  # v1 summary stub: print and return invisibly. Richer summary is a
-  # Phase 3 deliverable once variable significance exists.
-  print(object)
+  print(object, ...)
   invisible(object)
+}
+
+.format_infer_units_for_display <- function(x) {
+  if (nrow(x$units) == 0L) {
+    return(character(0))
+  }
+
+  tests_by_unit <- if (nrow(x$component_tests) > 0L) {
+    split(x$component_tests, x$component_tests$unit_id)
+  } else {
+    list()
+  }
+  subspace_by_unit <- if (nrow(x$subspace_stability) > 0L) {
+    split(x$subspace_stability, x$subspace_stability$unit_id)
+  } else {
+    list()
+  }
+
+  sub_idx <- which(x$units$unit_type == "subspace")
+  comp_idx <- which(x$units$unit_type != "subspace")
+  lines <- character(0)
+
+  if (length(sub_idx) > 0L) {
+    lines <- c(lines, "  Subspace inference (near-tied roots):")
+    lines <- c(lines, vapply(sub_idx, function(i) {
+      .format_infer_unit_line(x, i, tests_by_unit, subspace_by_unit)
+    }, character(1L)))
+  }
+
+  if (length(comp_idx) > 0L) {
+    if (length(lines) > 0L) {
+      lines <- c(lines, "")
+    }
+    lines <- c(lines, "  Singleton units:")
+    lines <- c(lines, vapply(comp_idx, function(i) {
+      .format_infer_unit_line(x, i, tests_by_unit, subspace_by_unit)
+    }, character(1L)))
+  }
+
+  lines
+}
+
+.format_infer_unit_line <- function(x, i, tests_by_unit, subspace_by_unit) {
+  unit_id <- x$units$unit_id[i]
+  members <- x$units$members[[i]]
+  members_txt <- paste(members, collapse = ",")
+  selected_txt <- if (isTRUE(x$units$selected[i])) "selected" else "not selected"
+
+  test_row <- tests_by_unit[[unit_id]]
+  p_txt <- "NA"
+  validity_txt <- NULL
+  if (!is.null(test_row) && nrow(test_row) > 0L) {
+    p_value <- test_row$p_value[1L]
+    if (is.finite(p_value)) {
+      p_txt <- sprintf("%.3g", p_value)
+    }
+    validity_txt <- test_row$validity_level[1L]
+  }
+
+  if (identical(x$units$unit_type[i], "subspace")) {
+    sub_row <- subspace_by_unit[[unit_id]]
+    mean_angle <- NA_real_
+    max_angle <- NA_real_
+    stability_label <- NULL
+    if (!is.null(sub_row) && nrow(sub_row) > 0L) {
+      mean_angle <- sub_row$principal_angle_mean[1L]
+      max_angle <- sub_row$principal_angle_max[1L]
+      stability_label <- sub_row$stability_label[1L]
+    }
+    return(sprintf(
+      "    %s [members %s; %s; p = %s%s]: mean angle = %s, max angle = %s%s",
+      unit_id,
+      members_txt,
+      selected_txt,
+      p_txt,
+      if (!is.null(validity_txt) && nzchar(validity_txt)) paste0(", ", validity_txt) else "",
+      if (is.finite(mean_angle)) sprintf("%.3f", mean_angle) else "NA",
+      if (is.finite(max_angle)) sprintf("%.3f", max_angle) else "NA",
+      if (!is.null(stability_label) && nzchar(stability_label)) paste0(" (", stability_label, ")") else ""
+    ))
+  }
+
+  sprintf(
+    "    %s [member %s; %s; p = %s%s]",
+    unit_id,
+    members_txt,
+    selected_txt,
+    p_txt,
+    if (!is.null(validity_txt) && nzchar(validity_txt)) paste0(", ", validity_txt) else ""
+  )
 }

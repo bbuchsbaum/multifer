@@ -71,7 +71,9 @@ the capability gate):
 \item \code{update_core(core_obj, ...)} -- optional fast-path core update.
 \item \code{align(xb, xref)} -- alignment (sign / legacy Procrustes / subspace).
 \item \code{null_action(x, data)} -- generate one null resample.
-\item \code{component_stat(x, data, k)} -- per-component test statistic.
+\item \code{component_stat(x, data, k, split = NULL)} -- per-component test statistic.
+\item \code{predict_response(x, new_data, k = NULL)} -- fitted responses for
+predictive cross-family adapters.
 \item \code{variable_stat(x, data, domain, k)} -- variable-level statistic.
 \item \code{score_stat(x, data, domain, k)} -- score-level statistic.
 }
@@ -79,7 +81,12 @@ the capability gate):
 \strong{Capability gate rules} (Part 5 section 36, point 1):
 \itemize{
 \item \code{component_significance} requires \code{null_action}, \code{component_stat}, AND
-\code{residualize}.
+\code{residualize}. For \verb{(geneig, generalized_eigen)}, the \code{residualize}
+hook must explicitly declare B-metric deflation via
+\code{attr(residualize, "b_metric") <- TRUE} or
+\code{attr(residualize, "delegates_geneig_deflation") <- TRUE}. For
+\verb{(cross, predictive)}, the adapter must also provide \code{refit},
+\code{predict_response}, and a split-aware \code{component_stat(..., split = NULL)}.
 \item \code{variable_stability} requires at least one of \verb{\{refit, core+update_core\}}
 AND (\code{variable_stat} OR \code{loadings}).
 \item \code{score_stability} requires at least one of \verb{\{refit, core+update_core\}}
