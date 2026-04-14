@@ -103,9 +103,9 @@ These are what the paper claims. These are what the README should lead with.
 
 ### Qualified — running today, but validity story is not yet fully settled
 
-- **Cross-block correlation** (CCA-family): `adapter_cross_svd` in correlation mode, `adapter_cancor`. The architecture is ready. The reference adapter's multi-root deflation is currently a "safe simplification" that is exact for paired-rows and nuisance-adjusted designs but a conservative first-root-only cap for more complex designs. `checked_assumptions` is still partly declarative.
+- **Cross-block correlation** (CCA-family): `adapter_cross_svd` in correlation mode, `adapter_cancor`. The current implementation supports multi-root testing for the paired-row design and for the shipped nuisance-adjusted designs, including grouped exchangeability. Richer structured designs still fall back conservatively, and the adapter-level validity checks remain less mature than the PCA / PLSC core.
 
-The package runs these, reports valid first-root p-values, and labels multi-root claims carefully. The next maturity step requires exact whitened-space stepwise deflation + design-aware null actions for paired-rows, nuisance-adjusted, and grouped-exchangeability designs, plus concrete validity checks. Until that lands, CCA is marketed as the *beginning* of a CCA family, not the finished version.
+The package runs these, reports multi-root results for the supported paired-row and nuisance-adjusted settings, and labels the family as qualified rather than mature. The next maturity step is not basic engine existence; it is hardening the CCA family around stronger executable validity checks, clearer design boundaries, and broader evidence that the supported designs are the right long-term defaults.
 
 ### Planned — architectural slot, no engine yet
 
@@ -224,7 +224,7 @@ If a top-level `README` is added, the opening positioning language should be clo
 >
 > **Mature support** (paper-backed, exact): PCA-family one-block variance inference and covariance-mode two-block methods (PLSC-family), both with the exact collapsed Vitale P3 ladder and exact core-space bootstrap.
 >
-> **Qualified support**: canonical-correlation models, currently valid for the leading canonical root and for paired-rows / nuisance-adjusted / blocked-rows stepwise designs, with the remaining multi-root validity story tracked as future work.
+> **Qualified support**: canonical-correlation models, currently supporting multi-root inference for the paired-row and shipped nuisance-adjusted designs, with richer structured designs and the remaining family-wide validity hardening tracked as future work.
 >
 > **Extensible by design**: new ordered-latent-root inferential families are added through the shared `infer_adapter()` contract, so the ladder driver, null-action machinery, bootstrap loop, and stability consumers apply uniformly to whatever family an adapter declares. The goal is to stay maximally general *within* the ordered-latent-root paradigm rather than to absorb every multivariate method.
 >
@@ -236,7 +236,7 @@ The concrete next milestone is a paper-quality v1 boundary: mature core, qualifi
 
 1. **Freeze the theorem-bearing core around latent-root SVD models.** One-block variance and cross-block covariance are where the math is cleanest and the speed story is strongest. The collapsed Vitale P3 simplification and the exact core-space bootstrap identity both live here. Every future claim should point back to this core.
 
-2. **Downgrade CCA from "general support" to "qualified support" until exactified.** Keep `adapter_cancor` and correlation-mode `cross_svd` in the shipping set, but label them as the beginning of a CCA family, not the finished version. The next step is exact whitened-space stepwise deflation plus design-aware null actions for paired rows, nuisance-adjusted rows, and grouped exchangeability.
+2. **Keep CCA at "qualified support" until hardened.** Keep `adapter_cancor` and correlation-mode `cross_svd` in the shipping set, but do not market them as mature until the executable validity checks, design boundaries, and broader calibration evidence are strong enough to make the qualified tier feel settled rather than provisional.
 
 3. **Create a new supervised relation for PLS regression / reduced-rank regression.** Do not reuse `covariance`. Add a relation whose inferential target is predictive gain — a held-out or cross-fitted statistic, or a `Yhat_a − Yhat_{a-1}` increment — rather than a cross-covariance root. This keeps the meaning of `covariance` uncorrupted and gives PLSR its own validity story.
 
