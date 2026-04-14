@@ -14,7 +14,9 @@ run_cross_ladder(
   alpha = 0.05,
   max_steps = NULL,
   seed = NULL,
-  cross_rank_cap = NULL
+  cross_rank_cap = NULL,
+  auto_subspace = TRUE,
+  tie_threshold = 0.01
 )
 }
 \arguments{

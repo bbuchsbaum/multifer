@@ -53,12 +53,14 @@
 #' @export
 run_oneblock_ladder <- function(recipe,
                                 X,
-                                B          = 1000L,
-                                B_total    = NULL,
-                                batch_size = 32L,
-                                alpha      = 0.05,
-                                max_steps  = NULL,
-                                seed       = NULL) {
+                                B             = 1000L,
+                                B_total       = NULL,
+                                batch_size    = 32L,
+                                alpha         = 0.05,
+                                max_steps     = NULL,
+                                seed          = NULL,
+                                auto_subspace = TRUE,
+                                tie_threshold = 0.01) {
 
   ## --- validate recipe --------------------------------------------------------
 
@@ -185,7 +187,10 @@ run_oneblock_ladder <- function(recipe,
 
   ## --- form_units on the full observed roots ----------------------------------
 
-  units <- form_units(roots_observed, selected = selected)
+  units <- form_units(roots_observed,
+                      selected        = selected,
+                      group_near_ties = isTRUE(auto_subspace),
+                      tie_threshold   = tie_threshold)
 
   ## --- component_tests data.frame ---------------------------------------------
 

@@ -538,6 +538,30 @@ print.infer_result <- function(x, ...) {
   cat("  score_stab:       ", nrow(x$score_stability), " rows\n", sep = "")
   cat("  subspace_stab:    ", nrow(x$subspace_stability), " rows\n", sep = "")
   cat("  adapter:          ", x$provenance$adapter_id, "\n", sep = "")
+
+  # Promote subspace inference as the headline output when subspace
+  # units are present. Roadmap point 7 in notes/package_vision.md:
+  # near-tied roots should be read as a subspace bundle plus its
+  # principal-angle stability, not as individual signed loadings.
+  if (n_subspace > 0L && nrow(x$subspace_stability) > 0L) {
+    cat("\n")
+    cat("  Subspace inference (near-tied roots):\n")
+    subspace_unit_ids <- x$units$unit_id[x$units$unit_type == "subspace"]
+    for (uid in subspace_unit_ids) {
+      mask <- x$subspace_stability$unit_id == uid
+      if (!any(mask)) next
+      row <- x$subspace_stability[mask, , drop = FALSE]
+      mean_angle <- tryCatch(row$principal_angle_mean[1L], error = function(e) NA_real_)
+      max_angle  <- tryCatch(row$principal_angle_max[1L],  error = function(e) NA_real_)
+      cat(sprintf(
+        "    %s: mean angle = %s, max angle = %s\n",
+        uid,
+        if (is.finite(mean_angle)) sprintf("%.3f", mean_angle) else "NA",
+        if (is.finite(max_angle))  sprintf("%.3f", max_angle)  else "NA"
+      ))
+    }
+  }
+
   cat("\n")
   cat("  NOTE: variable_stability is a STABILITY measure, not a p-value.\n")
   cat("        Variable significance is deferred to Phase 3 (Part 5 section 38).\n")

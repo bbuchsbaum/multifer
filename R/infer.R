@@ -75,7 +75,9 @@ infer <- function(adapter,
                   model         = NULL,
                   seed          = NULL,
                   parallel      = c("sequential", "mirai", "auto"),
-                  fast_path     = c("auto", "off")) {
+                  fast_path     = c("auto", "off"),
+                  auto_subspace = TRUE,
+                  tie_threshold = 0.01) {
 
   call <- match.call()
   parallel  <- match.arg(parallel)
@@ -132,7 +134,8 @@ infer <- function(adapter,
     }
     engine_out <- run_oneblock_ladder(
       recipe = recipe, X = data, B = B, B_total = B_total,
-      batch_size = mc_batch_size, alpha = alpha, seed = seed
+      batch_size = mc_batch_size, alpha = alpha, seed = seed,
+      auto_subspace = auto_subspace, tie_threshold = tie_threshold
     )
   } else if (geom_kind == "cross") {
     if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
@@ -142,7 +145,8 @@ infer <- function(adapter,
     engine_out <- run_cross_ladder(
       recipe = recipe, X = data$X, Y = data$Y,
       B = B, B_total = B_total, batch_size = mc_batch_size,
-      alpha = alpha, seed = seed
+      alpha = alpha, seed = seed,
+      auto_subspace = auto_subspace, tie_threshold = tie_threshold
     )
   } else {
     stop(sprintf("Phase 1 supports only 'oneblock' and 'cross'; got '%s'.",

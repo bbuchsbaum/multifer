@@ -12,7 +12,9 @@ run_oneblock_ladder(
   batch_size = 32L,
   alpha = 0.05,
   max_steps = NULL,
-  seed = NULL
+  seed = NULL,
+  auto_subspace = TRUE,
+  tie_threshold = 0.01
 )
 }
 \arguments{

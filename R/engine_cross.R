@@ -150,7 +150,9 @@ run_cross_ladder <- function(recipe,
                              alpha          = 0.05,
                              max_steps      = NULL,
                              seed           = NULL,
-                             cross_rank_cap = NULL) {
+                             cross_rank_cap = NULL,
+                             auto_subspace  = TRUE,
+                             tie_threshold  = 0.01) {
 
   orth_basis <- function(M, tol = 1e-10) {
     q <- qr(M, tol = tol)
@@ -420,7 +422,10 @@ run_cross_ladder <- function(recipe,
     selected[seq_len(rejected_through)] <- TRUE
   }
 
-  units <- form_units(roots_observed, selected = selected)
+  units <- form_units(roots_observed,
+                      selected        = selected,
+                      group_near_ties = isTRUE(auto_subspace),
+                      tie_threshold   = tie_threshold)
 
   ## --- component_tests data.frame ---------------------------------------------
 
