@@ -191,6 +191,171 @@ test_that("CCA support matrix: unsupported designs cap the ladder to the first r
   expect_true(sum(res$units$selected) <= 1L)
 })
 
+# --- stress fixtures (multifer-aai.1) ----------------------------------------
+#
+# These fixtures exercise the CCA support boundary at its hard edges:
+# near-tied leading roots, weak trailing roots, extreme block-width
+# asymmetry, and nuisance-adjusted residual df near the whitening
+# threshold.  Each supported design must walk past the first root
+# (i.e. not silently fall into the first-root-only conservative
+# fallback).  exchangeable_rows() must cap the ladder to a single
+# tested root on every fixture as the negative control.
+
+expect_multiroot_walks_ladder <- function(design, X, Y, label,
+                                          expected_through = 1L,
+                                          max_steps = 3L) {
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = design,
+    adapter = "cross_svd"
+  )
+  res <- run_cross_ladder(
+    rec, X, Y,
+    B = 39L, alpha = 0.05, seed = 11L, max_steps = max_steps
+  )
+  expect_gt(res$ladder_result$last_step_tested, 1L)
+  expect_gte(res$ladder_result$rejected_through, expected_through)
+}
+
+expect_first_root_cap <- function(X, Y, label) {
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = exchangeable_rows(),
+    adapter = "cross_svd"
+  )
+  res <- run_cross_ladder(
+    rec, X, Y,
+    B = 39L, alpha = 0.05, seed = 11L, max_steps = 3L
+  )
+  expect_equal(res$ladder_result$last_step_tested, 1L, info = label)
+  expect_equal(nrow(res$component_tests), 1L, info = label)
+}
+
+cca_stress_fixtures <- function() {
+  list(
+    near_tied = local({
+      set.seed(510)
+      make_exact_canonical_correlation_support(
+        n = 48,
+        canonical_corrs = c(0.92, 0.91, 0.40),
+        scale_x = c(4, 4, 1),
+        scale_y = c(3, 3, 0.5),
+        extra_scale_x = 1.4,
+        extra_scale_y = 1.1
+      )
+    }),
+    weak_trailing = local({
+      set.seed(511)
+      make_exact_canonical_correlation_support(
+        n = 60,
+        canonical_corrs = c(0.95, 0.70, 0.18),
+        scale_x = c(5, 2, 0.6),
+        scale_y = c(4, 3, 0.3),
+        extra_scale_x = 1.2,
+        extra_scale_y = 1.0
+      )
+    }),
+    wide_x_narrow_y = local({
+      set.seed(512)
+      make_exact_canonical_correlation_support(
+        n = 60,
+        canonical_corrs = c(0.95, 0.85, 0.55),
+        scale_x = c(5, 3, 1.5),
+        scale_y = c(3, 2, 1),
+        extra_scale_x = 2.0,
+        extra_scale_y = 0.8
+      )
+    }),
+    wide_y_narrow_x = local({
+      set.seed(513)
+      make_exact_canonical_correlation_support(
+        n = 60,
+        canonical_corrs = c(0.95, 0.85, 0.55),
+        scale_x = c(3, 2, 1),
+        scale_y = c(5, 3, 1.5),
+        extra_scale_x = 0.8,
+        extra_scale_y = 2.0
+      )
+    })
+  )
+}
+
+test_that("CCA stress: near-tied roots still walk the ladder on supported designs", {
+  ensure_default_adapters()
+  dat <- cca_stress_fixtures()$near_tied
+
+  expect_multiroot_walks_ladder(paired_rows(), dat$X, dat$Y,
+                                "near_tied paired", expected_through = 1L)
+  expect_multiroot_walks_ladder(blocked_rows(rep(1:8, each = 6)),
+                                dat$X, dat$Y,
+                                "near_tied blocked", expected_through = 1L)
+  expect_first_root_cap(dat$X, dat$Y, "near_tied exchangeable")
+})
+
+test_that("CCA stress: weak trailing root still walks past rung 1", {
+  ensure_default_adapters()
+  dat <- cca_stress_fixtures()$weak_trailing
+
+  expect_multiroot_walks_ladder(paired_rows(), dat$X, dat$Y,
+                                "weak_trailing paired",
+                                expected_through = 1L)
+  expect_multiroot_walks_ladder(blocked_rows(rep(1:10, each = 6)),
+                                dat$X, dat$Y,
+                                "weak_trailing blocked",
+                                expected_through = 1L)
+  expect_first_root_cap(dat$X, dat$Y, "weak_trailing exchangeable")
+})
+
+test_that("CCA stress: wide-X / narrow-Y aspect ratio does not break the ladder", {
+  ensure_default_adapters()
+  dat <- cca_stress_fixtures()$wide_x_narrow_y
+
+  expect_multiroot_walks_ladder(paired_rows(), dat$X, dat$Y,
+                                "wide_x paired", expected_through = 1L)
+  expect_multiroot_walks_ladder(blocked_rows(rep(1:10, each = 6)),
+                                dat$X, dat$Y,
+                                "wide_x blocked", expected_through = 1L)
+  expect_first_root_cap(dat$X, dat$Y, "wide_x exchangeable")
+})
+
+test_that("CCA stress: wide-Y / narrow-X aspect ratio does not break the ladder", {
+  ensure_default_adapters()
+  dat <- cca_stress_fixtures()$wide_y_narrow_x
+
+  expect_multiroot_walks_ladder(paired_rows(), dat$X, dat$Y,
+                                "wide_y paired", expected_through = 1L)
+  expect_multiroot_walks_ladder(blocked_rows(rep(1:10, each = 6)),
+                                dat$X, dat$Y,
+                                "wide_y blocked", expected_through = 1L)
+  expect_first_root_cap(dat$X, dat$Y, "wide_y exchangeable")
+})
+
+test_that("CCA stress: nuisance-adjusted fixture with tight residual df walks the ladder", {
+  ensure_default_adapters()
+
+  # n large enough that the residual basis after a rank-3 Z still
+  # comfortably supports three canonical roots, but chosen so the
+  # working dimension is on the tighter end relative to the block
+  # widths.
+  set.seed(514)
+  nuisance_tight <- make_nuisance_adjusted_correlation_support(
+    n = 48,
+    canonical_corrs = c(0.95, 0.80, 0.55),
+    scale_x = c(5, 2, 1),
+    scale_y = c(4, 3, 0.8)
+  )
+  expect_multiroot_walks_ladder(
+    nuisance_adjusted(nuisance_tight$Z),
+    nuisance_tight$X, nuisance_tight$Y,
+    "nuisance_tight nuisance_adjusted",
+    expected_through = 1L
+  )
+  expect_first_root_cap(nuisance_tight$X, nuisance_tight$Y,
+                        "nuisance_tight exchangeable")
+})
+
 test_that("CCA support matrix: nuisance-adjusted grouped null stays near nominal alpha", {
   skip_on_cran()
   ensure_default_adapters()
