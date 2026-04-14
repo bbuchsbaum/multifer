@@ -1,0 +1,249 @@
+---
+title: "Getting started with multifer"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with multifer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  message  = FALSE,
+  warning  = FALSE,
+  fig.width  = 6,
+  fig.height = 4,
+  dpi = 72
+)
+```
+
+```{r load}
+library(multifer)
+```
+
+## The problem
+
+You ran a PCA on a 40 × 8 data matrix. It gave you eight singular values,
+ordered from largest to smallest. You now need to decide how many of those
+eight components carry real latent structure and how many are just noise
+fitting fluctuations.
+
+That decision is harder than it looks. Random-matrix eigenvalues have their
+own non-trivial distribution, so no fixed cutoff works. After you remove the
+leading component, the null distribution of the *next* root depends on the
+one you just removed. And when two true roots are close, the individual
+loadings aren't identifiable at all — only the subspace they span is.
+
+`multifer` is a **typed perturbation inference platform** built to answer
+that question specifically, for PCA-family, two-block covariance (PLSC), and
+canonical-correlation models. It implements an exact collapsed Vitale P3
+ladder under sequential deflation, automatic subspace detection when roots
+are near-tied, and executable validity contracts that fail fast on bad
+input.
+
+## First win
+
+The shortest useful call in the package is `infer_pca()`. Here is a 40 × 8
+matrix with three true signal components planted on top of Gaussian noise:
+
+```{r make-data}
+dat <- bench_oneblock_shadowing(
+  n = 40, p = 8,
+  root_profile = c(6, 3, 1.5),
+  seed = 1
+)
+dim(dat$X)
+dat$meta$true_rank
+```
+
+```{r first-infer}
+res <- infer_pca(dat$X, B = 99, R = 20, seed = 2)
+res
+```
+
+Read the header: the ladder tested the latent ordering, rejected through
+rung 3, and froze 3 selected component units. That is the answer — three
+components are statistically detectable at the chosen α. Everything else is
+in the result object, ready for downstream use.
+
+## The mental model: typed shapes
+
+`multifer` organizes every inferential question as a **typed shape** — a
+triple of `(geometry, relation, design)`:
+
+| Piece | What it fixes | Examples |
+|:---|:---|:---|
+| `geometry` | what data shape we operate on | `oneblock`, `cross` |
+| `relation` | which operator whose roots we test | `variance`, `covariance`, `correlation` |
+| `design` | which null action is valid for this data | `paired_rows()`, `blocked_rows(g)`, `nuisance_adjusted(Z)` |
+
+PCA is `(oneblock, variance, trivial)`. PLSC is
+`(cross, covariance, paired_rows)`. CCA is
+`(cross, correlation, paired_rows)` routed through a whitened-space
+stepwise deflation. The triple determines what the engine is allowed to
+claim — if you pair an adapter with an ambiguous relation under strict
+dispatch (the default), `multifer` errors instead of silently guessing.
+
+Most users never call `infer()` directly. Three thin wrappers map each
+mature / qualified family to a one-line call:
+
+```{r wrappers, eval = FALSE}
+infer_pca (X)         # oneblock variance
+infer_plsc(X, Y)      # cross covariance
+infer_cca (X, Y)      # cross correlation
+```
+
+The lower-level `infer()` stays available when you need explicit control
+over the adapter, the geometry, or a non-default design.
+
+## Reading the result
+
+An `infer_result` is a frozen unit-centered object. Six schema blocks
+answer six distinct questions:
+
+```{r result-structure}
+names(res)
+```
+
+The two you touch most often are `units` and `component_tests`:
+
+```{r units}
+res$units
+```
+
+```{r component-tests}
+res$component_tests
+```
+
+`units` says which latent objects exist and which passed the ladder. Each
+row is either a single component or a bundled subspace (more on that
+below). `component_tests` carries one row per tested rung: the observed
+test statistic, the sequential p-value, the Monte Carlo standard error,
+and the exceedance count `r`.
+
+Three stability blocks give you bootstrap-based reliability summaries,
+keyed by `unit_id`:
+
+```{r stability}
+head(res$variable_stability)
+head(res$subspace_stability)
+```
+
+`variable_stability` is a *stability measure*, not a p-value — the schema
+separates those two kinds of claims explicitly. `subspace_stability`
+carries mean and max principal angles between the reference fit and each
+bootstrap replicate, which is the right object when loadings are only
+defined up to rotation.
+
+### Visualizing the ladder decisions
+
+The p-value sequence across rungs plus the α threshold makes the ladder's
+decision visible at a glance:
+
+```{r ladder-plot, echo = FALSE, fig.cap = "Component p-values and the 0.05 threshold. Green bars were rejected (declared significant), red bars were not."}
+pvals  <- res$component_tests$p_value
+steps  <- res$component_tests$step
+col    <- ifelse(pvals <= 0.05, "#2ca02c", "#d62728")
+bp <- barplot(
+  pvals,
+  names.arg = steps,
+  col       = col,
+  border    = NA,
+  ylim      = c(0, max(0.12, max(pvals) * 1.2)),
+  ylab      = "sequential p-value",
+  xlab      = "rung (component index)",
+  main      = "multifer ladder decisions"
+)
+abline(h = 0.05, lty = 2, col = "gray30")
+text(x = bp, y = pvals + 0.005,
+     labels = sprintf("%.3f", pvals), cex = 0.8)
+```
+
+The plot is just the `component_tests$p_value` column against its rung
+index — everything the decision rests on is already in the result.
+
+## When roots are near-tied: subspace inference
+
+When two true roots are nearly equal, their individual loading directions
+aren't identifiable. What *is* identifiable is the 2-dimensional subspace
+they span. `auto_subspace = TRUE` (the default) detects near-ties
+automatically and reports principal-angle stability on the bundled
+subspace as the headline.
+
+```{r tied-data}
+set.seed(13)
+n <- 80; p <- 6; k <- 3
+U <- qr.Q(qr(matrix(rnorm(n * k), n, k)))
+V <- qr.Q(qr(matrix(rnorm(p * k), p, k)))
+sig <- c(8.0, 8.0, 3.0)
+X_tied <- U %*% diag(sig * sqrt(n - 1), nrow = k) %*% t(V) +
+  matrix(rnorm(n * p, sd = 0.01), n, p)
+```
+
+```{r tied-infer}
+res_tied <- infer_pca(
+  X_tied, B = 99, R = 10,
+  tie_threshold = 0.05, seed = 3
+)
+res_tied
+```
+
+The `Subspace inference (near-tied roots)` line is the headline: one
+subspace unit bundles components 1 and 2, and its mean principal angle
+across bootstrap replicates is reported directly. The two individual
+basis vectors of that plane aren't stable under bootstrap — they rotate
+freely — but the plane itself is, and that's what `multifer` measures.
+
+```{r tied-units}
+res_tied$units
+```
+
+Row 1 is a `subspace` unit with members `c(1L, 2L)` and
+`identifiable = FALSE`. Row 2 is the usual `component` unit for the
+third, well-separated root.
+
+## Validity contracts fire before the engine runs
+
+Every mature adapter ships executable `checked_assumptions`. Bad input
+fails fast with a named reason instead of producing a silent wrong
+answer:
+
+```{r validity-na, error = TRUE}
+bad <- dat$X
+bad[1, 1] <- NA_real_
+infer_pca(bad, B = 49, R = 4, seed = 4)
+```
+
+```{r validity-const, error = TRUE}
+bad <- dat$X
+bad[, 3] <- 1.0            # constant column, zero variance
+infer_pca(bad, B = 49, R = 4, seed = 5)
+```
+
+The checks run at the top of `infer()`, before any SVD or bootstrap. On
+clean input the pass records are recorded in `result$assumptions$checked`
+for downstream inspection.
+
+## Where to go next
+
+Three family-specific vignettes walk each inferential family in depth:
+
+- `vignette("pca-inference")` — one-block variance, the collapsed Vitale
+  P3 ladder, and variable / score / subspace stability on a signal-bearing
+  example.
+- `vignette("plsc-inference")` — two-block covariance (PLSC-family), the
+  exact core-space bootstrap identity, and cross-domain stability.
+- `vignette("cca-inference")` — two-block correlation (CCA-family), the
+  qualified-tier whitened-space stepwise deflation, and the
+  paired-rows / nuisance-adjusted / grouped-exchangeable design matrix.
+
+For a quick reference on which adapter ships which family at which
+maturity tier, see the **Built-in adapters and maturity** table in the
+package `README`.
+
+For the package-level positioning (mature / qualified / planned
+taxonomy, the paper-quality v1 roadmap, and the explicit scope boundary
+between latent-root families and predictive / generalized-eigen
+engines), see `notes/package_vision.md` in the source tree.
