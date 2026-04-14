@@ -1,0 +1,346 @@
+---
+title: "Writing a multifer adapter"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Writing a multifer adapter}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  message  = FALSE,
+  warning  = FALSE
+)
+```
+
+```{r load}
+library(multifer)
+```
+
+`multifer` is an **inference layer**, not a fitting framework. If your
+package already fits latent-root multivariate models — PCA-like,
+covariance two-block, canonical-correlation, or anything that produces
+ordered roots plus loadings and scores — you can plug it into
+`multifer`'s ladder engine, bootstrap loop, and stability consumers
+by writing a thin adapter.
+
+This vignette walks the contract end to end with two complementary
+references: a **minimal** base-R wrapper around `base::svd()` (so you
+can see every hook spelled out on one screen) and a **realistic**
+wrapper around `multivarious::pca()` (so you can see the pattern you
+will actually use to adapt a fitted-model class from another package).
+The full source for both lives in `R/adapter_oneblock_baser.R` and
+`R/adapter_multivarious_pca.R`.
+
+## The contract in one sentence
+
+An adapter tells `multifer` three things:
+
+1. **What** it claims to do (the capability matrix: which targets on
+   which (geometry, relation) pairs).
+2. **How** to produce the pieces the engine needs from a fitted model
+   (the accessor hooks: `roots`, `scores`, `loadings`, `refit`, ...).
+3. **What the fit assumes** about the input data (declared and
+   executable validity checks).
+
+The engine enforces the first at registration time, dispatches into
+the second at inference time, and runs the third before any fit
+touches the data.
+
+## The minimum surface
+
+Here is a stripped-down version of `adapter_svd()`, the one-block
+variance reference. This is the smallest thing that satisfies the
+capability gate for every currently shipping target.
+
+```{r minimal-adapter, eval = FALSE}
+adapter_minimal_svd <- function() {
+  infer_adapter(
+    adapter_id      = "minimal_svd",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets  = c("component_significance",
+                        "variable_stability",
+                        "score_stability",
+                        "subspace_stability"))
+    ),
+
+    # Accessors -----------------------------------------------------------------
+    roots       = function(x, ...) x$d^2,
+    scores      = function(x, domain = NULL, ...) x$u %*% diag(x$d),
+    loadings    = function(x, domain = NULL, ...) x$v,
+
+    # Deflation for the ladder --------------------------------------------------
+    residualize = function(x, k, data, ...) {
+      k   <- min(k, length(x$d))
+      idx <- seq_len(k)
+      recon <- x$u[, idx, drop = FALSE] %*%
+               diag(x$d[idx], nrow = k) %*%
+               t(x$v[, idx, drop = FALSE])
+      data - sweep(recon, 2L, x$center, "+")
+    },
+
+    # Perturbation path for the bootstrap ---------------------------------------
+    refit = function(x, new_data, ...) {
+      if (is.list(new_data) && !is.null(new_data$X)) new_data <- new_data$X
+      ctr <- colMeans(new_data)
+      fit <- svd(sweep(new_data, 2L, ctr, "-"))
+      fit$center <- ctr
+      fit
+    },
+
+    # Null action for the ladder ------------------------------------------------
+    null_action = function(x, data, ...) apply(data, 2L, sample),
+
+    # Observed statistic for the ladder -----------------------------------------
+    component_stat = function(x, data, k, ...) {
+      s2 <- svd(sweep(data, 2L, colMeans(data), "-"))$d^2
+      if (k > length(s2) || sum(s2[k:length(s2)]) == 0) return(NA_real_)
+      s2[k] / sum(s2[k:length(s2)])
+    },
+
+    # Validity -----------------------------------------------------------------
+    validity_level       = "conditional",
+    declared_assumptions = c("rows_exchangeable", "centered_data"),
+    checked_assumptions  = list()
+  )
+}
+```
+
+That is the whole contract. Every hook has a fixed-arity signature
+that the engine calls into; the gate in `infer_adapter()` refuses to
+build the adapter if any claimed target is missing its required hook.
+
+### What each hook does, concretely
+
+- `roots(x)` returns the ordered non-negative latent roots. These
+  feed [form_units()] and the subspace-detection logic.
+- `scores(x, domain)` and `loadings(x, domain)` return the
+  per-observation and per-variable latent coordinates. `domain` is
+  `"X"` for one-block or `"X"` / `"Y"` for cross-block fits.
+- `residualize(x, k, data)` returns `data` with its leading `k`
+  components removed. This is the deflation step that moves the
+  ladder from rung `k` to rung `k + 1`.
+- `refit(x, new_data)` fits a new model of the same class on a
+  bootstrap resample. The engine calls this per replicate and then
+  aligns the rep to the reference fit.
+- `null_action(x, data)` generates one permuted resample under the
+  relevant exchangeability assumption. For oneblock variance this
+  is a column permutation; for cross-block shapes it breaks the
+  pairing by permuting rows of `Y`.
+- `component_stat(x, data, k)` returns the observed test statistic
+  for rung `k` on `data`. The engine compares this to many draws of
+  `component_stat(x, null_action(x, data), k)`.
+
+## The realistic wrapper pattern
+
+When your fitted-model class lives in another package — which is
+the common case — the adapter becomes a set of delegators into that
+package's accessors. Here is the shape of `adapter_multivarious_pca()`:
+
+```{r realistic-adapter, eval = FALSE}
+adapter_multivarious_pca <- function() {
+  infer_adapter(
+    adapter_id      = "multivarious_pca",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets  = c("component_significance",
+                        "variable_stability",
+                        "score_stability",
+                        "subspace_stability"))
+    ),
+
+    # Delegate every accessor to multivarious generics --------------------------
+    roots    = function(x, ...) x$sdev^2,
+    scores   = function(x, domain = NULL, ...) multivarious::scores(x),
+    loadings = function(x, domain = NULL, ...) multivarious::components(x),
+
+    # Deflation via multivarious's own truncation + reconstruction -------------
+    residualize = function(x, k, data, ...) {
+      trunc <- multivarious::truncate(x, k)
+      recon <- multivarious::reconstruct(trunc)
+      data - recon
+    },
+
+    # Refit by calling multivarious::pca() on the resampled data ---------------
+    refit = function(x, new_data, ...) {
+      if (is.list(new_data) && !is.null(new_data$X)) new_data <- new_data$X
+      multivarious::pca(new_data, ncomp = length(x$sdev))
+    },
+
+    null_action = function(x, data, ...) apply(data, 2L, sample),
+
+    component_stat = function(x, data, k, ...) {
+      fit <- multivarious::pca(data, ncomp = k)
+      s2  <- fit$sdev^2
+      if (k > length(s2) || sum(s2[k:length(s2)]) == 0) return(NA_real_)
+      s2[k] / sum(s2[k:length(s2)])
+    },
+
+    validity_level       = "conditional",
+    declared_assumptions = c("rows_exchangeable", "centered_data"),
+    checked_assumptions  = list()
+  )
+}
+```
+
+The shape is the same; only the bodies change. Each hook is a thin
+delegator to a `multivarious::` generic — no math, just plumbing.
+That is what we mean by "multifer is the inference layer on top of
+a fitting framework." Your package provides the fitter; `multifer`
+provides the ladder.
+
+## Registering the adapter
+
+Adapters are looked up by `adapter_id` through a per-session
+registry. Call [register_infer_adapter()] once, typically from your
+package's `.onLoad` hook:
+
+```{r register, eval = FALSE}
+.onLoad <- function(libname, pkgname) {
+  multifer::register_infer_adapter(
+    adapter_id = "minimal_svd",
+    adapter    = adapter_minimal_svd(),
+    overwrite  = TRUE
+  )
+}
+```
+
+Once registered, users call it by id:
+
+```{r use-registered, eval = FALSE}
+infer(
+  adapter  = "minimal_svd",
+  data     = X,
+  geometry = "oneblock",
+  relation = "variance"
+)
+```
+
+or by passing the adapter object directly:
+
+```{r use-direct, eval = FALSE}
+infer(
+  adapter  = adapter_minimal_svd(),
+  data     = X,
+  geometry = "oneblock",
+  relation = "variance"
+)
+```
+
+## Validity contracts
+
+The `checked_assumptions` slot is the executable safety layer. Every
+entry is `list(name, check, detail)`. [infer()] runs each `check`
+against the raw data before the engine starts:
+
+```{r validity, eval = FALSE}
+.my_checks <- function() {
+  list(
+    list(
+      name   = "data_is_numeric_matrix",
+      detail = "`data` must be a numeric matrix",
+      check  = function(data, ...) is.matrix(data) && is.numeric(data)
+    ),
+    list(
+      name   = "data_is_finite",
+      detail = "`data` must not contain NA, NaN, or Inf",
+      check  = function(data, ...) all(is.finite(data))
+    )
+  )
+}
+```
+
+If any check fails in strict mode (the default), `infer()` errors
+with the violation's `detail` message before any SVD runs. In
+permissive mode (`strict = FALSE`), violations are recorded in
+`result$assumptions$checked` and the engine proceeds.
+
+The reference adapters ship helpers you can reuse directly:
+
+```{r helpers, eval = FALSE}
+# Reuse the base-R adapter checks (not exported; see R/adapter_*.R)
+adapter_minimal_svd <- function() {
+  infer_adapter(
+    # ... other fields ...
+    checked_assumptions = .oneblock_baser_checks()
+  )
+}
+```
+
+These cover the common failure modes — non-numeric matrix, non-finite
+entries, zero-variance columns, rank deficiency — so third-party
+adapters for oneblock variance or cross families can inherit them
+without rewriting.
+
+## The Phase 1.5 fast path (optional)
+
+If your fitted class admits a **core representation** with a cheap
+resample update — for example, a thin SVD whose column spaces are
+orthonormal — you can add two more hooks:
+
+```{r fast-path, eval = FALSE}
+infer_adapter(
+  # ... other fields ...
+  core        = function(x, data, ...)      { ... },
+  update_core = function(core_obj, indices = NULL, ...) { ... }
+)
+```
+
+When both hooks are present, the bootstrap loop uses `update_core()`
+instead of `refit()`. For one-block variance this turns `n × p^2`
+refits into `n × k^2` inner SVDs (the Fisher identity); for
+covariance-mode cross it collapses to a `k_x × k_y` inner core via
+the identity `X^T W Y = V_x · (D_x · U_x^T W U_y · D_y) · V_y^T`.
+See `R/adapter_oneblock_baser.R` and `R/core_space.R` for the
+worked examples.
+
+The core hooks are strictly optional. The engine always falls back
+to `refit()` when the fast path is unavailable, so you can ship a
+correct adapter first and add the fast path later as an
+optimization.
+
+## Testing your adapter
+
+A minimum integration test calls [infer()] with your adapter and
+verifies the result object looks right:
+
+```{r test-stub, eval = FALSE}
+test_that("my_adapter runs end to end", {
+  X <- matrix(rnorm(40 * 6), 40, 6)
+  res <- infer(
+    adapter  = adapter_minimal_svd(),
+    data     = X,
+    geometry = "oneblock",
+    relation = "variance",
+    B = 49L, R = 6L, seed = 1L
+  )
+  expect_true(is_infer_result(res))
+  expect_true(nrow(res$component_tests) >= 1L)
+  expect_true(nrow(res$variable_stability) >= 1L)
+})
+```
+
+For correctness, compare your adapter's fast path to its `refit`
+path across a scenario grid (see `tests/testthat/test-core-update-*.R`
+for the pattern we use internally). The package also ships
+`tests/testthat/test-validity-checks.R` as a template for asserting
+that your `checked_assumptions` fire on the failure modes you care
+about.
+
+## Where to go next
+
+- `?infer_adapter_contract` — the canonical contract reference with
+  every hook signature and every capability-gate rule.
+- `?infer_adapter` — the constructor itself.
+- `R/adapter_oneblock_baser.R` — the full `adapter_svd()` and
+  `adapter_prcomp()` reference sources.
+- `R/adapter_multivarious_pca.R` — the fitted-model-wrapper pattern
+  in ~100 lines.
+- `vignette("multifer")` — end-to-end inference usage from the
+  user's side, once you have registered an adapter.

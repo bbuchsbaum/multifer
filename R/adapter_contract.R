@@ -1,0 +1,186 @@
+#' The `multifer` adapter contract
+#'
+#' This page is the single-source reference for third-party package
+#' authors who want to plug their own fitted-model class into
+#' `multifer`'s inference layer. It describes the hook signatures,
+#' return-value shapes, capability gates, and validity contracts that
+#' the engine expects from an `infer_adapter()` object.
+#'
+#' The contract is what makes `multifer` extensible: the ladder driver,
+#' null-action machinery, bootstrap loop, and stability consumers all
+#' dispatch through the hooks below, so anything that honours the
+#' contract becomes a first-class family.
+#'
+#' @section Required vs optional hooks:
+#'
+#' Hooks are passed by name through `...` to [infer_adapter()]. The
+#' capability gate (Part 5 §36) enforces which hooks are required for
+#' which targets. There is no universally required hook: an adapter
+#' only has to provide the hooks needed for the targets it claims.
+#'
+#' \describe{
+#'   \item{`roots(x)`}{**Strongly recommended.** Return a numeric
+#'     vector of ordered non-negative latent roots from the fit. Used
+#'     by [form_units()] to build the result's unit table, including
+#'     auto-subspace grouping of near-tied roots. Without it, the
+#'     package has no canonical ordering of the fit's latent objects.}
+#'
+#'   \item{`scores(x, domain = NULL)`}{Required by
+#'     `score_stability`. For oneblock shapes the `domain` argument
+#'     is optional. For cross shapes it must accept `"X"` or `"Y"`.
+#'     Return an `n × k` numeric matrix where `n` is the number of
+#'     observations used in the fit and `k` is the number of latent
+#'     components.}
+#'
+#'   \item{`loadings(x, domain = NULL)`}{Required by `variable_stability`
+#'     and `subspace_stability`. Same `domain` convention as `scores`.
+#'     Return a `p × k` numeric matrix (`p` is the number of variables
+#'     in the relevant block).}
+#'
+#'   \item{`truncate(x, k)`}{Optional. Return a fit of the same class
+#'     truncated to the leading `k` components. Used when downstream
+#'     code needs a reduced-rank view of the original fit.}
+#'
+#'   \item{`residualize(x, k, data)`}{Required by
+#'     `component_significance`. Return the data matrix (or
+#'     oneblock-or-cross list) with the leading `k` components
+#'     removed. This is the deflation step that feeds the ladder's
+#'     next rung.}
+#'
+#'   \item{`refit(x, new_data)`}{Required for `variable_stability`,
+#'     `score_stability`, and `subspace_stability` unless
+#'     `core + update_core` are provided instead. Fit a new model of
+#'     the same class on `new_data` (typically a bootstrap resample).
+#'     `new_data` has the same shape as the original `data` argument
+#'     to [infer()] (matrix for oneblock, list with `X` and `Y` for
+#'     cross). Return shape: the same class as `x`.}
+#'
+#'   \item{`core(x, data)`}{Optional, pairs with `update_core` to
+#'     provide the Phase 1.5 fast path. Return a lightweight core
+#'     object that `update_core()` can repeatedly transform without
+#'     re-running the full fit. For oneblock SVD and cross covariance,
+#'     see the reference implementations in
+#'     `R/adapter_oneblock_baser.R` and `R/core_space.R`.}
+#'
+#'   \item{`update_core(core_obj, indices = NULL, ...)`}{Optional,
+#'     the fast-path counterpart to `core`. Given the `core_obj` and
+#'     a row-bootstrap `indices` vector, return a new fit of the same
+#'     class as `x` (i.e. the class `refit()` would have returned on
+#'     the same bootstrap). The engine prefers `update_core` over
+#'     `refit` whenever both are present; this is how the
+#'     exact-core-space bootstrap lands.}
+#'
+#'   \item{`align(xb, xref)`}{Optional. Custom alignment between a
+#'     bootstrap fit and the reference fit. Default is sign-flip
+#'     alignment on matched loadings.}
+#'
+#'   \item{`null_action(x, data)`}{Required by
+#'     `component_significance`. Return one null resample of `data`
+#'     (same shape as input). For oneblock variance this is typically
+#'     a column-wise permutation; for cross shapes it breaks the
+#'     pairing by permuting rows of `Y`.}
+#'
+#'   \item{`component_stat(x, data, k)`}{Required by
+#'     `component_significance`. Return the observed test statistic
+#'     for rung `k` on `data`. Must be algebraically consistent with
+#'     `null_action`: the ladder compares the observed statistic to
+#'     repeated draws of `component_stat(x, null_action(x, data), k)`.}
+#'
+#'   \item{`variable_stat(x, data, domain, k)`}{Optional alternative
+#'     to `loadings` for `variable_stability`.}
+#'
+#'   \item{`score_stat(x, data, domain, k)`}{Optional alternative to
+#'     `scores` for `score_stability`.}
+#' }
+#'
+#' @section Capability gate rules:
+#'
+#' Registration-time enforcement prevents an adapter from claiming a
+#' capability without the hooks to back it. The rules are:
+#'
+#' - `component_significance` requires `null_action`, `component_stat`,
+#'   **and** `residualize`.
+#' - `variable_stability` requires a perturbation path — either `refit`
+#'   or both `core` and `update_core` — **and** one of
+#'   `variable_stat` or `loadings`.
+#' - `score_stability` requires a perturbation path **and** `scores`.
+#' - `subspace_stability` requires a perturbation path **and** `loadings`.
+#' - `variable_significance` is excluded from v1 and fails at
+#'   registration time with a reference to Part 5 §38.
+#'
+#' Claiming a capability without the backing hooks is an error at
+#' [infer_adapter()] time, not at inference time. That is the point
+#' of the gate: strict dispatch refuses to build an adapter that
+#' cannot back up its claims.
+#'
+#' @section Executable validity contracts:
+#'
+#' Every adapter also carries two assumption layers:
+#'
+#' \describe{
+#'   \item{`declared_assumptions`}{A character vector of assumptions
+#'     the adapter **declares** but does not check (e.g.
+#'     `"rows_exchangeable"`, `"centered_data"`). These are
+#'     trust-the-user claims that appear in the result's
+#'     `assumptions$declared` block for transparency.}
+#'
+#'   \item{`checked_assumptions`}{A list of **executable** validity
+#'     checks. Each entry is a list with `name` (character), `check`
+#'     (function taking the raw `data` argument and returning a
+#'     logical, a character error message, or a `list(passed, detail)`
+#'     structured result), and `detail` (character fallback message).
+#'     [infer()] runs every check against the input data before the
+#'     engine starts; strict mode errors on any failure, permissive
+#'     mode records the failures in `result$assumptions$checked`.}
+#' }
+#'
+#' The base-R reference adapters in `R/adapter_oneblock_baser.R` and
+#' `R/adapter_cross_baser.R` populate `checked_assumptions` with the
+#' standard set for their shape family — numeric-matrix check, finite
+#' values, minimum dimensions, paired-row agreement, column variance,
+#' and full column rank. Third-party adapters can reuse those helpers
+#' or write their own.
+#'
+#' @section A minimal worked example:
+#'
+#' The smallest realistic one-block adapter is
+#' [adapter_svd()], which wraps `base::svd` and claims all four
+#' targets. See `R/adapter_oneblock_baser.R` for the full source.
+#' The cross-family reference is [adapter_cross_svd()] in
+#' `R/adapter_cross_baser.R`, which demonstrates the paired-row
+#' contract and the relation-aware `component_stat` path.
+#'
+#' For a fitted-model wrapper (the recommended pattern when you
+#' already have a fitting framework, e.g. multivarious), see
+#' [adapter_multivarious_pca()] and [adapter_multivarious_plsc()] —
+#' these are thin shims that delegate every hook to the underlying
+#' multivarious generics (`components`, `coef`, `project`, etc.)
+#' and cost only a few dozen lines each.
+#'
+#' @section Recommended pattern for new adapters:
+#'
+#' 1. Start from the adapter reference example closest to your
+#'    shape family (`adapter_svd` for oneblock, `adapter_cross_svd`
+#'    for cross).
+#' 2. Replace the fitting body of `refit` with a call into your
+#'    package's own fitter. Keep the return-value shape compatible
+#'    with your `loadings`, `scores`, and `roots` hooks.
+#' 3. Populate `checked_assumptions` with concrete checks that catch
+#'    the failure modes that matter for your method. Reuse
+#'    `.oneblock_baser_checks()` or `.cross_baser_checks()` when they
+#'    apply.
+#' 4. Add your adapter to the registry via
+#'    [register_infer_adapter()] — typically from a zero-argument
+#'    function called by your package's `.onLoad` hook.
+#' 5. Write an integration test that calls [infer()] with your
+#'    adapter id and a synthetic fixture.
+#'
+#' If your fitted-model class already lives in another package (e.g.
+#' you are writing an adapter for someone else's fitter), you do not
+#' need to vendor the fitter into your code — just import the classes
+#' you need and delegate the hooks.
+#'
+#' @seealso [infer_adapter()], [register_infer_adapter()],
+#'   [capability_matrix()], [infer()]
+#' @name infer_adapter_contract
+NULL

@@ -90,7 +90,9 @@ Those families are ordered-root SVD models, canonical-correlation models, genera
 
 ## Support maturity levels
 
-Every inferential family the package ships is labeled with one of three maturity levels. This taxonomy is canonical and every public doc should match it.
+Every inferential family the package ships is labeled internally with one of three maturity levels. This taxonomy is the **internal scope-decision vocabulary**: it is what the authors use to decide what is in scope for Paper 1, what is shipping today, and what is explicitly on the "not yet" list.
+
+**Public framing intentionally differs.** The README and DESCRIPTION do not enumerate the planned tier by name; they describe extensibility in terms of the shipping `infer_adapter()` contract, so package copy never reads like a release promise. This note, `notes/paper1_rank_matched_residual_randomization.md`, and the paper outline are where the full taxonomy lives.
 
 ### Mature — in Paper 1 scope, exact results, production-ready
 
@@ -222,7 +224,7 @@ If a top-level `README` is added, the opening positioning language should be clo
 >
 > **Mature support** (paper-backed, exact): PCA-family one-block variance inference and covariance-mode two-block methods (PLSC-family), both with the exact collapsed Vitale P3 ladder and exact core-space bootstrap.
 >
-> **Qualified support**: canonical-correlation models, currently valid for the leading canonical root and for paired-rows / nuisance-adjusted stepwise designs, with the full multi-root validity machinery tracked as an upcoming release.
+> **Qualified support**: canonical-correlation models, currently valid for the leading canonical root and for paired-rows / nuisance-adjusted / blocked-rows stepwise designs, with the remaining multi-root validity story tracked as future work.
 >
 > **Extensible by design**: new ordered-latent-root inferential families are added through the shared `infer_adapter()` contract, so the ladder driver, null-action machinery, bootstrap loop, and stability consumers apply uniformly to whatever family an adapter declares. The goal is to stay maximally general *within* the ordered-latent-root paradigm rather than to absorb every multivariate method.
 >
