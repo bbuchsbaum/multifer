@@ -107,3 +107,36 @@ test_that("auto_subspace passes through cross-covariance paired-root case", {
     unlist(res$units$members)
   ))))
 })
+
+test_that("auto_subspace groups an exact tied cross-covariance pair into a subspace unit", {
+  ensure_default_adapters()
+  set.seed(113L)
+  n <- 120L; p_x <- 7L; p_y <- 6L; k <- 3L
+  T <- qr.Q(qr(scale(matrix(stats::rnorm(n * k), nrow = n), center = TRUE, scale = FALSE)))
+  Wx <- qr.Q(qr(matrix(stats::rnorm(p_x * k), nrow = p_x)))
+  Wy <- qr.Q(qr(matrix(stats::rnorm(p_y * k), nrow = p_y)))
+  sig_x <- c(6.0, 6.0, 2.0)
+  sig_y <- c(5.0, 5.0, 1.5)
+  X <- T %*% diag(sig_x, nrow = k) %*% t(Wx) +
+    matrix(stats::rnorm(n * p_x, sd = 0.02), n, p_x)
+  Y <- T %*% diag(sig_y, nrow = k) %*% t(Wy) +
+    matrix(stats::rnorm(n * p_y, sd = 0.02), n, p_y)
+
+  res <- infer(
+    adapter = "cross_svd",
+    data = list(X = X, Y = Y),
+    geometry = "cross",
+    relation = "covariance",
+    B = 79L,
+    R = 6L,
+    alpha = 0.05,
+    seed = 37L,
+    tie_threshold = 0.05
+  )
+
+  expect_true(any(res$units$unit_type == "subspace"))
+  sub_idx <- which(res$units$unit_type == "subspace")[1L]
+  expect_equal(res$units$members[[sub_idx]], c(1L, 2L))
+  expect_false(res$units$identifiable[[sub_idx]])
+  expect_true(any(res$subspace_stability$alignment_method == "subspace"))
+})

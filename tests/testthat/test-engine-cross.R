@@ -140,6 +140,21 @@ test_that("run_cross_ladder validates input matrices", {
   )
 })
 
+test_that("run_cross_ladder validates cross_rank_cap contract", {
+  ensure_default_adapters()
+  rec <- infer_recipe(geometry = "cross", relation = "covariance",
+                      adapter = "cross_svd")
+  X <- matrix(rnorm(60), 12, 5)
+  Y <- matrix(rnorm(48), 12, 4)
+
+  expect_error(run_cross_ladder(rec, X, Y, cross_rank_cap = 0L),
+               "NULL or a positive integer scalar")
+  expect_error(run_cross_ladder(rec, X, Y, cross_rank_cap = NA_integer_),
+               "NULL or a positive integer scalar")
+  expect_error(run_cross_ladder(rec, X, Y, cross_rank_cap = 1.5),
+               "NULL or a positive integer scalar")
+})
+
 test_that("run_cross_ladder runs on covariance recipe and returns expected schema", {
   ensure_default_adapters()
   set.seed(301)

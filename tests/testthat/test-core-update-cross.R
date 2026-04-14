@@ -199,6 +199,80 @@ test_that("cross covariance fast-path bootstrap matches refit artifact and stabi
   }
 })
 
+test_that("cross covariance fast-path matches refit on leading signal units in small-n wide near-tied regime", {
+  set.seed(212)
+  dat <- make_cross_bootstrap_fixture(
+    n = 60L, p_x = 80L, p_y = 80L,
+    signal = c(4.0, 3.6), noise_x = 1.5, noise_y = 1.5
+  )
+
+  adapter <- adapter_cross_svd()
+  recipe <- infer_recipe(
+    geometry = "cross", relation = "covariance",
+    adapter = adapter, strict = TRUE
+  )
+  original_fit <- adapter$refit(
+    NULL, list(X = dat$X, Y = dat$Y, relation = "covariance")
+  )
+  signal_units <- form_units(adapter$roots(original_fit)[1:2])
+
+  fast <- bootstrap_fits(
+    recipe = recipe, adapter = adapter,
+    data = list(X = dat$X, Y = dat$Y),
+    original_fit = original_fit, units = signal_units,
+    R = 8L, method_align = "sign", seed = 812L,
+    fast_path = "auto", core_rank = NULL
+  )
+  slow <- bootstrap_fits(
+    recipe = recipe, adapter = adapter,
+    data = list(X = dat$X, Y = dat$Y),
+    original_fit = original_fit, units = signal_units,
+    R = 8L, method_align = "sign", seed = 812L,
+    fast_path = "off", core_rank = NULL
+  )
+
+  for (b in seq_len(fast$R)) {
+    expect_equal(fast$reps[[b]]$resample_indices, slow$reps[[b]]$resample_indices)
+    expect_equal(fast$reps[[b]]$fit$d[1:2], slow$reps[[b]]$fit$d[1:2], tolerance = 1e-10)
+    expect_equal(
+      fast$reps[[b]]$aligned_loadings$X[, 1:2, drop = FALSE],
+      slow$reps[[b]]$aligned_loadings$X[, 1:2, drop = FALSE],
+      tolerance = 1e-10
+    )
+    expect_equal(
+      fast$reps[[b]]$aligned_loadings$Y[, 1:2, drop = FALSE],
+      slow$reps[[b]]$aligned_loadings$Y[, 1:2, drop = FALSE],
+      tolerance = 1e-10
+    )
+    expect_equal(
+      fast$reps[[b]]$aligned_scores$X[, 1:2, drop = FALSE],
+      slow$reps[[b]]$aligned_scores$X[, 1:2, drop = FALSE],
+      tolerance = 1e-10
+    )
+    expect_equal(
+      fast$reps[[b]]$aligned_scores$Y[, 1:2, drop = FALSE],
+      slow$reps[[b]]$aligned_scores$Y[, 1:2, drop = FALSE],
+      tolerance = 1e-10
+    )
+  }
+
+  expect_equal(
+    variable_stability_from_bootstrap(fast, signal_units),
+    variable_stability_from_bootstrap(slow, signal_units),
+    tolerance = 1e-10
+  )
+  expect_equal(
+    score_stability_from_bootstrap(fast, dat, signal_units),
+    score_stability_from_bootstrap(slow, dat, signal_units),
+    tolerance = 1e-10
+  )
+  expect_equal(
+    subspace_stability_from_bootstrap(fast, original_fit, adapter, signal_units),
+    subspace_stability_from_bootstrap(slow, original_fit, adapter, signal_units),
+    tolerance = 1e-10
+  )
+})
+
 test_that("bootstrap_fits falls back to refit for cross correlation", {
   set.seed(4)
   X <- matrix(rnorm(40 * 6), 40, 6)
