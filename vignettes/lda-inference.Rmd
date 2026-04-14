@@ -1,0 +1,179 @@
+---
+title: LDA / generalized-eigen inference with multifer
+output:
+  rmarkdown::html_vignette:
+    toc: yes
+    toc_depth: 2.0
+    css: albers.css
+    includes:
+      in_header: albers-header.html
+params:
+  family: red
+  preset: homage
+resource_files:
+- albers.css
+- albers.js
+- albers-header.html
+
+vignette: |
+  %\VignetteIndexEntry{LDA / generalized-eigen inference with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette walks the **generalized-eigen** flagship in `multifer`:
+linear discriminant analysis (LDA). The object of inference is the
+ordered sequence of discriminant roots, not specific variables and not
+specific class-vs-class contrasts.
+
+In typed-shape language, LDA lives at:
+
+- geometry: `"geneig"`
+- relation: `"generalized_eigen"`
+- design: exchangeable labels under the null
+
+The mathematical engine is described in `notes/engine_geneig_spec.md`.
+That note is the canonical reference for the whitening map, the
+B-metric deflation rule, and the admissibility constraints that make the
+geneig family valid.
+
+## Setup
+
+```{r setup}
+if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
+library(multifer)
+```
+
+```{r albers-classes, echo=FALSE, results='asis'}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family,
+  params$preset
+))
+```
+
+## What the null actually tests
+
+For LDA, the null action is **label permutation**. The rows of `X` stay
+in place; only the class labels are permuted. That is the right null for
+the question "is there discriminant structure beyond noise?" because it
+destroys the class assignment while preserving the marginal geometry of
+the observations themselves.
+
+This is different from a row-permutation null. Row permutation would
+change the sample geometry, which is not the claim LDA is making. The
+geneig engine therefore delegates the null action to the adapter, and
+the `lda_refit` adapter uses label permutation only.
+
+## Why the ladder is naturally short
+
+With `K` classes, classical LDA has at most `K - 1` non-zero
+discriminant roots. The sequential ladder inherits that bound: there is
+no reason to test beyond the maximum discriminant rank the model can
+support.
+
+## A planted rank-1 discriminant example
+
+We build a three-class problem where the classes differ strongly along
+one axis and only weakly elsewhere. The planted signal has one dominant
+discriminant direction, so the inferential target is:
+
+- root 1: signal
+- root 2: noise
+
+```{r lda-sim}
+set.seed(1)
+n_per_class <- 24
+labels <- factor(rep(c("a", "b", "c"), each = n_per_class))
+means <- rbind(
+  c(-4, 0, 0, 0),
+  c( 0, 0, 0, 0),
+  c( 4, 0, 0, 0)
+)
+
+X <- do.call(rbind, lapply(seq_len(nrow(means)), function(i) {
+  matrix(rnorm(n_per_class * ncol(means), sd = 0.4), ncol = ncol(means)) +
+    matrix(means[i, ], nrow = n_per_class, ncol = ncol(means), byrow = TRUE)
+}))
+```
+
+## Running `infer_lda()`
+
+The public wrapper defaults to `adapter = "lda_refit"` and to
+`targets = "component_significance"`. At the moment this wrapper is
+about discriminant-root significance; the public bootstrap stability
+path for the geneig family is not exposed yet.
+
+```{r infer-lda}
+res <- infer_lda(
+  X,
+  labels,
+  B = 39,
+  alpha = 0.05,
+  seed = 41
+)
+res
+```
+
+```{r lda-units}
+res$units
+res$component_tests
+```
+
+This example is meant to show the structure of the returned
+`infer_result`. On stronger class separation or with a larger Monte
+Carlo budget, one or more discriminant roots may clear the
+label-permutation null; on this lightweight vignette budget the example
+may instead show a conservative no-selection outcome.
+
+## Reading the result correctly
+
+The result is about **roots**. A significant first root does **not**
+mean:
+
+- that any specific variable is individually significant
+- that any specific pair of classes is individually significant
+- that the loadings are p-values
+
+Those are different inferential objects. The current LDA/geneig surface
+does not claim `variable_significance`, and this vignette does not
+reinterpret stability summaries as significance tests.
+
+## Why deflation is B-metric, not Euclidean
+
+The generalized-eigen problem is:
+
+`A v = lambda B v`
+
+with `B` symmetric positive definite. After testing the leading root,
+the remaining ladder steps must deflate in the **B-metric**. Euclidean
+deflation gives the wrong remaining generalized roots. That is why the
+registration-time gate requires geneig adapters to mark their
+`residualize` hook as B-metric-aware (or to declare that the engine
+itself owns the deflation).
+
+The derivation and the regression tests live in
+`notes/engine_geneig_spec.md` and `tests/testthat/test-engine-geneig.R`.
+
+## Scope boundary
+
+This vignette is deliberately narrow:
+
+- it covers LDA as the current flagship `(geneig, generalized_eigen)`
+  family
+- it does not claim contrastive PCA or metric-weighted PCA are already
+  shipped
+- it does not promise variable-level significance
+
+Those remain separate extensions, not hidden features of the current
+public surface.

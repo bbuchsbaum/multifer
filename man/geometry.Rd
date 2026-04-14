@@ -4,10 +4,21 @@
 \alias{geometry}
 \title{Geometry of a latent operator}
 \usage{
-geometry(kind)
+geometry(kind, A = NULL, B = NULL, metric = NULL)
 }
 \arguments{
 \item{kind}{One of \code{"oneblock"}, \code{"cross"}, \code{"multiblock"}, \code{"geneig"}.}
+
+\item{A}{Optional for \code{kind = "geneig"}: the left operator in the
+generalized eigenvalue problem \verb{A v = lambda B v}. When supplied,
+must be a symmetric square matrix.}
+
+\item{B}{Optional for \code{kind = "geneig"}: the metric operator in the
+generalized eigenvalue problem. When supplied, must be a symmetric
+positive definite square matrix with the same dimensions as \code{A}.}
+
+\item{metric}{Optional for \code{kind = "geneig"}: a scalar label
+describing the metric or whitening convention carried by \code{B}.}
 }
 \value{
 An object of class \code{multifer_geometry} (and a \code{kind}-specific

@@ -36,6 +36,24 @@ test_that("typed_shape does not enforce compatibility at construction", {
   expect_true(is_typed_shape(ts))
 })
 
+test_that("typed_shape composes geneig geometry with generalized_eigen relation", {
+  ts <- typed_shape(
+    geometry = geometry(
+      "geneig",
+      A = diag(c(3, 1)),
+      B = diag(c(2, 1)),
+      metric = "within_covariance"
+    ),
+    relation = relation("generalized_eigen"),
+    design   = exchangeable_rows()
+  )
+
+  expect_true(is_typed_shape(ts))
+  expect_equal(ts$geometry$kind, "geneig")
+  expect_equal(ts$relation$kind, "generalized_eigen")
+  expect_equal(ts$design$kind, "exchangeable_rows")
+})
+
 test_that("typed_shape prints all three slots", {
   ts <- typed_shape(geometry("oneblock"), relation("variance"),
                     exchangeable_rows())
