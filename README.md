@@ -33,6 +33,9 @@ fit that scaffold directly. Supervised stagewise methods such as PLS regression
 can still belong in the framework, but may require a different inner target,
 such as predictive increments rather than a literal `X^T Y` root test.
 
+The default execution path is exact. Approximate screening hooks are opt-in only
+and are not part of the paper-faithful core.
+
 ## Current scope
 
 `multifer` is farther along as a core inference engine than as a polished
@@ -91,8 +94,15 @@ This is a deliberately unit-centered design: downstream tables refer to
 
 ## Minimal examples
 
-The current API is explicit rather than wrapper-heavy. You specify the adapter,
-geometry, and relation directly.
+The package ships thin convenience wrappers for the mature and qualified
+families:
+
+- `infer_pca()` for one-block variance models
+- `infer_plsc()` for two-block covariance models
+- `infer_cca()` for two-block correlation models
+
+The lower-level `infer()` interface remains available when you want explicit
+control over adapter, geometry, relation, and design.
 
 ### One-block PCA-like inference
 
@@ -101,11 +111,8 @@ library(multifer)
 
 dat <- bench_oneblock_shadowing(n = 150, p = 40, seed = 1)
 
-res <- infer(
-  adapter = "prcomp_oneblock",
-  data = dat$X,
-  geometry = "oneblock",
-  relation = "variance",
+res <- infer_pca(
+  dat$X,
   B = 99,
   R = 49,
   alpha = 0.05,
@@ -124,11 +131,26 @@ library(multifer)
 
 dat <- bench_cross_null(n = 150, p_x = 30, p_y = 20, seed = 1)
 
-res <- infer(
-  adapter = "cross_svd",
-  data = list(X = dat$X, Y = dat$Y),
-  geometry = "cross",
-  relation = "covariance",
+res <- infer_plsc(
+  dat$X, dat$Y,
+  B = 99,
+  R = 49,
+  alpha = 0.05,
+  seed = 1
+)
+
+res$component_tests
+```
+
+### Two-block correlation inference
+
+```r
+library(multifer)
+
+dat <- bench_cross_null(n = 150, p_x = 30, p_y = 20, seed = 1)
+
+res <- infer_cca(
+  dat$X, dat$Y,
   B = 99,
   R = 49,
   alpha = 0.05,
@@ -236,6 +258,12 @@ correctness and performance work:
 
 These are useful both for development and for method-comparison work.
 
+For a release-style guardrail pass on the mature families, run:
+
+```sh
+Rscript tools/mature_guardrails.R --run-bench=true
+```
+
 ## Project status
 
 Current Phase 1 core:
@@ -253,7 +281,6 @@ Deferred or later-phase work:
 - richer structured / hierarchical valid multi-root CCA
 - `multiblock` and `geneig` engines
 - variable significance
-- method-named wrappers such as `infer_pca()` and `infer_plsc()`
 - vignettes, package website, and broader user-facing docs
 
 ## Paper and package

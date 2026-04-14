@@ -137,7 +137,7 @@ This layer should make the package broadly useful to R users, even when they nev
 
 Desired contents:
 
-- method-named wrappers like `infer_pca()`, `infer_plsc()`, later `infer_lda()`,
+- method-named wrappers like `infer_pca()`, `infer_plsc()`, `infer_cca()`, later `infer_lda()`,
 - stability summaries for variables, scores, and subspaces,
 - good defaults for common workflows,
 - clear messages when a requested inference is not valid,
@@ -145,6 +145,10 @@ Desired contents:
 - room for later engines such as `geneig` and supervised-latent / predictive engines.
 
 This layer is how the package becomes genuinely useful rather than merely "the code for the paper."
+
+Today, the package already ships thin wrappers for the mature / qualified
+families (`infer_pca()`, `infer_plsc()`, `infer_cca()`). The remaining package
+work is polish, not first introduction of wrapper-level usability.
 
 ## What the paper should and should not control
 

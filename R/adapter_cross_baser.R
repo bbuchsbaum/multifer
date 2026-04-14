@@ -165,7 +165,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
         Wy  <- backsolve(Ry, sv$v)   # q x r
       }
 
-      list(
+      fit <- list(
         relation = rel,
         d        = sv$d,
         Wx       = Wx,
@@ -175,6 +175,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
         center_x = cx,
         center_y = cy
       )
+      .trim_cross_covariance_fit(fit)
     },
 
     # Phase 1.5 fast path (§17 / §30 rank 2) -- covariance only.
@@ -242,7 +243,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       new_cx <- core_obj$center_x + as.numeric(Vx %*% (dx * ux_bar))
       new_cy <- core_obj$center_y + as.numeric(Vy %*% (dy * uy_bar))
 
-      list(
+      fit <- list(
         relation = "covariance",
         d        = d_new,
         Wx       = Wx_new,
@@ -252,6 +253,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
         center_x = new_cx,
         center_y = new_cy
       )
+      .trim_cross_covariance_fit(fit)
     },
 
     null_action = function(x, data, ...) {

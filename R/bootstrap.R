@@ -276,12 +276,24 @@ bootstrap_fits <- function(recipe,
       Vb   <- adapter$loadings(rep_fit, d)
       Sb   <- if (store_aligned_scores) adapter$scores(rep_fit, d) else NULL
 
-      perm    <- .fn_match_components(Vref, Vb)
-      Vb_perm <- Vb[, perm, drop = FALSE]
-      Sb_perm <- if (store_aligned_scores) Sb[, perm, drop = FALSE] else NULL
+      k_cmp <- min(ncol(Vref), ncol(Vb))
+      if (k_cmp <= 0L) {
+        rep_aligned_loadings[[d]] <- Vb[, 0L, drop = FALSE]
+        if (store_aligned_scores) {
+          rep_aligned_scores[[d]] <- Sb[, 0L, drop = FALSE]
+        }
+        next
+      }
+      Vref_cmp <- Vref[, seq_len(k_cmp), drop = FALSE]
+      Vb_cmp <- Vb[, seq_len(k_cmp), drop = FALSE]
+      Sb_cmp <- if (store_aligned_scores) Sb[, seq_len(k_cmp), drop = FALSE] else NULL
+
+      perm    <- .fn_match_components(Vref_cmp, Vb_cmp)
+      Vb_perm <- Vb_cmp[, perm, drop = FALSE]
+      Sb_perm <- if (store_aligned_scores) Sb_cmp[, perm, drop = FALSE] else NULL
 
       if (method_align == "sign") {
-        signs       <- sign(base::colSums(Vref * Vb_perm))
+        signs       <- sign(base::colSums(Vref_cmp * Vb_perm))
         signs[signs == 0L] <- 1L
         aligned_L   <- base::sweep(Vb_perm, 2L, signs, `*`)
         aligned_S   <- if (store_aligned_scores) {
@@ -290,7 +302,7 @@ bootstrap_fits <- function(recipe,
           NULL
         }
       } else {
-        M  <- base::crossprod(Vref, Vb_perm)
+        M  <- base::crossprod(Vref_cmp, Vb_perm)
         sv <- base::svd(M)
         Q  <- sv$v %*% t(sv$u)
         aligned_L <- Vb_perm %*% Q

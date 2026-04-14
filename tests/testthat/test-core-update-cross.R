@@ -75,6 +75,23 @@ test_that("cross covariance update_core reproduces refit bootstrap to 1e-10", {
   expect_equal(upd$Ty, Ty_direct, tolerance = 1e-10)
 })
 
+test_that("cross covariance refit trims exact zero tail to active numerical rank", {
+  set.seed(21)
+  dat <- make_cross_bootstrap_fixture(
+    n = 60L, p_x = 80L, p_y = 80L,
+    signal = c(4.0, 3.6), noise_x = 1.5, noise_y = 1.5
+  )
+  adapter <- adapter_cross_svd()
+  fit <- adapter$refit(NULL, list(X = dat$X, Y = dat$Y, relation = "covariance"))
+
+  expect_equal(length(fit$d), nrow(dat$X) - 1L)
+  expect_true(all(fit$d > 0))
+  expect_equal(ncol(fit$Wx), length(fit$d))
+  expect_equal(ncol(fit$Wy), length(fit$d))
+  expect_equal(ncol(fit$Tx), length(fit$d))
+  expect_equal(ncol(fit$Ty), length(fit$d))
+})
+
 test_that("bootstrap_fits uses fast path for cross covariance", {
   set.seed(3)
   X <- matrix(rnorm(40 * 6), 40, 6)
@@ -233,6 +250,7 @@ test_that("cross covariance fast-path matches refit on leading signal units in s
 
   for (b in seq_len(fast$R)) {
     expect_equal(fast$reps[[b]]$resample_indices, slow$reps[[b]]$resample_indices)
+    expect_equal(length(fast$reps[[b]]$fit$d), length(slow$reps[[b]]$fit$d))
     expect_equal(fast$reps[[b]]$fit$d[1:2], slow$reps[[b]]$fit$d[1:2], tolerance = 1e-10)
     expect_equal(
       fast$reps[[b]]$aligned_loadings$X[, 1:2, drop = FALSE],

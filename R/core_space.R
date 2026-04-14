@@ -53,6 +53,36 @@
 # Cross-block covariance core helpers
 # ---------------------------------------------------------------------------
 
+.active_root_count <- function(d, tol = 1e-10) {
+  if (length(d) == 0L) return(0L)
+  thresh <- max(1, d[[1L]]) * tol
+  sum(d > thresh)
+}
+
+.trim_cross_covariance_fit <- function(fit, tol = 1e-10) {
+  if (is.null(fit) || !identical(fit$relation, "covariance")) {
+    return(fit)
+  }
+
+  k <- .active_root_count(fit$d, tol = tol)
+  if (k <= 0L) {
+    fit$d <- numeric(0)
+    fit$Wx <- fit$Wx[, 0L, drop = FALSE]
+    fit$Wy <- fit$Wy[, 0L, drop = FALSE]
+    fit$Tx <- fit$Tx[, 0L, drop = FALSE]
+    fit$Ty <- fit$Ty[, 0L, drop = FALSE]
+    return(fit)
+  }
+
+  keep <- seq_len(k)
+  fit$d <- fit$d[keep]
+  fit$Wx <- fit$Wx[, keep, drop = FALSE]
+  fit$Wy <- fit$Wy[, keep, drop = FALSE]
+  fit$Tx <- fit$Tx[, keep, drop = FALSE]
+  fit$Ty <- fit$Ty[, keep, drop = FALSE]
+  fit
+}
+
 .cross_covariance_core <- function(X, Y, tol = 1e-10) {
   sv_x <- cached_svd(X)
   sv_y <- cached_svd(Y)
