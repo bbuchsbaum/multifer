@@ -13,10 +13,13 @@ residual randomization, the paired-bootstrap stability consumers
 Today the **mature latent-root tier** covers PCA-family one-block
 variance inference, covariance-mode two-block methods (PLSC-family),
 and the shipped CCA path on its supported paired and nuisance-adjusted
-designs. The **present but narrower tier** adds the
+designs. The **narrow public surfaces** add the
 [generalized-eigen engine](vignettes/lda-inference.Rmd) through
 `infer_lda()` and the [predictive relation](vignettes/plsr-inference.Rmd)
-through `infer_plsr()`. `multiblock` remains planned rather than shipped.
+through `infer_plsr()`. `multiblock` remains **planned** rather than
+shipped. The package uses exactly three maturity labels —
+**mature**, **narrow**, **planned** — and uses them identically in
+its adapter table, its wrapper docs, and its registry output.
 
 The package is **extensible by design**. A new inferential family is
 added by writing an `infer_adapter()` that implements the accessor
@@ -209,23 +212,37 @@ work on the exchangeability side.
 
 | Adapter                | Geometry  | Relation    | Maturity   |
 |------------------------|-----------|-------------|------------|
-| `svd_oneblock`         | oneblock  | variance    | **mature** |
-| `prcomp_oneblock`      | oneblock  | variance    | **mature** |
-| `cross_svd` (cov)      | cross     | covariance  | **mature** |
-| `cross_svd` (cor)      | cross     | correlation | **mature** |
-| `cancor_cross`         | cross     | correlation | **mature** |
-| `multivarious_cca`     | cross     | correlation | present    |
-| `multivarious_pca`     | oneblock  | variance    | **mature** |
-| `multivarious_plsc`    | cross     | covariance  | **mature** |
-| `lda_refit`            | geneig    | generalized_eigen | present |
-| `plsr_refit`           | cross     | predictive  | present    |
+| `svd_oneblock`         | oneblock  | variance           | **mature** |
+| `prcomp_oneblock`      | oneblock  | variance           | **mature** |
+| `cross_svd` (cov)      | cross     | covariance         | **mature** |
+| `cross_svd` (cor)      | cross     | correlation        | **mature** |
+| `cancor_cross`         | cross     | correlation        | **mature** |
+| `multivarious_pca`     | oneblock  | variance           | **mature** |
+| `multivarious_plsc`    | cross     | covariance         | **mature** |
+| `multivarious_cca`     | cross     | correlation        | **narrow** |
+| `lda_refit`            | geneig    | generalized_eigen  | **narrow** |
+| `plsr_refit`           | cross     | predictive         | **narrow** |
 
-*Mature* adapters are the paper-backed exact path for the shipped latent-root
-families. On the correlation side that means the plain paired-row design,
-common-`Z` nuisance-adjusted designs, nuisance-adjusted designs with
-within-block exchangeability, and `blocked_rows(groups)`. *Present* adapters
-are public and tested, but their family surface is intentionally narrower than
-the mature tier.
+The package uses exactly three maturity labels, in one place, for one
+meaning each:
+
+- **mature**: paper-backed exact path for a shipped latent-root
+  family, defended by calibration and parity evidence. On the
+  correlation side that means the plain paired-row design,
+  common-`Z` nuisance-adjusted designs, nuisance-adjusted designs
+  with within-block exchangeability, and `blocked_rows(groups)`.
+- **narrow**: shipped today with a deliberately limited public
+  surface. The engine works end-to-end but the family coverage is
+  intentionally scoped — for example `lda_refit` exposes only
+  discriminant-root significance for `(geneig, generalized_eigen)`,
+  and `plsr_refit` exposes only held-out predictive gain for
+  `(cross, predictive)`.
+- **planned**: architecturally allocated but not shipped in v1 —
+  currently `multiblock`.
+
+Call `list_infer_adapters(details = TRUE)` to read the same table
+directly from the registry; the drift-guard test asserts it stays in
+sync with this README.
 
 For CCA specifically, `infer_cca()` still defaults to `cancor_cross`. The new
 `multivarious_cca` adapter is available as an alternate backend, but it is not

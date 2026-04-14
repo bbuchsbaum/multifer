@@ -20,14 +20,18 @@ number of rows as \code{X}.}
 An \link{infer_result}.
 }
 \description{
+\strong{Maturity: mature} on the shipped support matrix (paired-row,
+common-\code{Z} nuisance-adjusted, nuisance-adjusted within-block, and
+\code{blocked_rows(groups)} designs); first-root-only outside that
+matrix.
+
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block correlation
 models. The shipped multi-root support boundary covers the paired-row
 design and the supported nuisance-adjusted variants described in the
 package README and vignettes. Outside that support matrix, \code{multifer}
 conservatively caps the ladder to first-root inference rather than
 making unsupported stepwise claims.
-}
-\details{
+
 The default adapter is \code{"cancor_cross"}, the dedicated
 correlation-only wrapper around \code{\link[stats:cancor]{stats::cancor()}}. This keeps the
 default CCA path single-relation and avoids the strict-dispatch

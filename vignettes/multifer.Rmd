@@ -134,13 +134,15 @@ stepwise deflation. The triple determines what the engine is allowed to
 claim — if you pair an adapter with an ambiguous relation under strict
 dispatch (the default), `multifer` errors instead of silently guessing.
 
-Most users never call `infer()` directly. Three thin wrappers map each
-mature / qualified family to a one-line call:
+Most users never call `infer()` directly. Five thin wrappers map each
+mature or narrow-surface family to a one-line call:
 
 ```{r wrappers, eval = FALSE}
-infer_pca (X)         # oneblock variance
-infer_plsc(X, Y)      # cross covariance
-infer_cca (X, Y)      # cross correlation
+infer_pca (X)             # oneblock variance        (mature)
+infer_plsc(X, Y)          # cross covariance         (mature)
+infer_cca (X, Y)          # cross correlation        (mature)
+infer_lda (X, labels)     # geneig discriminant roots (narrow)
+infer_plsr(X, Y)          # predictive-gain PLSR      (narrow)
 ```
 
 The lower-level `infer()` stays available when you need explicit control
@@ -286,14 +288,16 @@ Three family-specific vignettes walk each inferential family in depth:
 - `vignette("plsc-inference")` — two-block covariance (PLSC-family), the
   exact core-space bootstrap identity, and cross-domain stability.
 - `vignette("cca-inference")` — two-block correlation (CCA-family), the
-  qualified-tier whitened-space stepwise deflation, and the
+  mature-tier whitened-space stepwise deflation, and the
   paired-rows / nuisance-adjusted / grouped-exchangeable design matrix.
 
 For a quick reference on which adapter ships which family at which
-maturity tier, see the **Built-in adapters and maturity** table in the
-package `README`.
+maturity label, see the **Built-in adapters and maturity** table in the
+package `README`. `list_infer_adapters(details = TRUE)` returns the
+same table directly from the registry.
 
-For the package-level positioning (mature / qualified / planned
-taxonomy, the paper-quality v1 roadmap, and the explicit scope boundary
-between latent-root families and predictive / generalized-eigen
-engines), see `notes/package_vision.md` in the source tree.
+For the package-level positioning (the
+**mature / narrow / planned** taxonomy, the paper-quality v1 roadmap,
+and the explicit scope boundary between latent-root families and
+predictive / generalized-eigen engines), see `notes/package_vision.md`
+in the source tree.

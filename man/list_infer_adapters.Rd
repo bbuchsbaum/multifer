@@ -4,11 +4,26 @@
 \alias{list_infer_adapters}
 \title{List all registered adapter ids}
 \usage{
-list_infer_adapters()
+list_infer_adapters(details = FALSE)
+}
+\arguments{
+\item{details}{Logical. \code{FALSE} (default) returns a character vector
+of adapter ids, preserving the old contract. \code{TRUE} returns a
+data.frame with columns \code{adapter_id}, \code{maturity}, \code{geometry},
+\code{relation}.}
 }
 \value{
-Character vector of registered adapter ids (possibly empty).
+Character vector or data.frame; see \code{details}.
 }
 \description{
-List all registered adapter ids
+By default returns a plain character vector so call sites like
+\code{"my_adapter" \%in\% list_infer_adapters()} keep working. Pass
+\code{details = TRUE} to get a data.frame keyed by \code{adapter_id} with the
+canonical \code{maturity} label (from \code{\link[=multifer_adapter_maturity]{multifer_adapter_maturity()}}) plus
+the distinct \verb{(geometry, relation)} rows the adapter claims. That
+extended form is the one the drift-guard test and \code{print} paths
+consume.
+}
+\seealso{
+\code{\link[=multifer_adapter_maturity]{multifer_adapter_maturity()}}
 }

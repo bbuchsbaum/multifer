@@ -29,12 +29,17 @@ path is not yet part of the public wrapper surface.}
 An \link{infer_result}.
 }
 \description{
+\strong{Maturity: narrow.} Shipped today for a deliberately limited
+public surface: only discriminant-root significance for LDA via
+label permutation and B-metric deflation. Broader metric-weighted
+or contrastive generalized-eigen families are not part of the v1
+public wrapper surface.
+
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for \verb{(geneig, generalized_eigen)} models driven by class labels. The default adapter
 is \code{"lda_refit"}, which wraps \code{MASS::lda()} and tests the ordered
 discriminant roots, not specific variables and not pairwise class
 contrasts.
-}
-\details{
+
 The estimand is the number of discriminant roots that rise above
 noise. The ladder is therefore naturally short: with \code{K} classes,
 there are at most \code{K - 1} non-zero discriminant roots to test.

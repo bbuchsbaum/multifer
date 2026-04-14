@@ -436,10 +436,51 @@ get_infer_adapter <- function(adapter_id) {
 
 #' List all registered adapter ids
 #'
-#' @return Character vector of registered adapter ids (possibly empty).
+#' By default returns a plain character vector so call sites like
+#' `"my_adapter" %in% list_infer_adapters()` keep working. Pass
+#' `details = TRUE` to get a data.frame keyed by `adapter_id` with the
+#' canonical `maturity` label (from [multifer_adapter_maturity()]) plus
+#' the distinct `(geometry, relation)` rows the adapter claims. That
+#' extended form is the one the drift-guard test and `print` paths
+#' consume.
+#'
+#' @param details Logical. `FALSE` (default) returns a character vector
+#'   of adapter ids, preserving the old contract. `TRUE` returns a
+#'   data.frame with columns `adapter_id`, `maturity`, `geometry`,
+#'   `relation`.
+#'
+#' @return Character vector or data.frame; see `details`.
+#' @seealso [multifer_adapter_maturity()]
 #' @export
-list_infer_adapters <- function() {
-  ls(.adapter_registry)
+list_infer_adapters <- function(details = FALSE) {
+  ids <- ls(.adapter_registry)
+  if (!isTRUE(details)) {
+    return(ids)
+  }
+  if (length(ids) == 0L) {
+    return(data.frame(
+      adapter_id = character(0),
+      maturity = character(0),
+      geometry = character(0),
+      relation = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  rows <- lapply(ids, function(id) {
+    a <- get(id, envir = .adapter_registry, inherits = FALSE)
+    caps <- a$capabilities
+    pairs <- unique(caps[, c("geometry", "relation")])
+    data.frame(
+      adapter_id = id,
+      maturity = multifer_adapter_maturity(id),
+      geometry = pairs$geometry,
+      relation = pairs$relation,
+      stringsAsFactors = FALSE
+    )
+  })
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
 }
 
 #' Remove a registered adapter

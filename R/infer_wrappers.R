@@ -1,5 +1,9 @@
 #' Infer PCA-family significance and stability
 #'
+#' @description
+#' **Maturity: mature.** Paper-backed exact path for one-block variance
+#' inference, defended by executable calibration and parity evidence.
+#'
 #' Thin convenience wrapper over [infer()] for one-block variance models.
 #' When the `multivarious_pca` adapter is registered, `infer_pca()` uses
 #' it by default. Otherwise it falls back to the base-R
@@ -40,6 +44,11 @@ infer_pca <- function(X,
 
 #' Infer PLSC-family significance and stability
 #'
+#' @description
+#' **Maturity: mature.** Paper-backed exact path for two-block
+#' covariance inference, including an exact core-space bootstrap
+#' identity.
+#'
 #' Thin convenience wrapper over [infer()] for two-block covariance models.
 #' When the `multivarious_plsc` adapter is registered, `infer_plsc()`
 #' uses it by default. Otherwise it falls back to the base-R
@@ -79,6 +88,13 @@ infer_plsc <- function(X,
 }
 
 #' Infer PLSR-family significance and stability
+#'
+#' @description
+#' **Maturity: narrow.** Shipped today via `plsr_refit` only. The
+#' inferential target is cross-fitted held-out predictive gain, not a
+#' cross-covariance root. Broader predictive-cross families (reduced
+#' rank regression, canonical ridge, kernel variants) are not part of
+#' the v1 public wrapper surface.
 #'
 #' Thin convenience wrapper over [infer()] for two-block predictive
 #' models. The inferential target is **cross-fitted held-out predictive
@@ -172,6 +188,12 @@ infer_plsr <- function(X,
 
 #' Infer CCA-family significance and stability
 #'
+#' @description
+#' **Maturity: mature** on the shipped support matrix (paired-row,
+#' common-`Z` nuisance-adjusted, nuisance-adjusted within-block, and
+#' `blocked_rows(groups)` designs); first-root-only outside that
+#' matrix.
+#'
 #' Thin convenience wrapper over [infer()] for two-block correlation
 #' models. The shipped multi-root support boundary covers the paired-row
 #' design and the supported nuisance-adjusted variants described in the
@@ -213,6 +235,13 @@ infer_cca <- function(X,
 }
 
 #' Infer discriminant-root significance for LDA-family models
+#'
+#' @description
+#' **Maturity: narrow.** Shipped today for a deliberately limited
+#' public surface: only discriminant-root significance for LDA via
+#' label permutation and B-metric deflation. Broader metric-weighted
+#' or contrastive generalized-eigen families are not part of the v1
+#' public wrapper surface.
 #'
 #' Thin convenience wrapper over [infer()] for `(geneig,
 #' generalized_eigen)` models driven by class labels. The default adapter

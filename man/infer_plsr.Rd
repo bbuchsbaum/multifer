@@ -20,13 +20,18 @@ number of rows as \code{X}.}
 An \link{infer_result}.
 }
 \description{
+\strong{Maturity: narrow.} Shipped today via \code{plsr_refit} only. The
+inferential target is cross-fitted held-out predictive gain, not a
+cross-covariance root. Broader predictive-cross families (reduced
+rank regression, canonical ridge, kernel variants) are not part of
+the v1 public wrapper surface.
+
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block predictive
 models. The inferential target is \strong{cross-fitted held-out predictive
 gain}, not an \verb{X^T Y} cross-covariance root. In other words,
 \code{infer_plsr()} asks whether the next latent predictor improves
 out-of-sample prediction of \code{Y} beyond the previous ones.
-}
-\details{
+
 The default adapter is \code{"plsr_refit"}, a Tier-1 wrapper around
 \code{pls::plsr()}. For the predictive-relation doctrine and the
 registration-time cross-fit gate, see

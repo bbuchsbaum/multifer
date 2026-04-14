@@ -23,12 +23,15 @@ number of rows as \code{X}.}
 An \link{infer_result}.
 }
 \description{
+\strong{Maturity: mature.} Paper-backed exact path for two-block
+covariance inference, including an exact core-space bootstrap
+identity.
+
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block covariance models.
 When the \code{multivarious_plsc} adapter is registered, \code{infer_plsc()}
 uses it by default. Otherwise it falls back to the base-R
 \code{"cross_svd"} adapter.
-}
-\details{
+
 If you have already fit a model via \code{multivarious::plsc()}, pass it
 through \verb{model = } and \code{infer_plsc()} will reuse your fit directly.
 }

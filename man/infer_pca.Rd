@@ -21,13 +21,15 @@ so you can fit once and re-infer.}
 An \link{infer_result}.
 }
 \description{
+\strong{Maturity: mature.} Paper-backed exact path for one-block variance
+inference, defended by executable calibration and parity evidence.
+
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for one-block variance models.
 When the \code{multivarious_pca} adapter is registered, \code{infer_pca()} uses
 it by default. Otherwise it falls back to the base-R
 \code{"prcomp_oneblock"} adapter. The base-R adapters remain available as
 reference examples and as a zero-extra-dependency fitting path.
-}
-\details{
+
 If you have already fit a model via \code{multivarious::pca()} (or any
 other compatible fitter), pass it through \verb{model = } and \code{infer_pca()}
 will reuse your fit directly instead of refitting the original data.
