@@ -351,9 +351,16 @@ test_that("restricted_row_permutation permutes only within blocks", {
   }
 })
 
-test_that("run_cross_ladder correlation stays conservative for unsupported blocked designs", {
+test_that("run_cross_ladder correlation recovers exact canonical rank under blocked_rows (multifer-9u9.1.1)", {
+  # Stepwise correlation under within-block restricted permutation:
+  # the deflation is linear in rows so it commutes with restricted
+  # row permutation, which means the full stepwise ladder is valid.
+  # This test pins the recovery behaviour and replaces the prior
+  # conservative-cap pin that was shipped under Sprint 1.
+  # Fixture matches the paired_rows recovery test at line 267 so
+  # both designs pin on the same canonical-correlation regime.
   ensure_default_adapters()
-  set.seed(404)
+  set.seed(402)
   dat <- make_exact_canonical_correlation_engine(
     n = 36,
     canonical_corrs = c(0.95, 0.7, 0.4),
@@ -373,8 +380,39 @@ test_that("run_cross_ladder correlation stays conservative for unsupported block
     B = 39L, alpha = 0.05, seed = 7L, max_steps = 4L
   )
 
-  expect_equal(res$ladder_result$last_step_tested, 1L)
-  expect_equal(nrow(res$component_tests), 1L)
+  expect_equal(res$ladder_result$rejected_through, 3L)
+  expect_equal(res$ladder_result$last_step_tested, 4L)
+  expect_identical(res$component_tests$selected, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+test_that("run_cross_ladder correlation under blocked_rows controls FPR on null draws", {
+  # Null-calibration pin for the newly unlocked blocked_rows stepwise
+  # path. With no cross-block correlation in the data, empirical FPR
+  # at rung 1 should sit near alpha within MC SE across replicates.
+  skip_on_cran()
+  ensure_default_adapters()
+
+  n_rep <- 40L
+  hits <- integer(n_rep)
+  for (i in seq_len(n_rep)) {
+    dat <- bench_cross_null(
+      n = 60, p_x = 6, p_y = 6,
+      within_rank_x = 3, within_rank_y = 3,
+      seed = 900 + i
+    )
+    rec <- infer_recipe(
+      geometry = "cross",
+      relation = "correlation",
+      design = blocked_rows(rep(1:6, each = 10)),
+      adapter = "cross_svd"
+    )
+    res <- run_cross_ladder(rec, dat$X, dat$Y, B = 39L, alpha = 0.05, seed = i)
+    hits[i] <- as.integer(res$ladder_result$rejected_through > 0L)
+  }
+
+  fpr <- mean(hits)
+  expect_true(fpr >= 0 && fpr <= 0.2,
+              info = sprintf("empirical FPR = %.3f", fpr))
 })
 
 test_that("run_cross_ladder correlation controls false positives on replicated null draws", {

@@ -176,15 +176,31 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       .trim_cross_covariance_fit(fit)
     },
 
-    # Phase 1.5 fast path (§17 / §30 rank 2) -- covariance only.
-    # Correlation mode falls back to refit() because per-replicate
-    # column rescaling does not admit a clean k x k update; the
-    # bootstrap_fits() gate enforces this by checking the recipe's
-    # relation kind before calling core()/update_core().
+    # Phase 1.5 fast path (§17 / §30 rank 2).
     #
-    # Core representation: the separate block thin SVDs of the
-    # centered X and Y matrices, which are then composed via a
-    # k_x x k_y inner SVD per replicate.
+    # Covariance mode: the existing D-weighted identity lands the
+    # collapsed Vitale P3 null in a k_x x k_y inner SVD.
+    #
+    # Correlation mode (multifer-9u9.1.3): the per-replicate column
+    # rescaling DOES admit a clean k_x x k_y update via the whitening
+    # identity
+    #
+    #     Qx_boot^T Qy_boot = B_x^{-1/2} (Ux_tilde^T Uy_tilde) B_y^{-1/2}
+    #
+    # where B_x = Ux_tilde^T Ux_tilde and B_y = Uy_tilde^T Uy_tilde are
+    # the k_x x k_x and k_y x k_y Gram matrices of the centered-and-
+    # resampled block singular vectors. Canonical correlations are the
+    # singular values of the whitened small matrix. Scores and weights
+    # lift back to the original variable space via Vx / Vy. This
+    # identity is exact to machine precision and is the path taken when
+    # core_obj$relation == "correlation".
+    #
+    # Exactness of the correlation fast path requires the core to carry
+    # the FULL column rank of the centered blocks -- any rank truncation
+    # changes the whitening and produces a biased canonical correlation.
+    # .truncate_core() in R/bootstrap.R therefore leaves correlation-mode
+    # cores alone; callers that need the truncation speed-up must stay on
+    # the covariance path.
     core = function(x, data, ...) {
       X <- data$X; Y <- data$Y
       cx <- base::colMeans(X); cy <- base::colMeans(Y)
@@ -192,8 +208,9 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       Yc <- base::sweep(Y, 2L, cy, "-")
       sv_x <- base::svd(Xc)
       sv_y <- base::svd(Yc)
+      rel <- if (!is.null(x) && !is.null(x$relation)) x$relation else "covariance"
       list(
-        relation = "covariance",
+        relation = rel,
         Ux       = sv_x$u, dx = sv_x$d, Vx = sv_x$v,
         Uy       = sv_y$u, dy = sv_y$d, Vy = sv_y$v,
         center_x = cx,
@@ -209,6 +226,7 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       }
       Ux <- core_obj$Ux; dx <- core_obj$dx; Vx <- core_obj$Vx
       Uy <- core_obj$Uy; dy <- core_obj$dy; Vy <- core_obj$Vy
+      rel <- if (!is.null(core_obj$relation)) core_obj$relation else "covariance"
 
       Ux_idx <- Ux[indices, , drop = FALSE]
       Uy_idx <- Uy[indices, , drop = FALSE]
@@ -219,30 +237,81 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
       Ux_tilde <- Ux_idx - base::rep(ux_bar, each = n_new)
       Uy_tilde <- Uy_idx - base::rep(uy_bar, each = n_new)
 
-      # DUx[i, j] = Ux_tilde[i, j] * dx[j]; same for DUy.
-      DUx <- base::sweep(Ux_tilde, 2L, dx, `*`)
-      DUy <- base::sweep(Uy_tilde, 2L, dy, `*`)
+      if (rel == "covariance") {
+        # DUx[i, j] = Ux_tilde[i, j] * dx[j]; same for DUy.
+        DUx <- base::sweep(Ux_tilde, 2L, dx, `*`)
+        DUy <- base::sweep(Uy_tilde, 2L, dy, `*`)
 
-      # M = D_x (Ux_tilde^T Uy_tilde) D_y  ==  crossprod(DUx, DUy), k_x x k_y.
-      M  <- base::crossprod(DUx, DUy)
-      sv <- base::svd(M)
+        # M = D_x (Ux_tilde^T Uy_tilde) D_y  ==  crossprod(DUx, DUy), k_x x k_y.
+        M  <- base::crossprod(DUx, DUy)
+        sv <- base::svd(M)
 
-      # The centered resampled cross-product factors as Vx M Vy^T, so its
-      # SVD is (Vx %*% sv$u) * diag(sv$d) * (Vy %*% sv$v)^T.
-      Wx_new <- Vx %*% sv$u                 # p_x x r
-      Wy_new <- Vy %*% sv$v                 # p_y x r
-      d_new  <- sv$d
+        # The centered resampled cross-product factors as Vx M Vy^T, so its
+        # SVD is (Vx %*% sv$u) * diag(sv$d) * (Vy %*% sv$v)^T.
+        Wx_new <- Vx %*% sv$u                 # p_x x r
+        Wy_new <- Vy %*% sv$v                 # p_y x r
+        d_new  <- sv$d
 
-      # Scores: X_boot_c %*% Wx_new = Ux_tilde Dx Vx^T (Vx A) = Ux_tilde Dx A
-      #                              = DUx %*% sv$u   (since Vx has orthonormal cols).
-      Tx_new <- DUx %*% sv$u
-      Ty_new <- DUy %*% sv$v
+        # Scores: X_boot_c %*% Wx_new = Ux_tilde Dx Vx^T (Vx A) = Ux_tilde Dx A
+        #                              = DUx %*% sv$u   (since Vx has orthonormal cols).
+        Tx_new <- DUx %*% sv$u
+        Ty_new <- DUy %*% sv$v
+      } else {
+        # correlation path: whitened k_x x k_y update.
+        Bx  <- base::crossprod(Ux_tilde)
+        By  <- base::crossprod(Uy_tilde)
+        Cxy <- base::crossprod(Ux_tilde, Uy_tilde)
+
+        # Symmetric matrix square-root inverse via eigendecomposition.
+        # Guard: near-zero or slightly negative eigenvalues arise from
+        # two sources:
+        #   (a) bootstrap resamples that do not span the centered block
+        #       column space (too few unique rows relative to k_x or k_y);
+        #   (b) floating-point loss of PSD in the symmetrisation step.
+        # Either way the B^{-1/2} whitening identity breaks down. We signal
+        # this with a classed condition so the caller can fall back to a
+        # full refit for this replicate. The fallback lives in
+        # bootstrap.R (see the tryCatch around adapter$update_core) and is
+        # tested in tests/testthat/test-correlation-fallback.R.
+        # Do NOT catch errors other than multifer_core_rank_deficient here;
+        # unrelated failures must propagate.
+        ex <- base::eigen((Bx + base::t(Bx)) / 2, symmetric = TRUE)
+        ey <- base::eigen((By + base::t(By)) / 2, symmetric = TRUE)
+        tol_core <- max(1, ex$values[1], ey$values[1]) * sqrt(.Machine$double.eps)
+        if (any(ex$values <= tol_core) || any(ey$values <= tol_core)) {
+          cond <- structure(
+            class = c("multifer_core_rank_deficient", "error", "condition"),
+            list(
+              message = "adapter_cross_svd update_core: correlation-mode bootstrap sample is rank-deficient in the core representation; caller should fall back to refit for this replicate.",
+              call    = NULL
+            )
+          )
+          stop(cond)
+        }
+        Bx_inv_sqrt <- ex$vectors %*%
+          base::sweep(base::t(ex$vectors), 1L, 1 / sqrt(ex$values), `*`)
+        By_inv_sqrt <- ey$vectors %*%
+          base::sweep(base::t(ey$vectors), 1L, 1 / sqrt(ey$values), `*`)
+
+        M  <- Bx_inv_sqrt %*% Cxy %*% By_inv_sqrt        # k_x x k_y
+        sv <- base::svd(M)
+
+        # Weights in original variable space:
+        #   Wx = Vx %*% diag(1/dx) %*% Bx_inv_sqrt %*% sv$u
+        Wx_new <- Vx %*% base::sweep(Bx_inv_sqrt %*% sv$u, 1L, dx, `/`)
+        Wy_new <- Vy %*% base::sweep(By_inv_sqrt %*% sv$v, 1L, dy, `/`)
+        d_new  <- sv$d
+
+        # Scores: Tx = Qx_boot %*% sv$u = Ux_tilde Bx_inv_sqrt sv$u.
+        Tx_new <- Ux_tilde %*% (Bx_inv_sqrt %*% sv$u)
+        Ty_new <- Uy_tilde %*% (By_inv_sqrt %*% sv$v)
+      }
 
       new_cx <- core_obj$center_x + as.numeric(Vx %*% (dx * ux_bar))
       new_cy <- core_obj$center_y + as.numeric(Vy %*% (dy * uy_bar))
 
       fit <- list(
-        relation = "covariance",
+        relation = rel,
         d        = d_new,
         Wx       = Wx_new,
         Wy       = Wy_new,
@@ -406,6 +475,20 @@ adapter_cancor <- function(adapter_id = "cancor_cross",
 # fast with a named reason if any check fires.
 # -----------------------------------------------------------------------------
 
+.is_cross_correlation_recipe <- function(recipe) {
+  !is.null(recipe) &&
+    inherits(recipe, "multifer_infer_recipe") &&
+    identical(recipe$shape$geometry$kind, "cross") &&
+    identical(recipe$shape$relation$kind, "correlation")
+}
+
+.cross_recipe_design <- function(recipe) {
+  if (is.null(recipe) || is.null(recipe$shape) || is.null(recipe$shape$design)) {
+    return(NULL)
+  }
+  recipe$shape$design
+}
+
 #' @noRd
 .cross_baser_checks <- function() {
   list(
@@ -481,6 +564,152 @@ adapter_cancor <- function(adapter_id = "cancor_cross",
         rx <- qr(Xc, tol = tol_x)$rank
         ry <- qr(Yc, tol = tol_y)$rank
         rx == ncol(Xc) && ry == ncol(Yc)
+      }
+    ),
+    list(
+      name   = "cross_correlation_sample_size",
+      detail = paste0(
+        "correlation-mode whitening requires enough effective rows: ",
+        "for paired/blocked designs n must exceed p + q; for nuisance-adjusted ",
+        "designs n - rank(Z) must exceed p + q"
+      ),
+      check  = function(data, recipe = NULL, ...) {
+        if (!.is_cross_correlation_recipe(recipe)) return(TRUE)
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+
+        n <- nrow(data$X)
+        p <- ncol(data$X)
+        q <- ncol(data$Y)
+        design <- .cross_recipe_design(recipe)
+        design_kind <- design$kind %||% "paired_rows"
+
+        if (identical(design_kind, "nuisance_adjusted")) {
+          Z <- design$Z
+          if (is.null(Z) || !is.matrix(Z) || !is.numeric(Z)) return(TRUE)
+          r <- qr(Z, tol = 1e-10)$rank
+          n_eff <- n - r
+          return(list(
+            passed = n_eff > (p + q),
+            detail = sprintf(
+              "nuisance-adjusted correlation requires n - rank(Z) = %d to exceed p + q = %d.",
+              n_eff, p + q
+            )
+          ))
+        }
+
+        list(
+          passed = n > (p + q),
+          detail = sprintf(
+            "correlation-mode whitening requires n = %d to exceed p + q = %d.",
+            n, p + q
+          )
+        )
+      }
+    ),
+    list(
+      name   = "cross_nuisance_design_rank",
+      detail = paste0(
+        "nuisance-adjusted correlation requires a full-column-rank Z and ",
+        "enough residual degrees of freedom for whitening"
+      ),
+      check  = function(data, recipe = NULL, ...) {
+        if (!.is_cross_correlation_recipe(recipe)) return(TRUE)
+        design <- .cross_recipe_design(recipe)
+        if (is.null(design) || !identical(design$kind, "nuisance_adjusted")) {
+          return(TRUE)
+        }
+        Z <- design$Z
+        if (is.null(Z) || !is.matrix(Z) || !is.numeric(Z)) return(TRUE)
+        if (!is.list(data) || is.null(data$X) || is.null(data$Y)) return(TRUE)
+        if (!is.matrix(data$X) || !is.matrix(data$Y)) return(TRUE)
+
+        r <- qr(Z, tol = 1e-10)$rank
+        z_full_rank <- identical(r, ncol(Z))
+        n_eff <- nrow(data$X) - r
+        p_plus_q <- ncol(data$X) + ncol(data$Y)
+
+        if (!z_full_rank) {
+          return(list(
+            passed = FALSE,
+            detail = sprintf(
+              "nuisance matrix Z has numerical rank %d but %d columns; full column rank is required.",
+              r, ncol(Z)
+            )
+          ))
+        }
+
+        list(
+          passed = n_eff > p_plus_q,
+          detail = sprintf(
+            "nuisance-adjusted correlation leaves n - rank(Z) = %d residual rows, which must exceed p + q = %d.",
+            n_eff, p_plus_q
+          )
+        )
+      }
+    ),
+    list(
+      name   = "cross_grouped_design_consistency",
+      detail = paste0(
+        "grouped correlation designs require at least one exchangeable block ",
+        "with size > 1, and nuisance-adjusted grouped designs must retain such a block ",
+        "after residual-basis row reduction"
+      ),
+      check  = function(data, recipe = NULL, ...) {
+        if (!.is_cross_correlation_recipe(recipe)) return(TRUE)
+        design <- .cross_recipe_design(recipe)
+        if (is.null(design)) return(TRUE)
+
+        groups <- NULL
+        if (identical(design$kind, "blocked_rows")) {
+          groups <- design$groups
+        } else if (identical(design$kind, "nuisance_adjusted") && !is.null(design$groups)) {
+          groups <- design$groups
+        } else {
+          return(TRUE)
+        }
+
+        groups <- as.factor(groups)
+        group_sizes <- table(groups)
+        if (!any(group_sizes > 1L)) {
+          return(list(
+            passed = FALSE,
+            detail = "grouped correlation design is singleton-only; restricted permutation would be the identity."
+          ))
+        }
+
+        if (!identical(design$kind, "nuisance_adjusted")) {
+          return(TRUE)
+        }
+
+        Z <- design$Z
+        if (is.null(Z) || !is.matrix(Z) || !is.numeric(Z)) return(TRUE)
+        r <- qr(Z, tol = 1e-10)$rank
+        n_keep <- nrow(Z) - r
+        if (n_keep <= 0L) {
+          return(list(
+            passed = FALSE,
+            detail = "nuisance-adjusted grouped correlation leaves no residual rows after projecting out Z."
+          ))
+        }
+
+        keep_idx <- tryCatch(
+          .theil_keep_indices(groups, n_keep),
+          error = function(e) e
+        )
+        if (inherits(keep_idx, "error")) {
+          return(list(
+            passed = FALSE,
+            detail = paste0("group structure is incompatible with the residual-basis reduction: ",
+                            conditionMessage(keep_idx))
+          ))
+        }
+
+        reduced_sizes <- table(droplevels(groups[keep_idx]))
+        list(
+          passed = any(reduced_sizes > 1L),
+          detail = "after residual-basis reduction, grouped correlation must retain at least one exchangeable block with size > 1."
+        )
       }
     )
   )

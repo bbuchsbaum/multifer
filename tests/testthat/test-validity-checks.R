@@ -174,6 +174,182 @@ test_that("cross adapter permissive mode records rank-deficiency violation witho
   expect_match(rank_result$detail, "full numerical column rank")
 })
 
+test_that("correlation design checks are present on both CCA adapters", {
+  expected <- c(
+    "cross_correlation_sample_size",
+    "cross_nuisance_design_rank",
+    "cross_grouped_design_consistency"
+  )
+
+  for (adapter in list(adapter_cross_svd(), adapter_cancor())) {
+    got <- vapply(adapter$checked_assumptions, `[[`, character(1L), "name")
+    expect_true(all(expected %in% got))
+  }
+})
+
+test_that("correlation sample-size check passes on a sufficiently large paired design", {
+  adapter <- adapter_cross_svd()
+  set.seed(101)
+  X <- matrix(rnorm(30 * 4), 30, 4)
+  Y <- matrix(rnorm(30 * 3), 30, 3)
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = paired_rows(),
+    adapter = adapter
+  )
+
+  results <- run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE)
+  expect_true(isTRUE(results[["cross_correlation_sample_size"]]$passed))
+})
+
+test_that("correlation sample-size check fails when n does not exceed p + q", {
+  adapter <- adapter_cross_svd()
+  set.seed(102)
+  X <- matrix(rnorm(7 * 4), 7, 4)
+  Y <- matrix(rnorm(7 * 3), 7, 3)
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = paired_rows(),
+    adapter = adapter
+  )
+
+  expect_error(
+    run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE),
+    "cross_correlation_sample_size"
+  )
+})
+
+test_that("nuisance-design rank check passes on full-rank Z with enough residual rows", {
+  adapter <- adapter_cancor()
+  set.seed(103)
+  X <- matrix(rnorm(30 * 4), 30, 4)
+  Y <- matrix(rnorm(30 * 3), 30, 3)
+  Z <- cbind(1, scale(seq_len(30)), sin(seq_len(30) / 5))
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = nuisance_adjusted(Z),
+    adapter = adapter
+  )
+
+  results <- run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE)
+  expect_true(isTRUE(results[["cross_nuisance_design_rank"]]$passed))
+})
+
+test_that("nuisance-design rank check fails on rank-deficient Z", {
+  adapter <- adapter_cancor()
+  set.seed(104)
+  X <- matrix(rnorm(30 * 4), 30, 4)
+  Y <- matrix(rnorm(30 * 3), 30, 3)
+  z <- scale(seq_len(30))
+  Z <- cbind(1, z, 2 * z)
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = nuisance_adjusted(Z),
+    adapter = adapter
+  )
+
+  expect_error(
+    run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE),
+    "cross_nuisance_design_rank"
+  )
+})
+
+test_that("grouped-design consistency check passes when exchangeable blocks are real", {
+  adapter <- adapter_cross_svd()
+  set.seed(105)
+  X <- matrix(rnorm(24 * 4), 24, 4)
+  Y <- matrix(rnorm(24 * 3), 24, 3)
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = blocked_rows(rep(1:8, each = 3)),
+    adapter = adapter
+  )
+
+  results <- run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE)
+  expect_true(isTRUE(results[["cross_grouped_design_consistency"]]$passed))
+})
+
+test_that("grouped-design consistency check fails on singleton-only groups", {
+  adapter <- adapter_cross_svd()
+  set.seed(106)
+  X <- matrix(rnorm(20 * 4), 20, 4)
+  Y <- matrix(rnorm(20 * 3), 20, 3)
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = blocked_rows(seq_len(20)),
+    adapter = adapter
+  )
+
+  expect_error(
+    run_adapter_checks(adapter, list(X = X, Y = Y), recipe = recipe, strict = TRUE),
+    "cross_grouped_design_consistency"
+  )
+})
+
+test_that("infer_cca strict mode surfaces grouped-design validity failures by name", {
+  ensure_default_adapters()
+  set.seed(107)
+  X <- matrix(rnorm(20 * 4), 20, 4)
+  Y <- matrix(rnorm(20 * 3), 20, 3)
+
+  expect_error(
+    infer_cca(
+      X, Y,
+      design = blocked_rows(seq_len(20)),
+      B = 9L,
+      R = 2L,
+      seed = 1L
+    ),
+    "cross_grouped_design_consistency"
+  )
+})
+
+test_that("singleton grouped permutations are warning-free in permissive mode", {
+  ensure_default_adapters()
+  set.seed(1071)
+  n <- 12L
+  X <- matrix(rnorm(n * 4), n, 4)
+  Y <- matrix(rnorm(n * 3), n, 3)
+
+  expect_no_warning(
+    infer_cca(
+      X, Y,
+      design = blocked_rows(seq_len(n)),
+      strict = FALSE,
+      B = 9L,
+      R = 0L,
+      seed = 1L
+    )
+  )
+})
+
+test_that("infer_cca permissive mode records nuisance-design validity failures", {
+  ensure_default_adapters()
+  set.seed(108)
+  X <- matrix(rnorm(30 * 4), 30, 4)
+  Y <- matrix(rnorm(30 * 3), 30, 3)
+  z <- scale(seq_len(30))
+  Z <- cbind(1, z, 2 * z)
+
+  res <- infer_cca(
+    X, Y,
+    design = nuisance_adjusted(Z),
+    strict = FALSE,
+    B = 9L,
+    R = 2L,
+    seed = 2L
+  )
+
+  expect_true(is.list(res$assumptions$checked))
+  expect_false(isTRUE(res$assumptions$checked[["cross_nuisance_design_rank"]]$passed))
+})
+
 test_that("infer() cross-covariance runs paired-row + finite + min-dim checks end-to-end", {
   ensure_default_adapters()
   set.seed(2)

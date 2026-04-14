@@ -175,16 +175,20 @@ bootstrap_fits <- function(recipe,
   )
 
   ## --- Phase 1.5 fast-path detection -----------------------------------------
-  # If the adapter exposes core() and update_core(), precompute the core once
-  # and use update_core per replicate (O(n*k^2 + k_x*k_y) per rep) instead of
-  # refit (O(n*p^2) or O(p_x*p_y*min(n,p,q))). The cross correlation branch
-  # does not have a clean fast path (per-replicate QR rescaling) and falls
-  # back to refit by gating on rel_kind.
+  # If the adapter exposes core() and update_core(), precompute the core
+  # once and use update_core per replicate (O(n*k^2 + k_x*k_y) per rep)
+  # instead of refit (O(n*p^2) or O(p_x*p_y*min(n,p,q))). Both cross
+  # relations now admit a clean k_x x k_y core update:
+  #   covariance  : D-weighted inner SVD (Part 2 §9).
+  #   correlation : B^{-1/2}-whitened inner SVD (multifer-9u9.1.3).
+  # Correlation-mode fast path requires the core to carry the full
+  # block column rank; .truncate_core() leaves correlation cores alone.
   has_fast_path <- fast_path == "auto" &&
                    !is.null(adapter$core) &&
                    !is.null(adapter$update_core) &&
                    (geom_kind == "oneblock" ||
-                    (geom_kind == "cross" && rel_kind == "covariance"))
+                    (geom_kind == "cross" &&
+                     rel_kind %in% c("covariance", "correlation")))
 
   core_obj <- if (has_fast_path) {
     co <- adapter$core(original_fit, data)
@@ -251,7 +255,16 @@ bootstrap_fits <- function(recipe,
       )
     }
 
-    rep_fit <- if (has_fast_path) {
+    used_fallback <- FALSE
+    rep_fit <- if (has_fast_path && rel_kind == "correlation") {
+      tryCatch(
+        adapter$update_core(core_obj, indices = indices),
+        multifer_core_rank_deficient = function(e) {
+          used_fallback <<- TRUE
+          adapter$refit(original_fit, rep_data)
+        }
+      )
+    } else if (has_fast_path) {
       adapter$update_core(core_obj, indices = indices)
     } else {
       adapter$refit(original_fit, rep_data)
@@ -319,7 +332,8 @@ bootstrap_fits <- function(recipe,
       fit               = rep_fit,
       aligned_loadings  = rep_aligned_loadings,
       aligned_scores    = rep_aligned_scores,
-      resample_indices  = indices
+      resample_indices  = indices,
+      used_fallback     = used_fallback
     )
   }
 
@@ -345,6 +359,8 @@ bootstrap_fits <- function(recipe,
 
   ## --- assemble artifact ------------------------------------------------------
 
+  n_fallbacks <- sum(vapply(reps, function(r) isTRUE(r$used_fallback), logical(1L)))
+
   structure(
     list(
       reps           = reps,
@@ -353,7 +369,10 @@ bootstrap_fits <- function(recipe,
       domains        = domains,
       seed           = seed,
       used_fast_path = has_fast_path,
-      parallel       = parallel
+      parallel       = parallel,
+      cost           = list(
+        core_rank_deficient_fallbacks = as.integer(n_fallbacks)
+      )
     ),
     class = "multifer_bootstrap_artifact"
   )
@@ -379,7 +398,14 @@ bootstrap_fits <- function(recipe,
       core_obj$k <- k
     }
   } else if (!is.null(core_obj$Ux) && !is.null(core_obj$Uy)) {
-    # cross covariance schema.
+    # cross schema. Correlation-mode fast path (multifer-9u9.1.3)
+    # requires the full block column rank for the B^{-1/2} whitening
+    # identity to stay exact; truncation would silently bias the
+    # canonical correlations. The covariance path tolerates truncation
+    # because its inner SVD only depends on the column spans.
+    if (!is.null(core_obj$relation) && core_obj$relation == "correlation") {
+      return(core_obj)
+    }
     kx <- min(rank_cap, length(core_obj$dx))
     ky <- min(rank_cap, length(core_obj$dy))
     if (kx < length(core_obj$dx)) {

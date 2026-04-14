@@ -52,3 +52,43 @@ test_that("cross covariance fast path agrees with refit path on a grid of shapes
     )
   }
 })
+
+test_that("blocked_rows correlation fast path agrees with refit path on a shape grid (multifer-9u9.1.1)", {
+  skip_on_cran()
+  ensure_default_adapters()
+
+  shapes <- list(
+    list(name = "blocked_6x6",  n = 36L, p = 8L, q = 6L, groups = rep(1:6, each = 6)),
+    list(name = "blocked_4x9",  n = 36L, p = 8L, q = 6L, groups = rep(1:4, each = 9)),
+    list(name = "blocked_3x12", n = 36L, p = 8L, q = 6L, groups = rep(1:3, each = 12))
+  )
+
+  for (sc in shapes) {
+    set.seed(2026L + nchar(sc$name))
+    X <- matrix(stats::rnorm(sc$n * sc$p), sc$n, sc$p)
+    Y <- matrix(stats::rnorm(sc$n * sc$q), sc$n, sc$q)
+
+    common <- list(
+      adapter  = "cross_svd",
+      data     = list(X = X, Y = Y),
+      geometry = "cross",
+      relation = "correlation",
+      design   = blocked_rows(sc$groups),
+      B = 49L, R = 6L, alpha = 0.05, seed = 41L
+    )
+
+    r_off  <- do.call(infer, c(common, list(fast_path = "off")))
+    r_auto <- do.call(infer, c(common, list(fast_path = "auto")))
+
+    expect_equal(
+      r_off$units$selected,
+      r_auto$units$selected,
+      info = sprintf("%s selection agreement", sc$name)
+    )
+    expect_equal(
+      r_off$component_tests$p_value <= 0.05,
+      r_auto$component_tests$p_value <= 0.05,
+      info = sprintf("%s rejection-decision agreement", sc$name)
+    )
+  }
+})

@@ -8,7 +8,12 @@
 .restricted_row_permutation <- function(groups) {
   groups <- as.factor(groups)
   idx <- seq_along(groups)
-  unsplit(lapply(split(idx, groups), sample), groups)
+  unsplit(lapply(split(idx, groups), function(g) {
+    if (length(g) <= 1L) {
+      return(g)
+    }
+    sample(g, length(g))
+  }), groups)
 }
 
 .theil_keep_indices <- function(groups, n_keep) {
@@ -207,8 +212,18 @@ run_cross_ladder <- function(recipe,
   Xc <- sweep(X, 2L, colMeans(X), "-")
   Yc <- sweep(Y, 2L, colMeans(Y), "-")
   design_kind <- recipe$shape$design$kind
+  # Multi-root correlation-mode stepwise deflation is valid whenever the
+  # null action preserves within-row-group exchangeability AND the
+  # whitened-space deflation is linear in rows (so it commutes with any
+  # restricted row permutation). Both conditions hold for:
+  #   - paired_rows         (trivial group = all rows)
+  #   - nuisance_adjusted   (residual-basis transform + optional groups)
+  #   - blocked_rows        (within-block restricted permutation,
+  #                          within-block exchangeability preserved by
+  #                          the linear projection deflation)
+  # See notes/package_vision.md point 1 and multifer-9u9.1.1.
   allow_multiroot_correlation <- rel_kind == "correlation" &&
-    design_kind %in% c("paired_rows", "nuisance_adjusted")
+    design_kind %in% c("paired_rows", "nuisance_adjusted", "blocked_rows")
 
   ## --- relation-specific cross statistic --------------------------------------
   # cross_stat(X_residual, Y_residual) returns the FULL singular-value

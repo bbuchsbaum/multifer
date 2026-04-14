@@ -97,8 +97,10 @@ test_that("phase 1.5 integration: cross_null correlation stays on refit path", {
     relation = "correlation",
     B        = 99L, R = 6L, alpha = 0.05, seed = 37L
   )
-  # Correlation mode does not have a core-update fast path.
-  expect_equal(res$cost$core_updates, 0L)
+  # Correlation mode gained an exact fast path under multifer-9u9.1.3
+  # (B^{-1/2}-whitened k_x x k_y core update). Fast path is now used
+  # by default, so core_updates should report the R replicates.
+  expect_equal(res$cost$core_updates, 6L)
 })
 
 test_that("phase 1.5 integration: speed_agreement medium runs under both paths", {

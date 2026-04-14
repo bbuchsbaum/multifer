@@ -291,27 +291,111 @@ test_that("cross covariance fast-path matches refit on leading signal units in s
   )
 })
 
-test_that("bootstrap_fits falls back to refit for cross correlation", {
-  set.seed(4)
-  X <- matrix(rnorm(40 * 6), 40, 6)
-  Y <- matrix(rnorm(40 * 5), 40, 5)
+test_that("cross correlation fast-path matches refit bit-for-bit (multifer-9u9.1.3)", {
+  # The correlation-mode fast path (B^{-1/2}-whitened k_x x k_y inner
+  # SVD) is mathematically exact and must match the refit path on
+  # canonical correlations, lifted loadings, scores, and stability
+  # summaries across a grid of shape/SNR regimes. This pins the
+  # Sprint 1b correctness contract per bead multifer-9u9.1.3.
+  #
+  # Grid mirrors the covariance shape grid in test-exact-path-regression.R
+  # but scaled down so tests stay fast. No planted signal is needed:
+  # the bit-for-bit claim is about fast == refit on the SAME resamples.
+
+  shapes <- list(
+    list(name = "tall_narrow", n = 80L,  p = 12L, q = 10L),
+    list(name = "square_mid",  n = 60L,  p = 15L, q = 15L),
+    list(name = "p_dominant",  n = 70L,  p = 20L, q = 10L),
+    list(name = "q_dominant",  n = 70L,  p = 10L, q = 20L)
+  )
+
   adapter <- adapter_cross_svd()
   recipe <- infer_recipe(
     geometry = "cross", relation = "correlation",
     adapter = adapter, strict = TRUE
   )
-  original_fit <- adapter$refit(
-    NULL, list(X = X, Y = Y, relation = "correlation")
-  )
-  units <- form_units(original_fit$d^2)
 
-  artifact <- bootstrap_fits(
-    recipe = recipe, adapter = adapter,
-    data = list(X = X, Y = Y),
-    original_fit = original_fit, units = units,
-    R = 4L, method_align = "sign", seed = 37
-  )
-  expect_false(isTRUE(artifact$used_fast_path))
+  for (sc in shapes) {
+    set.seed(41L + nchar(sc$name))
+    X <- matrix(rnorm(sc$n * sc$p), sc$n, sc$p)
+    Y <- matrix(rnorm(sc$n * sc$q), sc$n, sc$q)
+
+    original_fit <- adapter$refit(
+      NULL, list(X = X, Y = Y, relation = "correlation")
+    )
+    units <- form_units(original_fit$d[1:3]^2)
+
+    fast <- bootstrap_fits(
+      recipe = recipe, adapter = adapter,
+      data = list(X = X, Y = Y),
+      original_fit = original_fit, units = units,
+      R = 6L, method_align = "sign", seed = 41L + nchar(sc$name),
+      fast_path = "auto", core_rank = NULL
+    )
+    slow <- bootstrap_fits(
+      recipe = recipe, adapter = adapter,
+      data = list(X = X, Y = Y),
+      original_fit = original_fit, units = units,
+      R = 6L, method_align = "sign", seed = 41L + nchar(sc$name),
+      fast_path = "off", core_rank = NULL
+    )
+
+    expect_true(isTRUE(fast$used_fast_path),
+                info = sprintf("%s used_fast_path", sc$name))
+    expect_false(isTRUE(slow$used_fast_path),
+                 info = sprintf("%s slow used_fast_path", sc$name))
+
+    for (b in seq_len(fast$R)) {
+      expect_equal(
+        fast$reps[[b]]$resample_indices,
+        slow$reps[[b]]$resample_indices,
+        info = sprintf("%s rep %d resample_indices", sc$name, b)
+      )
+      expect_equal(
+        fast$reps[[b]]$fit$d[1:3],
+        slow$reps[[b]]$fit$d[1:3],
+        tolerance = 1e-10,
+        info = sprintf("%s rep %d canonical correlations", sc$name, b)
+      )
+      expect_equal(
+        fast$reps[[b]]$aligned_loadings$X[, 1:3, drop = FALSE],
+        slow$reps[[b]]$aligned_loadings$X[, 1:3, drop = FALSE],
+        tolerance = 1e-10,
+        info = sprintf("%s rep %d aligned X loadings", sc$name, b)
+      )
+      expect_equal(
+        fast$reps[[b]]$aligned_loadings$Y[, 1:3, drop = FALSE],
+        slow$reps[[b]]$aligned_loadings$Y[, 1:3, drop = FALSE],
+        tolerance = 1e-10,
+        info = sprintf("%s rep %d aligned Y loadings", sc$name, b)
+      )
+      expect_equal(
+        fast$reps[[b]]$aligned_scores$X[, 1:3, drop = FALSE],
+        slow$reps[[b]]$aligned_scores$X[, 1:3, drop = FALSE],
+        tolerance = 1e-10,
+        info = sprintf("%s rep %d aligned X scores", sc$name, b)
+      )
+      expect_equal(
+        fast$reps[[b]]$aligned_scores$Y[, 1:3, drop = FALSE],
+        slow$reps[[b]]$aligned_scores$Y[, 1:3, drop = FALSE],
+        tolerance = 1e-10,
+        info = sprintf("%s rep %d aligned Y scores", sc$name, b)
+      )
+    }
+
+    expect_equal(
+      variable_stability_from_bootstrap(fast, units),
+      variable_stability_from_bootstrap(slow, units),
+      tolerance = 1e-10,
+      info = sprintf("%s variable_stability", sc$name)
+    )
+    expect_equal(
+      subspace_stability_from_bootstrap(fast, original_fit, adapter, units),
+      subspace_stability_from_bootstrap(slow, original_fit, adapter, units),
+      tolerance = 1e-10,
+      info = sprintf("%s subspace_stability", sc$name)
+    )
+  }
 })
 
 test_that("infer(cross, covariance) reports core_updates in $cost", {
@@ -330,7 +414,7 @@ test_that("infer(cross, covariance) reports core_updates in $cost", {
   expect_equal(res$cost$core_updates, 5L)
 })
 
-test_that("infer(cross, correlation) does NOT report core_updates", {
+test_that("infer(cross, correlation) reports core_updates via fast path (multifer-9u9.1.3)", {
   skip_on_cran()
   ensure_default_adapters()
   set.seed(6)
@@ -342,5 +426,6 @@ test_that("infer(cross, correlation) does NOT report core_updates", {
     geometry = "cross", relation = "correlation",
     B = 49L, R = 5L, alpha = 0.05, seed = 43
   )
-  expect_equal(res$cost$core_updates, 0L)
+  expect_true(is_infer_result(res))
+  expect_equal(res$cost$core_updates, 5L)
 })

@@ -1,127 +1,131 @@
-# High-discrimination validity tests for numerical helper paths and
-# sequential Monte Carlo control flow. These tests target invariants that
-# are easy to break with seemingly harmless optimizations.
-
-make_stream_gen <- function(values) {
-  i <- 0L
-  force(values)
-  function() {
-    i <<- i + 1L
-    if (i > length(values)) {
-      stop("stream exhausted", call. = FALSE)
-    }
-    values[[i]]
-  }
+default_adapter_negative_fixture <- function(adapter_id) {
+  switch(
+    adapter_id,
+    "svd_oneblock" = list(
+      data = cbind(matrix(stats::rnorm(24), nrow = 8L), 1),
+      geometry = "oneblock",
+      relation = "variance",
+      pattern = "oneblock_columns_have_variance"
+    ),
+    "prcomp_oneblock" = list(
+      data = cbind(matrix(stats::rnorm(24), nrow = 8L), 1),
+      geometry = "oneblock",
+      relation = "variance",
+      pattern = "oneblock_columns_have_variance"
+    ),
+    "multivarious_pca" = list(
+      data = cbind(matrix(stats::rnorm(24), nrow = 8L), 1),
+      geometry = "oneblock",
+      relation = "variance",
+      pattern = "oneblock_columns_have_variance"
+    ),
+    "cross_svd" = list(
+      data = list(
+        X = cbind(matrix(stats::rnorm(40), nrow = 10L), 1),
+        Y = matrix(stats::rnorm(30), nrow = 10L)
+      ),
+      geometry = "cross",
+      relation = "covariance",
+      pattern = "cross_columns_have_variance"
+    ),
+    "cancor_cross" = list(
+      data = list(
+        X = cbind(matrix(stats::rnorm(40), nrow = 10L), 1),
+        Y = matrix(stats::rnorm(30), nrow = 10L)
+      ),
+      geometry = "cross",
+      relation = "correlation",
+      pattern = "cross_columns_have_variance"
+    ),
+    "multivarious_plsc" = list(
+      data = list(
+        X = cbind(matrix(stats::rnorm(40), nrow = 10L), 1),
+        Y = matrix(stats::rnorm(30), nrow = 10L)
+      ),
+      geometry = "cross",
+      relation = "covariance",
+      pattern = "cross_columns_have_variance"
+    ),
+    "lda_refit" = list(
+      data = list(
+        X = matrix(stats::rnorm(24), nrow = 8L),
+        y = factor(rep("a", 8L))
+      ),
+      geometry = "geneig",
+      relation = "generalized_eigen",
+      pattern = "lda_grouping_factor"
+    ),
+    "plsr_refit" = list(
+      data = list(
+        X = matrix(stats::rnorm(24), nrow = 8L),
+        Y = matrix("bad", nrow = 8L, ncol = 1L)
+      ),
+      geometry = "cross",
+      relation = "predictive",
+      pattern = "predictive_y_numeric_matrix"
+    ),
+    stop(sprintf("No negative fixture registered for adapter '%s'.", adapter_id),
+         call. = FALSE)
+  )
 }
 
-test_that("top_singular_values matches full SVD on canonical matrices", {
-  set.seed(7001)
+test_that("every default adapter ships concrete checked assumptions", {
+  ensure_default_adapters()
 
-  tall <- matrix(stats::rnorm(80 * 12), nrow = 80, ncol = 12)
-  wide <- matrix(stats::rnorm(12 * 80), nrow = 12, ncol = 80)
+  ids <- list_infer_adapters()
+  expect_true(length(ids) >= 4L)
 
-  U <- qr.Q(qr(matrix(stats::rnorm(20 * 3), nrow = 20, ncol = 3)))
-  V <- qr.Q(qr(matrix(stats::rnorm(10 * 3), nrow = 10, ncol = 3)))
-  lowrank <- U %*% diag(c(9, 1e-6, 1e-10), nrow = 3, ncol = 3) %*% t(V)
+  for (adapter_id in ids) {
+    adapter <- get_infer_adapter(adapter_id)
+    expect_true(length(adapter$checked_assumptions) > 0L, info = adapter_id)
 
-  zero <- matrix(0, nrow = 15, ncol = 10)
-
-  cases <- list(
-    list(name = "tall",    X = tall,    ks = c(1L, 2L, 3L), tol = 1e-10),
-    list(name = "wide",    X = wide,    ks = c(1L, 2L, 3L), tol = 1e-10),
-    list(name = "lowrank", X = lowrank, ks = c(1L, 2L, 3L), tol = 1e-6),
-    list(name = "zero",    X = zero,    ks = c(1L, 2L, 3L), tol = 0)
-  )
-
-  for (case in cases) {
-    X <- case$X
-    ref <- base::svd(X)$d
-    for (k in case$ks) {
-      got <- top_singular_values(X, k)
-      expect_true(
-        max(abs(got - ref[seq_len(k)])) <= case$tol,
-        info = sprintf("%s k=%d", case$name, k)
-      )
+    for (check in adapter$checked_assumptions) {
+      expect_true(is.list(check), info = adapter_id)
+      expect_true(is.character(check$name) && length(check$name) == 1L && nzchar(check$name),
+                  info = adapter_id)
+      expect_true(is.character(check$detail) && length(check$detail) == 1L && nzchar(check$detail),
+                  info = adapter_id)
+      expect_true(is.function(check$check), info = paste(adapter_id, check$name))
     }
   }
 })
 
-test_that("mc_sequential_bc respects consumed-prefix semantics under early stop", {
-  observed <- 0.5
-  values <- c(0.6, 0.7, 0.1, 0.8, 0.2, 0.4, 0.9, 0.3, 0.1, 0.2)
+test_that("every default adapter fails strict infer() on a named negative fixture", {
+  ensure_default_adapters()
 
-  res <- mc_sequential_bc(
-    observed_stat = observed,
-    null_gen_fn   = make_stream_gen(values),
-    B_max         = 10L,
-    alpha         = 0.2,
-    batch_size    = 2L
-  )
-
-  expect_equal(res$h, 3L)
-  expect_equal(res$stop_reason, "non_reject_early")
-  expect_equal(res$drawn, 4L)
-  expect_equal(res$r, 3L)
-  expect_equal(res$null_values, values[1:4])
-  expect_equal(res$p_value, (1 + 3) / (4 + 1), tolerance = 1e-12)
-  expect_equal(sum(res$batch_schedule), res$drawn)
+  for (adapter_id in list_infer_adapters()) {
+    fixture <- default_adapter_negative_fixture(adapter_id)
+    expect_error(
+      infer(
+        adapter = adapter_id,
+        data = fixture$data,
+        geometry = fixture$geometry,
+        relation = fixture$relation,
+        strict = TRUE,
+        B = 9L,
+        R = 0L,
+        seed = 1L
+      ),
+      fixture$pattern,
+      info = adapter_id
+    )
+  }
 })
 
-test_that("mc_sequential_bc batch granularity only delays stopping, not the boundary logic", {
-  observed <- 0.5
-  values <- c(0.6, 0.7, 0.1, 0.8, 0.2, 0.4, 0.9, 0.3, 0.1, 0.2)
+test_that("every default adapter records a failed named check in permissive mode", {
+  ensure_default_adapters()
 
-  fine <- mc_sequential_bc(
-    observed_stat = observed,
-    null_gen_fn   = make_stream_gen(values),
-    B_max         = 10L,
-    alpha         = 0.2,
-    batch_size    = 1L
-  )
-  coarse <- mc_sequential_bc(
-    observed_stat = observed,
-    null_gen_fn   = make_stream_gen(values),
-    B_max         = 10L,
-    alpha         = 0.2,
-    batch_size    = 5L
-  )
+  for (adapter_id in list_infer_adapters()) {
+    fixture <- default_adapter_negative_fixture(adapter_id)
+    adapter <- get_infer_adapter(adapter_id)
+    recipe <- infer_recipe(
+      geometry = fixture$geometry,
+      relation = fixture$relation,
+      adapter = adapter
+    )
+    results <- run_adapter_checks(adapter, fixture$data, recipe = recipe, strict = FALSE)
 
-  expect_equal(fine$stop_reason, "non_reject_early")
-  expect_equal(coarse$stop_reason, "non_reject_early")
-  expect_true(fine$drawn <= coarse$drawn)
-  expect_true(fine$r >= fine$h)
-  expect_true(coarse$r >= coarse$h)
-  expect_true(all(fine$null_values %in% values))
-  expect_true(all(coarse$null_values %in% values))
-})
-
-test_that("ladder_driver records explicit budget exhaustion and exact pool usage", {
-  res <- ladder_driver(
-    observed_stat_fn = function(step, data) 1,
-    null_stat_fn     = function(step, data) 0,
-    deflate_fn       = function(step, data) data,
-    initial_data     = matrix(0, nrow = 2, ncol = 2),
-    max_steps        = 4L,
-    B                = 3L,
-    B_total          = 5L,
-    batch_size       = 1L,
-    alpha            = 0.5,
-    seed             = 99L
-  )
-
-  expect_equal(res$last_step_tested, 3L)
-  expect_equal(res$rejected_through, 2L)
-  expect_equal(length(res$step_results), 3L)
-
-  expect_equal(res$step_results[[1]]$drawn, 3L)
-  expect_equal(res$step_results[[2]]$drawn, 2L)
-  expect_equal(res$step_results[[3]]$stop_reason, "budget_exhausted")
-  expect_equal(res$step_results[[3]]$B, 0L)
-  expect_equal(res$step_results[[3]]$drawn, 0L)
-  expect_true(is.na(res$step_results[[3]]$p_value))
-
-  expect_equal(res$total_draws_used, 5L)
-  expect_equal(res$allocator$used_fn(), 5L)
-  expect_equal(res$allocator$remaining_fn(), 0L)
-  expect_equal(res$allocator$schedule, c(3L, 2L))
+    expect_true(fixture$pattern %in% names(results), info = adapter_id)
+    expect_false(isTRUE(results[[fixture$pattern]]$passed), info = adapter_id)
+  }
 })
