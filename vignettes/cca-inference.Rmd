@@ -142,7 +142,8 @@ res2
    `nuisance_adjusted(Z)`, and for `nuisance_adjusted(Z, groups)` with
    grouped exchangeability.
 3. For a design not yet in the exact multi-root list,
-   `run_cross_ladder()` caps `max_steps` at 1 automatically. The
+   such as `exchangeable_rows()`, `run_cross_ladder()` caps `max_steps`
+   at 1 automatically. The
    first-root rejection is still valid; the package simply refuses
    to make a stepwise claim it cannot yet back up.
 

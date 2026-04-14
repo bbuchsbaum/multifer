@@ -34,6 +34,14 @@ The engine gate lives in [R/engine_cross.R](../R/engine_cross.R). The
 `allow_multiroot_correlation` branch is the authoritative implementation of
 that support matrix.
 
+| Design | Multi-root? | Current stance |
+| --- | --- | --- |
+| `paired_rows()` | yes | shipped default path |
+| `nuisance_adjusted(Z)` | yes | shipped supported path |
+| `nuisance_adjusted(Z, groups)` | yes | shipped supported path |
+| `blocked_rows(groups)` | yes | shipped supported path |
+| `exchangeable_rows()` | no | conservative first-root cap |
+
 ## Conservative boundary
 
 For correlation designs outside the support matrix, `run_cross_ladder()`
@@ -44,6 +52,8 @@ automatically caps `max_steps` at 1. This is intentional:
 - the package chooses conservatism over silent overreach.
 
 This boundary is part of the intended user contract, not a temporary accident.
+`exchangeable_rows()` is the simplest concrete example of a design that compiles
+but is deliberately kept on this conservative first-root-only path.
 
 ## Executable validity checks
 
@@ -75,6 +85,11 @@ contains an empirical-null study for `(cross, correlation)` showing that the
 observed rejection rate stays within a loose binomial tolerance band around the
 nominal alpha level on null synthetic data.
 
+[tests/testthat/test-cca-support-matrix.R](../tests/testthat/test-cca-support-matrix.R)
+extends that by pinning a grouped nuisance-adjusted null regime, so the shipped
+support matrix has an explicit null-calibration check beyond the plain paired
+design.
+
 ### Exactness and adapter agreement
 
 [tests/testthat/test-synthetic-correctness.R](../tests/testthat/test-synthetic-correctness.R)
@@ -87,6 +102,11 @@ checks that:
 
 These tests defend the claim that the shipped CCA adapters are computing the
 same latent object, not two loosely related approximations.
+
+[tests/testthat/test-cca-support-matrix.R](../tests/testthat/test-cca-support-matrix.R)
+adds a direct support-matrix regression: the four shipped designs must permit
+multi-root recovery on the same planted canonical-rank fixture, while an
+unsupported design must cap the ladder to a single tested root.
 
 ### Fast-path parity
 
