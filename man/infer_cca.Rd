@@ -4,7 +4,7 @@
 \alias{infer_cca}
 \title{Infer CCA-family significance and stability}
 \usage{
-infer_cca(X, Y, adapter = "cross_svd", ...)
+infer_cca(X, Y, adapter = "cancor_cross", ...)
 }
 \arguments{
 \item{X}{Numeric matrix for the first block.}
@@ -12,7 +12,7 @@ infer_cca(X, Y, adapter = "cross_svd", ...)
 \item{Y}{Numeric matrix for the second block. Must have the same
 number of rows as \code{X}.}
 
-\item{adapter}{Adapter id or object. Defaults to \code{"cross_svd"}.}
+\item{adapter}{Adapter id or object. Defaults to \code{"cancor_cross"}.}
 
 \item{...}{Additional arguments forwarded to \code{\link[=infer]{infer()}}.}
 }
@@ -26,10 +26,15 @@ supported nuisance-adjusted variants described in the package README
 and vignettes.
 }
 \details{
-CCA inference currently uses the \code{"cross_svd"} reference adapter in
-correlation mode: it ships the QR-whitened stepwise deflation and
-the design-aware null actions (\code{paired_rows}, \code{nuisance_adjusted},
-\code{blocked_rows}). A \code{multivarious}-backed CCA adapter is a natural
-extension point but has not been written yet; see
-\code{notes/package_vision.md} for the roadmap.
+The default adapter is \code{"cancor_cross"}, the dedicated
+correlation-only wrapper around \code{\link[stats:cancor]{stats::cancor()}}. This keeps the
+default CCA path single-relation and avoids the strict-dispatch
+ambiguity that is intentional in the dual-relation \code{"cross_svd"}
+reference adapter.
+
+\code{infer_cca()} still dispatches into the same correlation engine:
+QR-whitened stepwise deflation for paired rows and supported
+nuisance-adjusted designs, with conservative first-root capping for
+richer structured designs. Use \code{adapter = "cross_svd"} when you
+explicitly want the dual covariance/correlation reference adapter.
 }

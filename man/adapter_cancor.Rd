@@ -16,8 +16,9 @@ A \code{multifer_adapter} object.
 }
 \description{
 Wraps \code{stats::cancor()}. Declares ONLY \verb{(cross, correlation)}, so it has
-no ambiguity under strict dispatch. Use \code{adapter_cross_svd()} when you
-need both covariance and correlation modes from a single adapter.
+no ambiguity under strict dispatch. This is the canonical default for
+\code{\link[=infer_cca]{infer_cca()}}. Use \code{adapter_cross_svd()} when you need both covariance
+and correlation modes from a single reference adapter.
 }
 \section{Fit object convention}{
 

@@ -72,24 +72,29 @@ infer_plsc <- function(X,
 #' supported nuisance-adjusted variants described in the package README
 #' and vignettes.
 #'
-#' CCA inference currently uses the `"cross_svd"` reference adapter in
-#' correlation mode: it ships the QR-whitened stepwise deflation and
-#' the design-aware null actions (`paired_rows`, `nuisance_adjusted`,
-#' `blocked_rows`). A `multivarious`-backed CCA adapter is a natural
-#' extension point but has not been written yet; see
-#' `notes/package_vision.md` for the roadmap.
+#' The default adapter is `"cancor_cross"`, the dedicated
+#' correlation-only wrapper around [stats::cancor()]. This keeps the
+#' default CCA path single-relation and avoids the strict-dispatch
+#' ambiguity that is intentional in the dual-relation `"cross_svd"`
+#' reference adapter.
+#'
+#' `infer_cca()` still dispatches into the same correlation engine:
+#' QR-whitened stepwise deflation for paired rows and supported
+#' nuisance-adjusted designs, with conservative first-root capping for
+#' richer structured designs. Use `adapter = "cross_svd"` when you
+#' explicitly want the dual covariance/correlation reference adapter.
 #'
 #' @param X Numeric matrix for the first block.
 #' @param Y Numeric matrix for the second block. Must have the same
 #'   number of rows as `X`.
-#' @param adapter Adapter id or object. Defaults to `"cross_svd"`.
+#' @param adapter Adapter id or object. Defaults to `"cancor_cross"`.
 #' @param ... Additional arguments forwarded to [infer()].
 #'
 #' @return An [infer_result].
 #' @export
 infer_cca <- function(X,
                       Y,
-                      adapter = "cross_svd",
+                      adapter = "cancor_cross",
                       ...) {
   infer(
     adapter = adapter,

@@ -46,14 +46,32 @@ X <- U %*% t(Ax) + matrix(rnorm(n * p_x, sd = 0.4), n, p_x)
 Y <- U %*% t(Ay) + matrix(rnorm(n * p_y, sd = 0.4), n, p_y)
 ```
 
-## Running `infer()` with the `cross_svd` adapter in correlation mode
+## Running `infer_cca()`
+
+The default public wrapper uses the dedicated `cancor_cross` adapter,
+which claims only `(cross, correlation)` and therefore has no
+strict-dispatch ambiguity:
+
+```{r infer-cca}
+res <- infer_cca(
+  X, Y,
+  design = paired_rows(),
+  B = 99,
+  R = 20,
+  alpha = 0.05,
+  seed = 2
+)
+res
+```
+
+## Running `infer()` with the `cross_svd` reference adapter
 
 The `cross_svd` adapter claims **both** `(cross, covariance)` and
 `(cross, correlation)` capabilities. Under strict dispatch, that means
 you must spell out `relation` — calling `infer(geometry = "cross", ...)`
 alone is an error because the relation is ambiguous.
 
-```{r infer-cca}
+```{r infer-cross-svd}
 res <- infer(
   adapter  = "cross_svd",
   data     = list(X = X, Y = Y),
@@ -68,9 +86,9 @@ res <- infer(
 res
 ```
 
-## Using the `cancor_cross` adapter
+## Using the `cancor_cross` adapter explicitly
 
-If you want a correlation-only adapter with no ambiguity at all,
+If you want to spell out the correlation-only adapter directly,
 `cancor_cross` wraps `stats::cancor()` and claims only
 `(cross, correlation)`:
 

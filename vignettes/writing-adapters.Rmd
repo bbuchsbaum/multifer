@@ -50,6 +50,14 @@ The engine enforces the first at registration time, dispatches into
 the second at inference time, and runs the third before any fit
 touches the data.
 
+One practical rule follows from that immediately: if your fitted-model
+class is genuinely a single-relation method, declare only that one
+relation. `cancor_cross` is a good example. The dual-relation
+`cross_svd` adapter is useful as a reference implementation, but its
+ambiguity under strict dispatch is intentional and not the default
+pattern third-party packages should copy unless they really support
+multiple inferential relations from one fit class.
+
 ## The minimum surface
 
 Here is a stripped-down version of `adapter_svd()`, the one-block

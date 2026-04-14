@@ -15,6 +15,13 @@ The contract is what makes \code{multifer} extensible: the ladder driver,
 null-action machinery, bootstrap loop, and stability consumers all
 dispatch through the hooks below, so anything that honours the
 contract becomes a first-class family.
+
+A practical design rule follows from the contract: if your fitter is
+genuinely single-relation, declare only that one relation. The
+dedicated \code{cancor_cross} adapter is the model to copy. The dual-relation
+\code{cross_svd} adapter is kept as a reference implementation for the
+strict-dispatch ambiguity rule, not as the default pattern third-party
+packages should mimic.
 }
 \section{Required vs optional hooks}{
 

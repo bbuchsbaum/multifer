@@ -183,10 +183,12 @@ res <- infer_cca(
 res$component_tests
 ```
 
-For correlation-mode cross problems, the strongest current paths are the plain
-paired-row design, common-`Z` nuisance-adjusted designs, and nuisance-adjusted
-designs with within-block exchangeability. Richer structured designs still
-require more work on the exchangeability side.
+`infer_cca()` defaults to the dedicated `cancor_cross` adapter, which keeps
+the public CCA path single-relation and unambiguous. For correlation-mode
+cross problems, the strongest current paths are the plain paired-row design,
+common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
+within-block exchangeability. Richer structured designs still require more
+work on the exchangeability side.
 
 ## Built-in adapters and maturity
 

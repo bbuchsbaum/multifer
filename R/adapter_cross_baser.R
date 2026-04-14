@@ -84,16 +84,14 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
 
     residualize = function(x, k, data, ...) {
       # data is list(X = ., Y = .).
-      # Subtract rank-k contribution using relation-appropriate deflation.
-      # For covariance mode: deflate X and Y in original space via weight
-      # vectors -- X <- X - X %*% Wx[, 1:k] %*% t(Wx[, 1:k]), similarly Y.
-      # For correlation mode: deflate in the whitened (QR) coordinates and
-      # re-orthogonalize. Safe simplification for the reference adapter:
-      # re-project onto the orthogonal complement of the first-k weight
-      # directions, which is exact for the covariance mode and
-      # approximately correct for the correlation mode.
-      # Phase 1.5 note: a smarter deflation in whitened space is possible
-      # (see Part 2 section 9 permutation invariance argument).
+      # This reference adapter keeps a simple adapter-local residualize()
+      # hook so the capability gate is satisfied for both declared
+      # relations. The correlation engine used by infer_cca()/infer()
+      # does NOT rely on this approximation for supported CCA designs:
+      # run_cross_ladder() performs the QR-whitened stepwise deflation
+      # directly for relation = "correlation". This hook therefore
+      # remains a generic reference implementation and fallback, not the
+      # canonical CCA ladder path.
       k   <- min(k, length(x$d))
       idx <- seq_len(k)
       Wx_k <- x$Wx[, idx, drop = FALSE]
@@ -293,8 +291,9 @@ adapter_cross_svd <- function(adapter_id = "cross_svd",
 #' Adapter: stats::cancor for (cross, correlation)
 #'
 #' Wraps `stats::cancor()`. Declares ONLY `(cross, correlation)`, so it has
-#' no ambiguity under strict dispatch. Use `adapter_cross_svd()` when you
-#' need both covariance and correlation modes from a single adapter.
+#' no ambiguity under strict dispatch. This is the canonical default for
+#' [infer_cca()]. Use `adapter_cross_svd()` when you need both covariance
+#' and correlation modes from a single reference adapter.
 #'
 #' @section Fit object convention:
 #' The fit object produced and consumed by every hook is a plain list with

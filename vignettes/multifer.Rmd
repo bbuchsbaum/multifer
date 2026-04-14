@@ -118,7 +118,9 @@ infer_cca (X, Y)      # cross correlation
 ```
 
 The lower-level `infer()` stays available when you need explicit control
-over the adapter, the geometry, or a non-default design.
+over the adapter, the geometry, or a non-default design. The default
+`infer_cca()` path uses the dedicated `cancor_cross` adapter so the
+public CCA wrapper stays single-relation and unambiguous.
 
 ## Reading the result
 
