@@ -41,4 +41,9 @@ there are at most \code{K - 1} non-zero discriminant roots to test.
 
 For the current engine doctrine and the B-metric deflation rule, see
 \code{notes/engine_geneig_spec.md}.
+
+The public geneig surface is intentionally narrow in v1:
+\code{infer_lda()} exposes discriminant-root significance, while broader
+generalized-eigen bootstrap/stability workflows remain outside the
+wrapper-level contract for now.
 }

@@ -33,6 +33,10 @@ registration-time cross-fit gate, see
 \code{vignette("writing-adapters")}, especially the section
 "The predictive relation is stricter on purpose".
 
+The public predictive surface is intentionally narrow in v1:
+\code{infer_plsr()} is the shipped path, while broader predictive-cross
+families remain future work.
+
 As elsewhere in v1, \code{variable_significance} remains out of scope.
 Component p-values are significance outputs; variable / score /
 subspace summaries remain bootstrap stability outputs.

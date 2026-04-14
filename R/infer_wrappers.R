@@ -79,6 +79,10 @@ infer_plsc <- function(X,
 #' `vignette("writing-adapters")`, especially the section
 #' "The predictive relation is stricter on purpose".
 #'
+#' The public predictive surface is intentionally narrow in v1:
+#' `infer_plsr()` is the shipped path, while broader predictive-cross
+#' families remain future work.
+#'
 #' As elsewhere in v1, `variable_significance` remains out of scope.
 #' Component p-values are significance outputs; variable / score /
 #' subspace summaries remain bootstrap stability outputs.
@@ -133,9 +137,11 @@ infer_plsr <- function(X,
 #' Infer CCA-family significance and stability
 #'
 #' Thin convenience wrapper over [infer()] for two-block correlation
-#' models. Current validity is strongest for the paired-row design and
-#' supported nuisance-adjusted variants described in the package README
-#' and vignettes.
+#' models. The shipped multi-root support boundary covers the paired-row
+#' design and the supported nuisance-adjusted variants described in the
+#' package README and vignettes. Outside that support matrix, `multifer`
+#' conservatively caps the ladder to first-root inference rather than
+#' making unsupported stepwise claims.
 #'
 #' The default adapter is `"cancor_cross"`, the dedicated
 #' correlation-only wrapper around [stats::cancor()]. This keeps the
@@ -184,6 +190,11 @@ infer_cca <- function(X,
 #'
 #' For the current engine doctrine and the B-metric deflation rule, see
 #' `notes/engine_geneig_spec.md`.
+#'
+#' The public geneig surface is intentionally narrow in v1:
+#' `infer_lda()` exposes discriminant-root significance, while broader
+#' generalized-eigen bootstrap/stability workflows remain outside the
+#' wrapper-level contract for now.
 #'
 #' @param X Numeric matrix with observations in rows and variables in columns.
 #' @param labels Factor of class labels with one entry per row of `X`.

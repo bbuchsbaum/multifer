@@ -165,23 +165,31 @@ Both are true; the first is the more defensible paper sentence.
 
 These fit the paper's mainline story.
 
-### Qualified extension
+### Qualified extension inside the paper, broader shipped surface in the package
 
 - CCA / canonical-correlation operators
 
-The computational collapse is exact, but multi-root validity is not automatic. If CCA is mentioned in Paper 1, it should be:
+The package now ships a defended CCA path for paired-row and shipped
+nuisance-adjusted designs, including grouped exchangeability, and treats richer
+structured designs conservatively. Paper 1 can remain narrower than that.
+
+If CCA is mentioned in Paper 1, it should still be:
 
 - carefully qualified,
-- kept to the first root unless the full validity machinery is implemented,
-- or moved to an appendix / future-work section.
+- framed as a supported computational extension rather than the theorem-bearing center,
+- and kept subordinate to the PCA / PLSC main line, whether in a short section,
+  appendix, or explicit supported-extension discussion.
 
 ### Next engine, not just a new adapter
 
-- symmetric-definite generalized eigenvalue problems,
-- contrastive / discriminant / metric-weighted problems,
-- LDA as a special label-permutation case of the generalized-eigen path.
+- broader symmetric-definite generalized eigenvalue problems,
+- contrastive / metric-weighted problems,
+- generalized-eigen families beyond the shipped LDA path.
 
-These belong in the framework, but not as silent reuse of the existing oneblock or cross engines.
+These belong in the framework, but not as silent reuse of the existing oneblock
+or cross engines. The package now ships LDA as a narrow public geneig surface;
+that does not require Paper 1 to make generalized-eigen inference part of the
+main theorem story.
 
 ### Different inferential target entirely
 
@@ -206,7 +214,12 @@ So the right distinction is:
 - PLSC: association-root testing,
 - PLSR: predictive-increment testing.
 
-Reduced-rank regression is an easier supervised extension than classical PLSR because its latent structure is more directly tied to operator roots.
+Reduced-rank regression is an easier supervised extension than classical PLSR
+because its latent structure is more directly tied to operator roots.
+
+The package now ships a narrow predictive public surface around PLSR and
+held-out predictive gain. That is a package-level extension, not a reason to
+broaden Paper 1 beyond its cleaner latent-root center.
 
 ## Recommended scope of Paper 1
 
@@ -221,12 +234,18 @@ Keep the paper narrower than the framework.
 - exact core-space resampling identities
 - permutation and sign-flip null actions inside one unified residual-randomization framework
 
-### Optional short section or corollary
+The paper can explicitly note that the package also ships a supported CCA path
+plus narrower LDA and PLSR surfaces, while keeping those outside the main
+theorem-bearing narrative.
 
+### Optional short section or appendix
+
+- canonical correlation as a carefully bounded supported extension
 - symmetric-definite generalized eigen after whitening
 - LDA as a label-permutation special case
 
-Only include this if it stays concise.
+Only include these if they stay concise and do not blur the main statistical
+center of gravity.
 
 ### Explicitly out of scope for Paper 1
 
@@ -302,6 +321,18 @@ Focus:
 - careful scope statement,
 - PCA + PLSC mainline.
 
+### Package state today
+
+The package is now broader than the first paper on purpose:
+
+- `infer_cca()` is a shipped CCA surface with explicit support boundaries,
+- `infer_lda()` is a shipped significance-first generalized-eigen surface,
+- `infer_plsr()` is a shipped predictive-gain surface.
+
+Paper 1 does not need to broaden to match every shipped wrapper. It only needs
+to state that the package contains those extensions while the paper justifies
+the narrower theorem-bearing core.
+
 ### Paper 2 or software paper
 
 `multifer` / "ShapeInfer"
@@ -324,4 +355,4 @@ The cleanest summary sentence is:
 
 And the cleanest scope sentence is:
 
-**Paper 1 should cover PCA and PLSC directly, treat generalized-eigen / LDA as a next engine, and reserve PLSR for a later supervised-latent formulation with a different inferential target.**
+**Paper 1 should cover PCA and PLSC directly, treat CCA as a carefully bounded supported extension if included, and leave the shipped LDA / PLSR package surfaces outside the paper's central theorem claims.**

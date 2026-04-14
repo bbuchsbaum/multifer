@@ -21,9 +21,11 @@ An \link{infer_result}.
 }
 \description{
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for two-block correlation
-models. Current validity is strongest for the paired-row design and
-supported nuisance-adjusted variants described in the package README
-and vignettes.
+models. The shipped multi-root support boundary covers the paired-row
+design and the supported nuisance-adjusted variants described in the
+package README and vignettes. Outside that support matrix, \code{multifer}
+conservatively caps the ladder to first-root inference rather than
+making unsupported stepwise claims.
 }
 \details{
 The default adapter is \code{"cancor_cross"}, the dedicated

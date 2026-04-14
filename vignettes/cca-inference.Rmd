@@ -27,8 +27,9 @@ knitr::opts_chunk$set(
 ```
 
 This vignette walks the **canonical correlation** case: inference on
-the ordered correlations between paired blocks `X` and `Y`. This is
-`multifer`'s **qualified-tier** cross-block family. Qualified means:
+the ordered correlations between paired blocks `X` and `Y`. This is a
+shipped part of `multifer`'s latent-root surface, with an explicit
+support boundary:
 
 - the exact whitened-space stepwise deflation is implemented for the
   paired-row design, common-`Z` nuisance-adjusted designs, and
@@ -132,7 +133,7 @@ res2 <- infer(
 res2
 ```
 
-## What "qualified" means in practice
+## What the shipped CCA boundary means in practice
 
 1. First-root inference is always valid under the paired-row design.
 2. Stepwise multi-root inference is valid when the engine can project

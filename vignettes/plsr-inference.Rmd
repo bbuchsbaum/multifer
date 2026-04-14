@@ -33,7 +33,9 @@ gain**. The ladder is therefore about out-of-sample improvement in `Y`,
 not about the singular values of `X^T Y`.
 
 The default public path is `infer_plsr()`, which uses the
-`"plsr_refit"` adapter on top of `pls::plsr()`.
+`"plsr_refit"` adapter on top of `pls::plsr()`. This public predictive
+surface is intentionally narrow in v1: PLSR is shipped, while broader
+predictive-cross families remain future work.
 
 ## Geometry and relation
 
