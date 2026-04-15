@@ -43,9 +43,12 @@
 #'   error unconditionally.
 #'
 #' @return An object of class `multifer_infer_recipe` with fields:
-#'   `shape`, `targets`, `adapter_id`, `adapter`, `validity_level`,
-#'   `strict`, `downgrade_reason`, `declared_assumptions`,
-#'   `checked_assumptions`, `call`.
+#'   `problem`, `shape`, `targets`, `adapter_id`, `adapter`,
+#'   `validity_level`, `strict`, `downgrade_reason`,
+#'   `declared_assumptions`, `checked_assumptions`, `call`. The
+#'   `problem` field is the first-class compiled inferential object and
+#'   is the preferred place to inspect the inferred shape, target
+#'   family, engine kind, and validity metadata in one place.
 #'
 #' @export
 infer_recipe <- function(shape    = NULL,
@@ -302,15 +305,27 @@ infer_recipe <- function(shape    = NULL,
   }
 
   # -- assemble -----------------------------------------------------------------
+  problem <- infer_problem(
+    shape = shape,
+    targets = resolved_targets,
+    adapter_id = adapter$adapter_id,
+    adapter_version = adapter$adapter_version,
+    validity_level = validity_level,
+    strict = isTRUE(strict),
+    downgrade_reason = downgrade_reason,
+    call = the_call
+  )
+
   structure(
     list(
-      shape                = shape,
-      targets              = resolved_targets,
-      adapter_id           = adapter$adapter_id,
+      problem              = problem,
+      shape                = problem$shape,
+      targets              = problem$targets,
+      adapter_id           = problem$adapter_id,
       adapter              = adapter,
-      validity_level       = validity_level,
-      strict               = isTRUE(strict),
-      downgrade_reason     = downgrade_reason,
+      validity_level       = problem$validity_level,
+      strict               = problem$strict,
+      downgrade_reason     = problem$downgrade_reason,
       declared_assumptions = adapter$declared_assumptions,
       checked_assumptions  = adapter$checked_assumptions,
       call                 = the_call
@@ -329,15 +344,18 @@ is_infer_recipe <- function(x) inherits(x, "multifer_infer_recipe")
 #' @export
 print.multifer_infer_recipe <- function(x, ...) {
   cat("<multifer_infer_recipe>\n")
-  cat("  geometry:      ", x$shape$geometry$kind, "\n", sep = "")
-  cat("  relation:      ", x$shape$relation$kind, "\n", sep = "")
-  cat("  design:        ", x$shape$design$kind,   "\n", sep = "")
-  cat("  adapter:       ", x$adapter_id,          "\n", sep = "")
-  cat("  targets:       ", paste(x$targets, collapse = ", "), "\n", sep = "")
-  cat("  validity:      ", x$validity_level, "\n", sep = "")
-  cat("  strict:        ", x$strict, "\n", sep = "")
-  if (!is.na(x$downgrade_reason)) {
-    cat("  downgrade:     ", x$downgrade_reason, "\n", sep = "")
+  problem <- .recipe_problem(x)
+  cat("  geometry:      ", problem$shape$geometry$kind, "\n", sep = "")
+  cat("  relation:      ", problem$shape$relation$kind, "\n", sep = "")
+  cat("  design:        ", problem$shape$design$kind,   "\n", sep = "")
+  cat("  target_family: ", problem$target_family, "\n", sep = "")
+  cat("  engine:        ", problem$engine_kind, "\n", sep = "")
+  cat("  adapter:       ", problem$adapter_id, "\n", sep = "")
+  cat("  targets:       ", paste(problem$targets, collapse = ", "), "\n", sep = "")
+  cat("  validity:      ", problem$validity_level, "\n", sep = "")
+  cat("  strict:        ", problem$strict, "\n", sep = "")
+  if (!is.na(problem$downgrade_reason)) {
+    cat("  downgrade:     ", problem$downgrade_reason, "\n", sep = "")
   }
   invisible(x)
 }

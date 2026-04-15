@@ -126,9 +126,10 @@ infer <- function(adapter,
     stop("`recipe` must be a multifer_infer_recipe.", call. = FALSE)
   }
 
-  geom_kind <- recipe$shape$geometry$kind
-  rel_kind  <- recipe$shape$relation$kind
-  resolved_targets <- recipe$targets
+  problem <- .recipe_problem(recipe)
+  geom_kind <- problem$shape$geometry$kind
+  rel_kind  <- problem$shape$relation$kind
+  resolved_targets <- problem$targets
 
   ## --- executable validity checks --------------------------------------------
   # Every mature adapter ships concrete checked_assumptions; strict mode
@@ -382,8 +383,8 @@ infer <- function(adapter,
     adapter_id      = adapter_obj$adapter_id,
     adapter_version = adapter_obj$adapter_version,
     capabilities    = paste0(
-      recipe$shape$geometry$kind, "/",
-      recipe$shape$relation$kind, ":",
+      problem$shape$geometry$kind, "/",
+      problem$shape$relation$kind, ":",
       paste(resolved_targets, collapse = "+")
     ),
     call = call

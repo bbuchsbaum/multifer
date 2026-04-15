@@ -50,9 +50,12 @@ error unconditionally.}
 }
 \value{
 An object of class \code{multifer_infer_recipe} with fields:
-\code{shape}, \code{targets}, \code{adapter_id}, \code{adapter}, \code{validity_level},
-\code{strict}, \code{downgrade_reason}, \code{declared_assumptions},
-\code{checked_assumptions}, \code{call}.
+\code{problem}, \code{shape}, \code{targets}, \code{adapter_id}, \code{adapter},
+\code{validity_level}, \code{strict}, \code{downgrade_reason},
+\code{declared_assumptions}, \code{checked_assumptions}, \code{call}. The
+\code{problem} field is the first-class compiled inferential object and
+is the preferred place to inspect the inferred shape, target family,
+engine kind, and validity metadata in one place.
 }
 \description{
 \code{infer_recipe()} is the compile-time validity gate (Part 5 section 36,
@@ -71,4 +74,3 @@ With \code{strict = FALSE} the ambiguity is resolved automatically (first
 declared relation wins), a \code{warning()} is emitted, and the recipe's
 \code{validity_level} is downgraded one step.
 }
-

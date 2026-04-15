@@ -31,6 +31,21 @@ multivariate models. This vignette walks the PCA-family case: how to
 ask `multifer` a significance / stability question about a one-block
 variance decomposition, and how to read the result object.
 
+## What this vignette tests
+
+| piece         | value                                               |
+|---------------|-----------------------------------------------------|
+| **Maturity**  | mature                                              |
+| **Estimand**  | latent variance roots                               |
+| **Statistic** | Vitale P3 tail-ratio on latent variance roots       |
+| **Null**      | column permutation of residual matrix               |
+
+The estimand / statistic / null values above are the same strings the
+one-block engine writes into `res$mc$estimand_label`,
+`res$mc$statistic_label`, and `res$mc$null_label` on every call, so
+readers never have to guess which statistical object a given result
+reflects. `tests/testthat/test-v1-boundary.R` pins this consistency.
+
 ## What PCA inference looks like in `multifer`
 
 Every call to `infer()` is described by three orthogonal pieces:

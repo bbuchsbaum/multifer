@@ -109,7 +109,7 @@ run_predictive_ladder <- function(recipe,
   )
   zero_tol <- max(1, sum(current_data$Y^2)) * .Machine$double.eps
 
-  fold_ids <- .predictive_resolve_folds(
+  fold_ids <- .fold_resolve_ids(
     n = nrow(current_data$X),
     folds = folds,
     n_folds = n_folds,
@@ -223,54 +223,11 @@ run_predictive_ladder <- function(recipe,
 }
 
 .predictive_resolve_folds <- function(n, folds = NULL, n_folds = 5L, seed = NULL) {
-  if (!is.null(folds)) {
-    if (length(folds) != n) {
-      stop("`folds` must have length nrow(X).", call. = FALSE)
-    }
-    fold_ids <- as.integer(as.factor(folds))
-  } else {
-    if (!is.numeric(n_folds) || length(n_folds) != 1L || is.na(n_folds) ||
-        n_folds != as.integer(n_folds) || n_folds < 2L) {
-      stop("`n_folds` must be an integer >= 2 when `folds` is NULL.",
-           call. = FALSE)
-    }
-    n_folds <- as.integer(min(n_folds, n))
-    if (!is.null(seed)) {
-      old_seed <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-        get(".Random.seed", envir = .GlobalEnv)
-      } else {
-        NULL
-      }
-      on.exit({
-        if (!is.null(old_seed)) {
-          assign(".Random.seed", old_seed, envir = .GlobalEnv)
-        } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-          rm(".Random.seed", envir = .GlobalEnv)
-        }
-      }, add = TRUE)
-      set.seed(as.integer(seed))
-    }
-    order <- sample.int(n)
-    fold_ids <- integer(n)
-    fold_ids[order] <- rep(seq_len(n_folds), length.out = n)
-  }
-
-  counts <- tabulate(fold_ids)
-  if (length(counts) < 2L || any(counts == 0L)) {
-    stop("`folds` must define at least 2 non-empty folds.", call. = FALSE)
-  }
-  if (any(counts >= n)) {
-    stop("Each fold must leave at least one observation for training.", call. = FALSE)
-  }
-
-  fold_ids
+  .fold_resolve_ids(n = n, folds = folds, n_folds = n_folds, seed = seed)
 }
 
 .predictive_subset_data <- function(data, idx) {
-  list(
-    X = data$X[idx, , drop = FALSE],
-    Y = data$Y[idx, , drop = FALSE]
-  )
+  .fold_subset_row_aligned(data, idx)
 }
 
 .predictive_validate_payload <- function(data, template = NULL) {
@@ -315,28 +272,34 @@ run_predictive_ladder <- function(recipe,
     return(0)
   }
 
-  press <- 0
-  for (fold in unique(folds)) {
-    test_idx <- which(folds == fold)
-    train_idx <- which(folds != fold)
-    fit <- adapter$refit(NULL, .predictive_subset_data(data, train_idx))
-    pred <- adapter$predict_response(fit, .predictive_subset_data(data, test_idx), k = k)
-    if (is.vector(pred)) {
-      pred <- matrix(pred, ncol = ncol(data$Y))
-    }
-    if (!is.matrix(pred) || !is.numeric(pred) ||
-        nrow(pred) != length(test_idx) || ncol(pred) != ncol(data$Y)) {
-      stop(
-        paste0(
-          "`predict_response` must return a numeric matrix with dimensions ",
-          "length(test_idx) x ncol(Y)."
-        ),
-        call. = FALSE
-      )
-    }
-    err <- .predictive_subset_data(data, test_idx)$Y - pred
-    press <- press + sum(err^2)
-  }
+  fold_press <- .fold_map(
+    data = data,
+    fold_ids = folds,
+    subset_data = .predictive_subset_data,
+    fold_fun = function(train_data, test_data, split, adapter, k, y_cols) {
+      fit <- adapter$refit(NULL, train_data)
+      pred <- adapter$predict_response(fit, test_data, k = k)
+      if (is.vector(pred)) {
+        pred <- matrix(pred, ncol = y_cols)
+      }
+      if (!is.matrix(pred) || !is.numeric(pred) ||
+          nrow(pred) != length(split$test) || ncol(pred) != y_cols) {
+        stop(
+          paste0(
+            "`predict_response` must return a numeric matrix with dimensions ",
+            "length(test_idx) x ncol(Y)."
+          ),
+          call. = FALSE
+        )
+      }
+      sum((test_data$Y - pred)^2)
+    },
+    adapter = adapter,
+    k = k,
+    y_cols = ncol(data$Y)
+  )
+
+  press <- sum(unlist(fold_press, use.names = FALSE))
 
   1 - (press / tss)
 }

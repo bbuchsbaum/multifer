@@ -188,6 +188,41 @@ test_that("run_predictive_ladder recovers planted supervised rank", {
   expect_equal(res$roots_observed, res$component_tests$observed_stat)
 })
 
+test_that("run_predictive_ladder matches explicit folds to generated fold ids", {
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "predictive",
+    adapter = make_predictive_rrr_adapter(id = "predictive_rrr_explicit")
+  )
+  dat <- make_predictive_fixture(rank = 2L, seed = 131L)
+  fold_ids <- .fold_resolve_ids(n = nrow(dat$X), n_folds = 4L, seed = 77L)
+
+  res_explicit <- run_predictive_ladder(
+    rec,
+    dat$X,
+    dat$Y,
+    folds = fold_ids,
+    B = 95L,
+    alpha = 0.05,
+    seed = 77L
+  )
+
+  res_generated <- run_predictive_ladder(
+    rec,
+    dat$X,
+    dat$Y,
+    n_folds = 4L,
+    B = 95L,
+    alpha = 0.05,
+    seed = 77L
+  )
+
+  expect_equal(res_explicit$roots_observed, res_generated$roots_observed)
+  expect_equal(res_explicit$component_tests, res_generated$component_tests)
+  expect_equal(res_explicit$ladder_result$rejected_through,
+               res_generated$ladder_result$rejected_through)
+})
+
 test_that("predictive ladder first-rung rejection rate is calibrated under shuffled Y", {
   rec <- infer_recipe(
     geometry = "cross",

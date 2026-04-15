@@ -125,6 +125,7 @@ test_that("happy path oneblock: basic recipe compiles correctly", {
   )
 
   expect_true(is_infer_recipe(r))
+  expect_true(is_infer_problem(r$problem))
   expect_equal(r$shape$geometry$kind, "oneblock")
   expect_equal(r$shape$relation$kind, "variance")
   expect_equal(r$adapter_id, "stub_pca")
@@ -132,6 +133,8 @@ test_that("happy path oneblock: basic recipe compiles correctly", {
   expect_equal(r$validity_level, "conditional")
   expect_true(r$strict)
   expect_true(is.na(r$downgrade_reason))
+  expect_equal(r$problem$target_family, "latent_root")
+  expect_equal(r$problem$engine_kind, "oneblock")
 })
 
 test_that("targets = 'default' expands to supported targets excluding variable_significance", {
@@ -209,6 +212,9 @@ test_that("cross predictive adapter compiles when it declares the triple", {
   expect_true(is_infer_recipe(r))
   expect_equal(r$shape$geometry$kind, "cross")
   expect_equal(r$shape$relation$kind, "predictive")
+  expect_true(is_infer_problem(r$problem))
+  expect_equal(r$problem$target_family, "predictive_gain")
+  expect_equal(r$problem$engine_kind, "predictive")
 })
 
 test_that("predictive relation is rejected for non-cross geometry at recipe compile time", {
@@ -560,9 +566,27 @@ test_that("print method runs without error and shows key fields", {
   expect_true(any(grepl("multifer_infer_recipe", out)))
   expect_true(any(grepl("oneblock", out)))
   expect_true(any(grepl("variance", out)))
+  expect_true(any(grepl("target_family", out)))
+  expect_true(any(grepl("engine", out)))
   expect_true(any(grepl("stub_pca", out)))
   expect_true(any(grepl("component_significance", out)))
   expect_true(any(grepl("conditional", out)))
+})
+
+test_that("compiled infer_problem is printable and inspectable directly", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_pca", .make_pca_stub())
+
+  r <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter  = "stub_pca"
+  )
+
+  out <- capture.output(print(r$problem))
+  expect_true(any(grepl("multifer_infer_problem", out)))
+  expect_true(any(grepl("latent_root", out)))
+  expect_true(any(grepl("oneblock", out)))
 })
 
 test_that("print method shows downgrade reason when strict = FALSE triggered", {

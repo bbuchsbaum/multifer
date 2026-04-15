@@ -312,6 +312,108 @@ test_that("run_geneig_ladder uses B-metric deflation rather than Euclidean defla
             1e-3)
 })
 
+test_that("run_geneig_ladder is invariant under orthogonal congruence transforms", {
+  skip_if_not_installed("MASS")
+  adapter <- make_geneig_zero_null_adapter(id = "stub_geneig_zero_null_congruence")
+  rec <- infer_recipe(
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    adapter = adapter
+  )
+
+  op <- make_exact_geneig_fixture(
+    lambda = c(9, 4, 1, 0, 0),
+    B_metric = matrix(c(
+      2.0, 0.3, 0.0, 0.0, 0.0,
+      0.3, 1.6, 0.2, 0.0, 0.0,
+      0.0, 0.2, 1.4, 0.1, 0.0,
+      0.0, 0.0, 0.1, 1.3, 0.2,
+      0.0, 0.0, 0.0, 0.2, 1.2
+    ), nrow = 5, byrow = TRUE),
+    seed = 17L
+  )
+
+  set.seed(91L)
+  Q <- qr.Q(qr(matrix(stats::rnorm(25L), nrow = 5L, ncol = 5L)))
+  op_rot <- geneig_operator(
+    A = t(Q) %*% op$A %*% Q,
+    B = t(Q) %*% op$B %*% Q,
+    metric = op$metric
+  )
+
+  res_base <- run_geneig_ladder(rec, op, B = 59L, alpha = 0.05, seed = 12L)
+  res_rot <- run_geneig_ladder(rec, op_rot, B = 59L, alpha = 0.05, seed = 12L)
+
+  expect_equal(res_rot$roots_observed, res_base$roots_observed, tolerance = 1e-10)
+  expect_equal(res_rot$component_tests$observed_stat,
+               res_base$component_tests$observed_stat,
+               tolerance = 1e-12)
+  expect_identical(res_rot$component_tests$p_value, res_base$component_tests$p_value)
+  expect_identical(res_rot$component_tests$selected, res_base$component_tests$selected)
+})
+
+test_that("run_geneig_ladder is invariant under common positive scaling of A and B", {
+  skip_if_not_installed("MASS")
+  adapter <- make_geneig_zero_null_adapter(id = "stub_geneig_zero_null_scaled")
+  rec <- infer_recipe(
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    adapter = adapter
+  )
+
+  op <- make_exact_geneig_fixture(
+    lambda = c(9, 4, 1, 0, 0),
+    B_metric = matrix(c(
+      2.0, 0.3, 0.0, 0.0, 0.0,
+      0.3, 1.6, 0.2, 0.0, 0.0,
+      0.0, 0.2, 1.4, 0.1, 0.0,
+      0.0, 0.0, 0.1, 1.3, 0.2,
+      0.0, 0.0, 0.0, 0.2, 1.2
+    ), nrow = 5, byrow = TRUE),
+    seed = 27L
+  )
+  scale_factor <- 13.5
+  op_scaled <- geneig_operator(
+    A = scale_factor * op$A,
+    B = scale_factor * op$B,
+    metric = op$metric
+  )
+
+  res_base <- run_geneig_ladder(rec, op, B = 59L, alpha = 0.05, seed = 13L)
+  res_scaled <- run_geneig_ladder(rec, op_scaled, B = 59L, alpha = 0.05, seed = 13L)
+
+  expect_equal(res_scaled$roots_observed, res_base$roots_observed, tolerance = 1e-10)
+  expect_equal(res_scaled$component_tests$observed_stat,
+               res_base$component_tests$observed_stat,
+               tolerance = 1e-12)
+  expect_identical(res_scaled$component_tests$p_value, res_base$component_tests$p_value)
+  expect_identical(res_scaled$component_tests$selected, res_base$component_tests$selected)
+})
+
+test_that("run_geneig_ladder stays finite for a near-singular but SPD metric", {
+  skip_if_not_installed("MASS")
+  adapter <- make_geneig_zero_null_adapter(id = "stub_geneig_zero_null_near_singular")
+  rec <- infer_recipe(
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    adapter = adapter
+  )
+
+  near_singular_B <- diag(c(1, 1e-5, 5e-6, 2, 3))
+  op <- make_exact_geneig_fixture(
+    lambda = c(5, 2, 0.5, 0, 0),
+    B_metric = near_singular_B,
+    seed = 41L
+  )
+
+  res <- run_geneig_ladder(rec, op, B = 39L, alpha = 0.05, seed = 5L)
+
+  expect_true(all(is.finite(res$roots_observed)))
+  expect_true(all(is.finite(res$component_tests$observed_stat)))
+  expect_true(all(is.finite(res$component_tests$p_value)))
+  expect_true(all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1))
+})
+
 test_that("label-permutation null is approximately calibrated at rung 1", {
   skip_if_not_installed("MASS")
   ensure_default_adapters()
