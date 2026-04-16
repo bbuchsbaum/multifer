@@ -275,7 +275,6 @@ run_predictive_ladder <- function(recipe,
   fold_press <- .fold_map(
     data = data,
     fold_ids = folds,
-    subset_data = .predictive_subset_data,
     fold_fun = function(train_data, test_data, split, adapter, k, y_cols) {
       fit <- adapter$refit(NULL, train_data)
       pred <- adapter$predict_response(fit, test_data, k = k)

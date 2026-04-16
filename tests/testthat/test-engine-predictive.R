@@ -223,6 +223,68 @@ test_that("run_predictive_ladder matches explicit folds to generated fold ids", 
                res_generated$ladder_result$rejected_through)
 })
 
+test_that("run_predictive_ladder is invariant to fold label renaming", {
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "predictive",
+    adapter = make_predictive_rrr_adapter(id = "predictive_rrr_relabel")
+  )
+  dat <- make_predictive_fixture(rank = 2L, seed = 151L)
+  fold_ids <- .fold_resolve_ids(n = nrow(dat$X), n_folds = 4L, seed = 88L)
+  relabeled <- c(70L, 30L, 90L, 50L)[fold_ids]
+
+  res_a <- run_predictive_ladder(
+    rec,
+    dat$X,
+    dat$Y,
+    folds = fold_ids,
+    B = 95L,
+    alpha = 0.05,
+    seed = 88L
+  )
+
+  res_b <- run_predictive_ladder(
+    rec,
+    dat$X,
+    dat$Y,
+    folds = relabeled,
+    B = 95L,
+    alpha = 0.05,
+    seed = 88L
+  )
+
+  expect_equal(res_a$roots_observed, res_b$roots_observed)
+  expect_equal(res_a$component_tests, res_b$component_tests)
+  expect_equal(res_a$ladder_result$rejected_through,
+               res_b$ladder_result$rejected_through)
+})
+
+test_that("run_predictive_ladder handles constant Y without non-finite outputs", {
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "predictive",
+    adapter = make_predictive_rrr_adapter(id = "predictive_rrr_constant_y")
+  )
+  dat <- make_predictive_fixture(rank = 2L, seed = 161L)
+  dat$Y[,] <- 3.5
+
+  res <- run_predictive_ladder(
+    rec,
+    dat$X,
+    dat$Y,
+    n_folds = 4L,
+    B = 39L,
+    alpha = 0.05,
+    seed = 99L
+  )
+
+  expect_true(all(is.finite(res$roots_observed)))
+  expect_true(all(res$roots_observed == 0))
+  expect_true(all(is.finite(res$component_tests$p_value)))
+  expect_identical(res$component_tests$selected, c(FALSE))
+  expect_equal(res$ladder_result$rejected_through, 0L)
+})
+
 test_that("predictive ladder first-rung rejection rate is calibrated under shuffled Y", {
   rec <- infer_recipe(
     geometry = "cross",

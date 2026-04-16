@@ -42,6 +42,28 @@ test_that("multifer_parallel_lapply validation", {
   )
 })
 
+test_that("multifer_parallel_lapply is bit-identical across backends with fixed seeds", {
+  skip_on_cran()
+  skip_if_not_installed("mirai")
+  on.exit(try(multifer_parallel_shutdown(), silent = TRUE), add = TRUE)
+
+  seeds <- c(11L, 12L, 13L)
+  seq_out <- multifer_parallel_lapply(
+    X = list("a", "b", "c"),
+    FUN = function(x) stats::runif(1),
+    seeds = seeds,
+    backend = "sequential"
+  )
+  mir_out <- multifer_parallel_lapply(
+    X = list("a", "b", "c"),
+    FUN = function(x) stats::runif(1),
+    seeds = seeds,
+    backend = "mirai"
+  )
+
+  expect_equal(seq_out, mir_out)
+})
+
 test_that("bootstrap_fits parallel=mirai produces valid artifact", {
   skip_on_cran()
   skip_if_not_installed("mirai")

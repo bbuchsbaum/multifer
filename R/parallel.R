@@ -121,6 +121,7 @@ multifer_parallel_lapply <- function(X, FUN, ..., seeds = NULL,
                                                  "sequential")) {
   backend <- match.arg(backend)
   n <- length(X)
+  rng_kind <- RNGkind()
   if (!is.null(seeds)) {
     if (length(seeds) != n) {
       stop("`seeds` must have the same length as `X`.", call. = FALSE)
@@ -135,15 +136,21 @@ multifer_parallel_lapply <- function(X, FUN, ..., seeds = NULL,
 
   if (backend == "sequential") {
     return(lapply(seq_along(X), function(i) {
-      if (!is.null(seeds)) set.seed(seeds[i])
+      if (!is.null(seeds)) {
+        do.call(RNGkind, as.list(rng_kind))
+        set.seed(seeds[i])
+      }
       do.call(FUN, c(list(X[[i]]), extra_args))
     }))
   }
 
   ## --- mirai path ---------------------------------------------------------
   multifer_parallel_init()
-  worker_fn <- function(i, X, FUN, extra_args, seeds) {
-    if (!is.null(seeds)) set.seed(seeds[i])
+  worker_fn <- function(i, X, FUN, extra_args, seeds, rng_kind) {
+    if (!is.null(seeds)) {
+      do.call(RNGkind, as.list(rng_kind))
+      set.seed(seeds[i])
+    }
     do.call(FUN, c(list(X[[i]]), extra_args))
   }
   mm <- mirai::mirai_map(
@@ -153,7 +160,8 @@ multifer_parallel_lapply <- function(X, FUN, ..., seeds = NULL,
       X          = X,
       FUN        = FUN,
       extra_args = extra_args,
-      seeds      = seeds
+      seeds      = seeds,
+      rng_kind   = rng_kind
     )
   )
   mm[]

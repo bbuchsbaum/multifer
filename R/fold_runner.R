@@ -17,6 +17,9 @@
     if (length(folds) != n) {
       stop("`folds` must have length `n`.", call. = FALSE)
     }
+    if (anyNA(folds)) {
+      stop("`folds` must not contain missing values.", call. = FALSE)
+    }
     fold_ids <- as.integer(as.factor(folds))
   } else {
     if (!is.numeric(n_folds) || length(n_folds) != 1L || is.na(n_folds) ||
@@ -94,26 +97,73 @@
 }
 
 .fold_subset_row_aligned <- function(data, idx) {
-  .fold_payload_n(data)
+  payload_n <- function(x, what = "data") {
+    if (is.matrix(x) || is.data.frame(x)) {
+      return(nrow(x))
+    }
 
-  if (is.matrix(data) || is.data.frame(data)) {
-    return(data[idx, , drop = FALSE])
+    if (is.atomic(x) && length(dim(x)) <= 1L) {
+      return(length(x))
+    }
+
+    if (is.list(x)) {
+      counts <- vapply(
+        seq_along(x),
+        function(i) payload_n(x[[i]], what = sprintf("%s$%s",
+                                                     what,
+                                                     names(x)[i] %||% i)),
+        integer(1L)
+      )
+
+      if (length(counts) == 0L) {
+        stop(sprintf("`%s` must not be an empty list.", what), call. = FALSE)
+      }
+
+      if (length(unique(counts)) != 1L) {
+        stop(sprintf("`%s` must be row-aligned across all elements.", what),
+             call. = FALSE)
+      }
+
+      return(counts[[1L]])
+    }
+
+    stop(
+      sprintf(
+        "`%s` must be a row-aligned matrix, data frame, vector, or nested list.",
+        what
+      ),
+      call. = FALSE
+    )
   }
 
-  if (is.atomic(data) && length(dim(data)) <= 1L) {
-    return(data[idx])
+  subset_impl <- function(x) {
+    payload_n(x)
+
+    if (is.matrix(x) || is.data.frame(x)) {
+      return(x[idx, , drop = FALSE])
+    }
+
+    if (is.atomic(x) && length(dim(x)) <= 1L) {
+      return(x[idx])
+    }
+
+    if (is.list(x)) {
+      out <- lapply(x, subset_impl)
+      names(out) <- names(x)
+      return(out)
+    }
+
+    stop("Unsupported row-aligned payload.", call. = FALSE)
   }
 
-  if (is.list(data)) {
-    out <- lapply(data, .fold_subset_row_aligned, idx = idx)
-    names(out) <- names(data)
-    return(out)
-  }
-
-  stop("Unsupported row-aligned payload.", call. = FALSE)
+  subset_impl(data)
 }
 
 .fold_make_splits <- function(fold_ids) {
+  if (length(fold_ids) < 2L || anyNA(fold_ids)) {
+    stop("`fold_ids` must not contain missing values and must have length >= 2.",
+         call. = FALSE)
+  }
   counts <- tabulate(fold_ids)
   n <- length(fold_ids)
 

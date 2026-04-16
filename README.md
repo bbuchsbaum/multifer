@@ -85,7 +85,9 @@ Current limitations are deliberate:
   richer structured correlation designs still need more exchangeability work,
 - the current `geneig` public surface is intentionally narrow: LDA is shipped,
   while broader metric-weighted / contrastive generalized-eigen models remain
-  planned,
+  planned; `infer_lda()` defaults to `targets = "component_significance"`
+  because broader geneig bootstrap / stability workflows are not yet part of
+  the wrapper-level public surface,
 - the predictive-gain public surface is intentionally narrow: PLSR is shipped,
   while broader predictive-cross models remain planned,
 - bootstrap stability defaults to sign alignment; Procrustes alignment is
@@ -114,9 +116,13 @@ Optional packages:
 - `RSpectra` improves the partial-SVD fast path on larger problems.
 - `multivarious` enables the multivarious-backed adapters. When it is
   installed, `infer_pca()` defaults to `multivarious_pca` and
-  `infer_plsc()` defaults to `multivarious_plsc`; otherwise those
-  wrappers fall back to `prcomp_oneblock` and `cross_svd`.
+  `infer_plsc()` defaults to `multivarious_plsc`; the
+  `multivarious_cca` adapter is also registered as an alternate CCA
+  backend, though `infer_cca()` still defaults to `cancor_cross`.
+  Without `multivarious`, the PCA / PLSC wrappers fall back to
+  `prcomp_oneblock` and `cross_svd`.
 - `MASS` enables the `lda_refit` adapter and the `infer_lda()` wrapper.
+- `pls` enables the `plsr_refit` adapter and the `infer_plsr()` wrapper.
 
 ## What `infer()` returns
 

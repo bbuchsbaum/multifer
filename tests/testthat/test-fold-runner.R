@@ -15,6 +15,23 @@ test_that("fold ids resolve deterministically without disturbing caller RNG", {
   expect_identical(after, expected)
 })
 
+test_that("fold ids reject malformed specifications", {
+  expect_error(
+    .fold_resolve_ids(n = 6L, folds = c(1, 1, 2, 2, NA, 3)),
+    "must not contain missing values"
+  )
+
+  expect_error(
+    .fold_resolve_ids(n = 6L, folds = rep(1L, 6L)),
+    "at least 2 non-empty folds"
+  )
+
+  expect_error(
+    .fold_make_splits(c(1L, 1L, 2L, 2L, NA, 3L)),
+    "must not contain missing values"
+  )
+})
+
 test_that("row-aligned subset handles structured payloads and rejects misaligned data", {
   payload <- list(
     X = matrix(seq_len(12L), nrow = 6L, ncol = 2L),
@@ -36,6 +53,11 @@ test_that("row-aligned subset handles structured payloads and rejects misaligned
   expect_error(
     .fold_subset_row_aligned(bad_payload, 1:3),
     "row-aligned"
+  )
+
+  expect_error(
+    .fold_subset_row_aligned(list(), 1:3),
+    "must not be an empty list"
   )
 })
 
@@ -63,4 +85,44 @@ test_that("fold map threads structured train/test payloads through the worker", 
   expect_equal(vapply(out, `[[`, numeric(1L), "train_n"), c(4, 4, 4))
   expect_equal(vapply(out, `[[`, numeric(1L), "test_n"), c(2, 2, 2))
   expect_equal(vapply(out, `[[`, numeric(1L), "fold"), c(1, 2, 3))
+})
+
+test_that("fold map matches sequential and mirai backends under fixed seeds", {
+  skip_on_cran()
+  skip_if_not_installed("mirai")
+  on.exit(try(multifer_parallel_shutdown(), silent = TRUE), add = TRUE)
+
+  payload <- list(
+    X = matrix(seq_len(12L), nrow = 6L, ncol = 2L),
+    Y = matrix(seq_len(18L), nrow = 6L, ncol = 3L)
+  )
+  fold_ids <- c(1L, 1L, 2L, 2L, 3L, 3L)
+  seeds <- c(11L, 12L, 13L)
+
+  fold_worker <- function(train_data, test_data, split) {
+    c(
+      fold = split$fold,
+      draw = stats::runif(1L),
+      train_sum = sum(train_data$X),
+      test_sum = sum(test_data$Y)
+    )
+  }
+
+  seq_out <- .fold_map(
+    data = payload,
+    fold_ids = fold_ids,
+    fold_fun = fold_worker,
+    backend = "sequential",
+    seeds = seeds
+  )
+
+  mir_out <- .fold_map(
+    data = payload,
+    fold_ids = fold_ids,
+    fold_fun = fold_worker,
+    backend = "mirai",
+    seeds = seeds
+  )
+
+  expect_equal(seq_out, mir_out)
 })
