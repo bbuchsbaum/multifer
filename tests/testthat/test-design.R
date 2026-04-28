@@ -24,6 +24,32 @@ test_that("blocked_rows rejects invalid groups", {
   expect_error(blocked_rows(list("a", "b")), "must be a factor")
 })
 
+test_that("clustered_rows accepts clusters and optional strata", {
+  d <- clustered_rows(c(1, 1, 2, 2, 3, 3))
+  expect_true(is_design(d))
+  expect_s3_class(d$clusters, "factor")
+  expect_equal(length(levels(d$clusters)), 3L)
+  expect_null(d$strata)
+
+  d2 <- clustered_rows(
+    clusters = c("s1", "s1", "s2", "s2", "s3", "s3"),
+    strata = c("a", "a", "a", "a", "b", "b")
+  )
+  expect_s3_class(d2$strata, "factor")
+  expect_equal(length(levels(d2$strata)), 2L)
+})
+
+test_that("clustered_rows rejects invalid inputs", {
+  expect_error(clustered_rows(NULL), "must not be NULL")
+  expect_error(clustered_rows(integer(0)), "length >= 1")
+  expect_error(clustered_rows(c(1L, NA_integer_)), "must not contain NA")
+  expect_error(clustered_rows(list("a", "b")), "must be a factor")
+  expect_error(clustered_rows(1:3, strata = 1:2), "same length")
+  expect_error(clustered_rows(1:3, strata = c(1, NA, 2)), "must not contain NA")
+  expect_error(clustered_rows(c(1, 1, 2), strata = c("a", "b", "b")),
+               "exactly one stratum")
+})
+
 test_that("nuisance_adjusted accepts a numeric matrix", {
   Z <- matrix(rnorm(12), nrow = 4, ncol = 3)
   d <- nuisance_adjusted(Z)
@@ -53,6 +79,7 @@ test_that("design print methods run", {
   expect_output(print(exchangeable_rows()), "exchangeable_rows")
   expect_output(print(paired_rows()), "paired_rows")
   expect_output(print(blocked_rows(c(1, 1, 2, 2))), "blocks")
+  expect_output(print(clustered_rows(c(1, 1, 2, 2))), "clusters")
   expect_output(print(nuisance_adjusted(matrix(1:4, 2, 2))), "Z:")
   expect_output(print(nuisance_adjusted(matrix(1:8, 4, 2), groups = c(1, 1, 2, 2))),
                 "blocks")

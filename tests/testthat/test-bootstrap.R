@@ -380,6 +380,82 @@ test_that("bootstrap_fits: same seed produces identical results", {
   }
 })
 
+test_that("bootstrap_fits respects blocked_rows by resampling within groups", {
+  clear_adapter_registry()
+
+  set.seed(61)
+  X <- matrix(stats::rnorm(240), 40, 6)
+  groups <- rep(letters[1:4], each = 10)
+
+  adapter <- adapter_prcomp()
+  register_infer_adapter("prcomp_oneblock", adapter, overwrite = TRUE)
+  recipe <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    design = blocked_rows(groups),
+    adapter = adapter
+  )
+  original_fit <- adapter$refit(NULL, X)
+  units <- form_units(adapter$roots(original_fit))
+
+  result <- bootstrap_fits(
+    recipe = recipe,
+    adapter = adapter,
+    data = X,
+    original_fit = original_fit,
+    units = units,
+    R = 8L,
+    seed = 61L,
+    store_aligned_scores = FALSE
+  )
+
+  for (rep in result$reps) {
+    idx <- rep$resample_indices
+    expect_equal(tabulate(as.integer(factor(groups[idx], levels = letters[1:4]))),
+                 rep(10L, 4L))
+  }
+})
+
+test_that("bootstrap_fits respects clustered_rows by resampling whole clusters", {
+  clear_adapter_registry()
+
+  set.seed(62)
+  X <- matrix(stats::rnorm(180), 30, 6)
+  clusters <- rep(seq_len(10), each = 3)
+
+  adapter <- adapter_prcomp()
+  register_infer_adapter("prcomp_oneblock", adapter, overwrite = TRUE)
+  recipe <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    design = clustered_rows(clusters),
+    adapter = adapter
+  )
+  original_fit <- adapter$refit(NULL, X)
+  units <- form_units(adapter$roots(original_fit))
+
+  result <- bootstrap_fits(
+    recipe = recipe,
+    adapter = adapter,
+    data = X,
+    original_fit = original_fit,
+    units = units,
+    R = 8L,
+    seed = 62L,
+    fast_path = "off",
+    store_aligned_scores = FALSE
+  )
+
+  rows_by_cluster <- split(seq_along(clusters), clusters)
+  for (rep in result$reps) {
+    idx <- rep$resample_indices
+    counts <- tabulate(match(idx, seq_along(clusters)), nbins = length(clusters))
+    for (rows in rows_by_cluster) {
+      expect_true(length(unique(counts[rows])) == 1L)
+    }
+  }
+})
+
 # ---------------------------------------------------------------------------
 # Test 7: Validation errors
 # ---------------------------------------------------------------------------

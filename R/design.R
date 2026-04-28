@@ -72,6 +72,63 @@ blocked_rows <- function(groups) {
   new_design("blocked_rows", groups = as.factor(groups))
 }
 
+#' Clustered rows
+#'
+#' Rows belong to sampling units such as subjects. Bootstrap resampling
+#' should sample whole clusters with replacement and carry all rows from
+#' each sampled cluster. Optional strata restrict cluster sampling within
+#' fixed strata.
+#'
+#' @param clusters A factor, integer, numeric, or character vector of
+#'   length `n` giving the cluster label of each row.
+#' @param strata Optional factor, integer, numeric, or character vector
+#'   of length `n` giving the stratum label of each row. Each cluster
+#'   must belong to exactly one stratum.
+#'
+#' @return A `multifer_design` object.
+#' @export
+clustered_rows <- function(clusters, strata = NULL) {
+  if (is.null(clusters)) {
+    stop("`clusters` must not be NULL.", call. = FALSE)
+  }
+  if (!(is.factor(clusters) || is.integer(clusters) ||
+        is.character(clusters) || is.numeric(clusters))) {
+    stop("`clusters` must be a factor, integer, numeric, or character vector.",
+         call. = FALSE)
+  }
+  if (length(clusters) == 0L) {
+    stop("`clusters` must have length >= 1.", call. = FALSE)
+  }
+  if (anyNA(clusters)) {
+    stop("`clusters` must not contain NA.", call. = FALSE)
+  }
+
+  clusters <- as.factor(clusters)
+
+  if (!is.null(strata)) {
+    if (!(is.factor(strata) || is.integer(strata) ||
+          is.character(strata) || is.numeric(strata))) {
+      stop("`strata` must be a factor, integer, numeric, or character vector.",
+           call. = FALSE)
+    }
+    if (length(strata) != length(clusters)) {
+      stop("`strata` must have the same length as `clusters`.", call. = FALSE)
+    }
+    if (anyNA(strata)) {
+      stop("`strata` must not contain NA.", call. = FALSE)
+    }
+    strata <- as.factor(strata)
+
+    by_cluster <- split(strata, clusters)
+    spans <- vapply(by_cluster, function(x) length(unique(x)) > 1L, logical(1L))
+    if (any(spans)) {
+      stop("Each cluster must belong to exactly one stratum.", call. = FALSE)
+    }
+  }
+
+  new_design("clustered_rows", clusters = clusters, strata = strata)
+}
+
 #' Nuisance-adjusted design
 #'
 #' Marks that inference is conditional on a nuisance covariate matrix
@@ -122,6 +179,12 @@ print.multifer_design <- function(x, ...) {
   if (x$kind == "blocked_rows") {
     cat(" | ", length(levels(x$groups)), " blocks, n = ",
         length(x$groups), sep = "")
+  } else if (x$kind == "clustered_rows") {
+    cat(" | ", length(levels(x$clusters)), " clusters, n = ",
+        length(x$clusters), sep = "")
+    if (!is.null(x$strata)) {
+      cat(" | ", length(levels(x$strata)), " strata", sep = "")
+    }
   } else if (x$kind == "nuisance_adjusted") {
     cat(" | Z: ", nrow(x$Z), "x", ncol(x$Z), sep = "")
     if (!is.null(x$groups)) {

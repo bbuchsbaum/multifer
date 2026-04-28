@@ -240,10 +240,12 @@ bootstrap_fits <- function(recipe,
   # attached to their search path cannot resolve bare-name references.
   .fn_match_components   <- match_components
   .fn_truncate_fit_to_core <- .truncate_fit_to_core
+  .fn_bootstrap_resample_indices <- .bootstrap_resample_indices
   .k_trunc_local <- if (has_fast_path) .core_effective_rank(core_obj) else NA_integer_
+  design_local <- recipe$shape$design
 
   rep_fn <- function(b) {
-    indices <- base::sample.int(n, n, replace = TRUE)
+    indices <- .fn_bootstrap_resample_indices(n, design_local)
 
     rep_data <- if (geom_kind == "oneblock") {
       data[indices, , drop = FALSE]
@@ -333,6 +335,7 @@ bootstrap_fits <- function(recipe,
       aligned_loadings  = rep_aligned_loadings,
       aligned_scores    = rep_aligned_scores,
       resample_indices  = indices,
+      resample_design   = design_local$kind,
       used_fallback     = used_fallback
     )
   }
@@ -376,6 +379,91 @@ bootstrap_fits <- function(recipe,
     ),
     class = "multifer_bootstrap_artifact"
   )
+}
+
+# Draw row indices for bootstrap_fits according to the compiled design.
+.bootstrap_resample_indices <- function(n, design) {
+  if (!is.numeric(n) || length(n) != 1L || is.na(n) ||
+      n != as.integer(n) || n < 1L) {
+    stop("`n` must be a positive integer.", call. = FALSE)
+  }
+  n <- as.integer(n)
+
+  if (is.null(design) || is.null(design$kind) ||
+      design$kind %in% c("exchangeable_rows", "paired_rows")) {
+    return(base::sample.int(n, n, replace = TRUE))
+  }
+
+  if (design$kind == "blocked_rows") {
+    groups <- design$groups
+    if (length(groups) != n) {
+      stop("`blocked_rows()` groups must have one value per data row.",
+           call. = FALSE)
+    }
+    idx <- unlist(
+      lapply(split(seq_len(n), groups), function(rows) {
+        sample(rows, length(rows), replace = TRUE)
+      }),
+      use.names = FALSE
+    )
+    return(as.integer(idx))
+  }
+
+  if (design$kind == "clustered_rows") {
+    clusters <- design$clusters
+    if (length(clusters) != n) {
+      stop("`clustered_rows()` clusters must have one value per data row.",
+           call. = FALSE)
+    }
+    rows_by_cluster <- split(seq_len(n), clusters)
+
+    if (is.null(design$strata)) {
+      sampled_clusters <- sample(names(rows_by_cluster),
+                                 length(rows_by_cluster),
+                                 replace = TRUE)
+    } else {
+      strata <- design$strata
+      if (length(strata) != n) {
+        stop("`clustered_rows()` strata must have one value per data row.",
+             call. = FALSE)
+      }
+      cluster_strata <- vapply(
+        rows_by_cluster,
+        function(rows) as.character(strata[rows[1L]]),
+        character(1L)
+      )
+      sampled_clusters <- unlist(
+        lapply(split(names(rows_by_cluster), cluster_strata), function(cl) {
+          sample(cl, length(cl), replace = TRUE)
+        }),
+        use.names = FALSE
+      )
+    }
+
+    idx <- unlist(rows_by_cluster[sampled_clusters], use.names = FALSE)
+    return(as.integer(idx))
+  }
+
+  if (design$kind == "nuisance_adjusted") {
+    groups <- design$groups
+    if (is.null(groups)) {
+      return(base::sample.int(n, n, replace = TRUE))
+    }
+    if (length(groups) != n) {
+      stop("`nuisance_adjusted()` groups must have one value per data row.",
+           call. = FALSE)
+    }
+    idx <- unlist(
+      lapply(split(seq_len(n), groups), function(rows) {
+        sample(rows, length(rows), replace = TRUE)
+      }),
+      use.names = FALSE
+    )
+    return(as.integer(idx))
+  }
+
+  stop(sprintf("Unsupported bootstrap design kind: %s.", design$kind),
+       call. = FALSE)
 }
 
 # ---------------------------------------------------------------------------
