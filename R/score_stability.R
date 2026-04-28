@@ -21,9 +21,9 @@
 #' rotation-invariant within the subspace.
 #'
 #' @param artifact A \code{multifer_bootstrap_artifact}.
-#' @param original_data For oneblock, a numeric matrix. For cross, a
-#'   list with \code{X} and \code{Y}. Must be the same data that was
-#'   passed to \code{\link{bootstrap_fits}()}.
+#' @param original_data For oneblock, a numeric matrix. For cross or
+#'   multiblock, a list of aligned matrix blocks. Must be the same data
+#'   that was passed to \code{\link{bootstrap_fits}()}.
 #' @param units A \code{multifer_units} table.
 #' @param quantiles Length-2 numeric in \code{[0, 1]} for the lower and
 #'   upper interval bounds. Default \code{c(0.025, 0.975)}.
@@ -55,20 +55,7 @@ score_stability_from_bootstrap <- function(artifact,
   if (is.null(members)) members <- vector("list", nrow(units))
 
   ## Resolve per-domain data matrices and centers.
-  data_by_domain <- list()
-  if (identical(domains, "X")) {
-    if (!is.matrix(original_data)) {
-      stop("For oneblock, `original_data` must be a matrix.", call. = FALSE)
-    }
-    data_by_domain$X <- sweep(original_data, 2L, colMeans(original_data), "-")
-  } else {
-    if (!is.list(original_data) ||
-        is.null(original_data$X) || is.null(original_data$Y)) {
-      stop("For cross, `original_data` must be a list with X and Y.", call. = FALSE)
-    }
-    data_by_domain$X <- sweep(original_data$X, 2L, colMeans(original_data$X), "-")
-    data_by_domain$Y <- sweep(original_data$Y, 2L, colMeans(original_data$Y), "-")
-  }
+  data_by_domain <- .score_data_by_domain(original_data, domains)
 
   score_cache <- stats::setNames(vector("list", length(domains)), domains)
   n_obs_by_domain <- integer(length(domains))
@@ -141,4 +128,46 @@ score_stability_from_bootstrap <- function(artifact,
     upper       = rows_upper[keep],
     leverage    = rows_leverage[keep]
   )
+}
+
+.score_data_by_domain <- function(original_data, domains) {
+  if (is.matrix(original_data) && length(domains) == 1L) {
+    if (!is.matrix(original_data)) {
+      stop("For oneblock, `original_data` must be a matrix.", call. = FALSE)
+    }
+    out <- list(sweep(original_data, 2L, colMeans(original_data), "-"))
+    names(out) <- domains
+    return(out)
+  }
+
+  if (!is.list(original_data)) {
+    stop("For multi-domain score stability, `original_data` must be a list.",
+         call. = FALSE)
+  }
+
+  missing <- setdiff(domains, names(original_data))
+  if (length(missing) > 0L && length(original_data) == length(domains)) {
+    names(original_data) <- domains
+    missing <- character(0)
+  }
+  if (length(missing) > 0L) {
+    stop(
+      sprintf(
+        "`original_data` is missing domain block(s): %s.",
+        paste(missing, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  out <- stats::setNames(vector("list", length(domains)), domains)
+  for (d in domains) {
+    block <- original_data[[d]]
+    if (!is.matrix(block) || !is.numeric(block)) {
+      stop("Every score-stability domain block must be a numeric matrix.",
+           call. = FALSE)
+    }
+    out[[d]] <- sweep(block, 2L, colMeans(block), "-")
+  }
+  out
 }

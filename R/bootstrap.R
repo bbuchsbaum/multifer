@@ -6,10 +6,8 @@
 #' per-replicate aligned fits without having to re-do alignment.
 #'
 #' For (oneblock, variance), uses ordinary row bootstrap with
-#' replacement. For (cross, covariance | correlation), uses PAIRED row
-#' bootstrap -- a single index vector is sampled and applied to BOTH
-#' X and Y to preserve the observation pairing that the design
-#' assumes.
+#' replacement. For cross and multiblock geometries, a single index
+#' vector is sampled and applied to every aligned block.
 #'
 #' @section Score alignment for procrustes:
 #' When \code{method_align = "procrustes"}, after the column permutation is
@@ -29,7 +27,8 @@
 #' @param adapter The \code{multifer_adapter} object (from
 #'   \code{recipe$adapter} or looked up from the registry).
 #' @param data For oneblock, a numeric matrix. For cross, a list with
-#'   elements \code{X} and \code{Y}.
+#'   elements \code{X} and \code{Y}. For multiblock, a list of aligned
+#'   numeric matrix blocks.
 #' @param original_fit The output of \code{adapter$refit} applied to the
 #'   original (unperturbed) data. Used as the alignment reference.
 #' @param units A \code{multifer_units} table produced by
@@ -140,7 +139,8 @@ bootstrap_fits <- function(recipe,
         call. = FALSE
       )
     }
-    domains <- "X"
+    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
+                                geom_kind = geom_kind)
     n       <- nrow(data)
   } else if (geom_kind == "cross") {
     if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
@@ -149,7 +149,8 @@ bootstrap_fits <- function(recipe,
         call. = FALSE
       )
     }
-    domains <- c("X", "Y")
+    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
+                                geom_kind = geom_kind)
     n       <- nrow(data$X)
     if (nrow(data$Y) != n) {
       stop(
@@ -157,10 +158,15 @@ bootstrap_fits <- function(recipe,
         call. = FALSE
       )
     }
+  } else if (geom_kind == "multiblock") {
+    .validate_multiblock_data(data)
+    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
+                                geom_kind = geom_kind)
+    n       <- nrow(data[[1L]])
   } else {
     stop(
       sprintf(
-        "bootstrap_fits only supports 'oneblock' and 'cross' geometries. Got: '%s'.",
+        "bootstrap_fits only supports 'oneblock', 'cross', and 'multiblock' geometries. Got: '%s'.",
         geom_kind
       ),
       call. = FALSE
@@ -249,12 +255,14 @@ bootstrap_fits <- function(recipe,
 
     rep_data <- if (geom_kind == "oneblock") {
       data[indices, , drop = FALSE]
-    } else {
+    } else if (geom_kind == "cross") {
       list(
         X        = data$X[indices, , drop = FALSE],
         Y        = data$Y[indices, , drop = FALSE],
         relation = rel_kind
       )
+    } else {
+      .resample_multiblock_data(data, indices)
     }
 
     used_fallback <- FALSE

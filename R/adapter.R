@@ -41,6 +41,7 @@
 #' - `roots(x)` -- numeric vector of latent roots.
 #' - `scores(x, domain)` -- matrix of scores.
 #' - `loadings(x, domain)` -- matrix of loadings.
+#' - `domains(x, data)` -- optional character vector of loading/score domains.
 #' - `truncate(x, k)` -- truncated fit.
 #' - `residualize(x, k, data)` -- deflated residual after removing k components.
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
@@ -140,7 +141,7 @@ infer_adapter <- function(adapter_id,
 
   # -- collect hooks ----------------------------------------------------------
   hooks_raw <- list(...)
-  valid_hooks <- c("roots", "scores", "loadings", "truncate", "residualize",
+  valid_hooks <- c("roots", "scores", "loadings", "domains", "truncate", "residualize",
                    "refit", "core", "update_core", "align", "null_action",
                    "component_stat", "predict_response",
                    "variable_stat", "score_stat")

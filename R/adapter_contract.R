@@ -45,6 +45,13 @@
 #'     Return a `p × k` numeric matrix (`p` is the number of variables
 #'     in the relevant block).}
 #'
+#'   \item{`domains(x, data = NULL)`}{Optional. Return the character vector
+#'     of domain labels accepted by `scores()` and `loadings()`. Oneblock
+#'     adapters default to `"X"`, cross adapters default to `c("X", "Y")`,
+#'     and multiblock adapters default to the names of the block-list data
+#'     (or `"block1"`, `"block2"`, ... for unnamed lists). Provide this hook
+#'     when domains are model-defined rather than data-name-defined.}
+#'
 #'   \item{`truncate(x, k)`}{Optional. Return a fit of the same class
 #'     truncated to the leading `k` components. Used when downstream
 #'     code needs a reduced-rank view of the original fit.}
@@ -212,6 +219,12 @@
 #' you are writing an adapter for someone else's fitter), you do not
 #' need to vendor the fitter into your code — just import the classes
 #' you need and delegate the hooks.
+#'
+#' For multiblock fits, declare `geometry = "multiblock"` and pass
+#' list-of-matrix data with aligned rows through `refit()`, `null_action()`,
+#' `component_stat()`, and `residualize()`. The generic multiblock ladder
+#' preserves block-list data; it does not flatten blocks internally. That
+#' keeps MFA/JIVE/AJIVE-style refit semantics under adapter control.
 #'
 #' @seealso [infer_adapter()], [register_infer_adapter()],
 #'   [capability_matrix()], [infer()]

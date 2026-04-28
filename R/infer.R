@@ -9,6 +9,7 @@
 #'   \item dispatch on geometry to \code{\link{run_oneblock_ladder}()}
 #'     or \code{\link{run_cross_ladder}()} or
 #'     \code{\link{run_predictive_ladder}()} or
+#'     \code{\link{run_multiblock_ladder}()} or
 #'     \code{\link{run_geneig_ladder}()};
 #'   \item fit (or use the supplied) original fit, then run
 #'     \code{\link{bootstrap_fits}()} to produce a perturbation
@@ -25,9 +26,10 @@
 #' @param adapter Either a \code{multifer_adapter} object or a string
 #'   id registered with \code{\link{register_infer_adapter}()}.
 #' @param data For oneblock, a numeric matrix. For cross, a list with
-#'   elements \code{X} and \code{Y}. For geneig, a data payload accepted
-#'   by the adapter's operator constructor (currently the LDA wrapper
-#'   uses a list with \code{X} and \code{y}).
+#'   elements \code{X} and \code{Y}. For multiblock, a list of aligned
+#'   numeric matrix blocks. For geneig, a data payload accepted by the
+#'   adapter's operator constructor (currently the LDA wrapper uses a
+#'   list with \code{X} and \code{y}).
 #' @param ... Reserved for future use.
 #' @param recipe Optional pre-compiled
 #'   \code{multifer_infer_recipe}; if supplied, \code{geometry},
@@ -194,8 +196,22 @@ infer <- function(adapter,
       auto_subspace = auto_subspace,
       tie_threshold = tie_threshold
     )
+  } else if (geom_kind == "multiblock") {
+    .validate_multiblock_data(data)
+    engine_out <- run_multiblock_ladder(
+      recipe = recipe,
+      adapter = adapter_obj,
+      data = data,
+      B = B,
+      B_total = B_total,
+      batch_size = mc_batch_size,
+      alpha = alpha,
+      seed = seed,
+      auto_subspace = auto_subspace,
+      tie_threshold = tie_threshold
+    )
   } else {
-    stop(sprintf("Phase 1 supports only 'oneblock', 'cross', and 'geneig'; got '%s'.",
+    stop(sprintf("infer() supports only 'oneblock', 'cross', 'multiblock', and 'geneig'; got '%s'.",
                  geom_kind), call. = FALSE)
   }
 
@@ -280,8 +296,10 @@ infer <- function(adapter,
     if (is.null(model)) {
       original_fit <- if (geom_kind == "oneblock") {
         adapter_obj$refit(NULL, data)
-      } else {
+      } else if (geom_kind == "cross") {
         adapter_obj$refit(NULL, list(X = data$X, Y = data$Y, relation = rel_kind))
+      } else {
+        adapter_obj$refit(NULL, data)
       }
     } else {
       original_fit <- model
