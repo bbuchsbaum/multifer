@@ -77,6 +77,14 @@
 #'     to [infer()] (matrix for oneblock, list with `X` and `Y` for
 #'     cross). Return shape: the same class as `x`.}
 #'
+#'   \item{`component_engine`}{Optional character scalar. Set to `"adapter"`
+#'     to route component-significance through adapter-owned `component_stat`,
+#'     `null_action`, and `residualize` hooks for a geometry that otherwise has
+#'     a built-in reference engine. This is for methods whose latent-root
+#'     statistic, null, or deflation lives in an adapter-defined geometry such
+#'     as a weighted, kernel, smoothed, sparse, or otherwise non-Euclidean
+#'     space. The default is `"default"`.}
+#'
 #'   \item{`bootstrap_action(x, data, design, replicate = NULL)`}{Optional.
 #'     Adapter-owned perturbation hook for stability targets. Return a list
 #'     with `fit` (a replicate fit) or `data` (a replicate data object to pass
@@ -101,9 +109,15 @@
 #'     `refit` whenever both are present; this is how the
 #'     exact-core-space bootstrap lands.}
 #'
-#'   \item{`align(xb, xref)`}{Optional. Custom alignment between a
-#'     bootstrap fit and the reference fit. Default is sign-flip
-#'     alignment on matched loadings.}
+#'   \item{`align(...)`}{Optional. Custom bootstrap alignment between a
+#'     replicate fit and the reference fit. New adapters should accept named
+#'     arguments `reference_loadings`, `replicate_loadings`,
+#'     `replicate_scores`, `reference_fit`, `replicate_fit`, `domain`, and
+#'     `method`, and return a list with `loadings` and optionally `scores`.
+#'     This lets adapters perform component matching and sign/rotation under
+#'     their own inner product. Without it, bootstrap alignment uses Euclidean
+#'     matching plus sign or legacy Procrustes alignment on the loading
+#'     matrices.}
 #'
 #'   \item{`null_action(x, data)`}{Required by
 #'     `component_significance`. Return one null resample of `data`

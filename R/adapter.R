@@ -47,11 +47,16 @@
 #' - `truncate(x, k)` -- truncated fit.
 #' - `residualize(x, k, data)` -- deflated residual after removing k components.
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
+#' - `component_engine` -- optional character scalar. Set to `"adapter"` to
+#'   route component-significance through adapter-owned `component_stat`,
+#'   `null_action`, and `residualize` hooks for geometries that otherwise have
+#'   a built-in reference engine.
 #' - `bootstrap_action(x, data, design, replicate)` -- optional adapter-owned
 #'   perturbation hook returning a replicate fit or replicate data.
 #' - `core(x, data)` -- optional fast-path core representation.
 #' - `update_core(core_obj, ...)` -- optional fast-path core update.
-#' - `align(xb, xref)` -- alignment (sign / legacy Procrustes / subspace).
+#' - `align(...)` -- optional adapter-owned bootstrap alignment for loadings
+#'   and scores.
 #' - `null_action(x, data)` -- generate one null resample.
 #' - `component_stat(x, data, k, split = NULL)` -- per-component test statistic.
 #' - `predict_response(x, new_data, k = NULL)` -- fitted responses for
@@ -148,9 +153,9 @@ infer_adapter <- function(adapter_id,
   # -- collect hooks ----------------------------------------------------------
   hooks_raw <- list(...)
   valid_hooks <- c("roots", "scores", "loadings", "domains", "project_scores",
-                   "truncate", "residualize", "refit", "bootstrap_action",
-                   "core", "update_core", "align", "null_action",
-                   "component_stat", "predict_response",
+                   "truncate", "residualize", "refit", "component_engine",
+                   "bootstrap_action", "core", "update_core", "align",
+                   "null_action", "component_stat", "predict_response",
                    "variable_stat", "score_stat")
   bad_hooks <- setdiff(names(hooks_raw), valid_hooks)
   if (length(bad_hooks) > 0L) {
@@ -165,6 +170,16 @@ infer_adapter <- function(adapter_id,
     lapply(valid_hooks, function(h) hooks_raw[[h]]),
     valid_hooks
   )
+
+  if (!is.null(hooks[["component_engine"]])) {
+    if (!is.character(hooks[["component_engine"]]) ||
+        length(hooks[["component_engine"]]) != 1L ||
+        is.na(hooks[["component_engine"]]) ||
+        !(hooks[["component_engine"]] %in% c("default", "adapter"))) {
+      stop("`component_engine` must be either \"default\" or \"adapter\".",
+           call. = FALSE)
+    }
+  }
 
   # -- variable_significance excluded from v1 (Part 5 section 38) ------------
   if (any(capabilities$target == "variable_significance")) {

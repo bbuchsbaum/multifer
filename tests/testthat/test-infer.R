@@ -22,6 +22,47 @@ test_that("infer() oneblock end-to-end produces a valid infer_result", {
   expect_equal(res$provenance$adapter_id, "prcomp_oneblock")
 })
 
+test_that("infer() can use an adapter-owned oneblock component ladder", {
+  calls <- new.env(parent = emptyenv())
+  calls$stat <- 0L
+  X <- matrix(seq_len(24), 6, 4)
+  adapter <- infer_adapter(
+    adapter_id = "adapter_engine_oneblock",
+    shape_kinds = "oneblock",
+    capabilities = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 3),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) {
+      calls$stat <- calls$stat + 1L
+      0.5
+    },
+    residualize = function(x, k, data) data * 0,
+    component_engine = "adapter",
+    validity_level = "conditional",
+    checked_assumptions = .oneblock_baser_checks()
+  )
+
+  res <- infer(
+    adapter = adapter,
+    data = X,
+    geometry = "oneblock",
+    relation = "variance",
+    targets = "component_significance",
+    B = 3L,
+    R = 0L,
+    seed = 2L
+  )
+
+  expect_true(is_infer_result(res))
+  expect_gt(calls$stat, 0L)
+  expect_equal(res$component_tests$statistic, 0.5)
+  expect_match(res$mc$statistic_label, "adapter component_stat on oneblock data")
+})
+
 test_that("infer() cross end-to-end with explicit covariance", {
   ensure_default_adapters()
   set.seed(702)

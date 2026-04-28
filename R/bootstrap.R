@@ -256,6 +256,7 @@ bootstrap_fits <- function(recipe,
   .fn_default_bootstrap_data <- .default_bootstrap_data
   .fn_normalize_bootstrap_action <- .normalize_bootstrap_action
   .fn_project_scores_for_bootstrap <- .project_scores_for_bootstrap
+  .fn_align_bootstrap_domain <- .align_bootstrap_domain
   .k_trunc_local <- if (has_fast_path) .core_effective_rank(core_obj) else NA_integer_
   design_local <- recipe$shape$design
 
@@ -338,26 +339,19 @@ bootstrap_fits <- function(recipe,
       Vb_cmp <- Vb[, seq_len(k_cmp), drop = FALSE]
       Sb_cmp <- if (store_aligned_scores) Sb[, seq_len(k_cmp), drop = FALSE] else NULL
 
-      perm    <- .fn_match_components(Vref_cmp, Vb_cmp)
-      Vb_perm <- Vb_cmp[, perm, drop = FALSE]
-      Sb_perm <- if (store_aligned_scores) Sb_cmp[, perm, drop = FALSE] else NULL
-
-      if (method_align == "sign") {
-        signs       <- sign(base::colSums(Vref_cmp * Vb_perm))
-        signs[signs == 0L] <- 1L
-        aligned_L   <- base::sweep(Vb_perm, 2L, signs, `*`)
-        aligned_S   <- if (store_aligned_scores) {
-          base::sweep(Sb_perm, 2L, signs, `*`)
-        } else {
-          NULL
-        }
-      } else {
-        M  <- base::crossprod(Vref_cmp, Vb_perm)
-        sv <- base::svd(M)
-        Q  <- sv$v %*% t(sv$u)
-        aligned_L <- Vb_perm %*% Q
-        aligned_S <- if (store_aligned_scores) Sb_perm %*% Q else NULL
-      }
+      aligned <- .fn_align_bootstrap_domain(
+        adapter = adapter,
+        reference_fit = original_fit,
+        replicate_fit = rep_fit,
+        reference_loadings = Vref_cmp,
+        replicate_loadings = Vb_cmp,
+        replicate_scores = Sb_cmp,
+        store_scores = store_aligned_scores,
+        domain = d,
+        method_align = method_align
+      )
+      aligned_L <- aligned$loadings
+      aligned_S <- aligned$scores
 
       rep_aligned_loadings[[d]] <- aligned_L
       if (store_aligned_scores) {
@@ -465,6 +459,104 @@ bootstrap_fits <- function(recipe,
     stop("Score hooks must return a numeric matrix.", call. = FALSE)
   }
   out
+}
+
+.align_bootstrap_domain <- function(adapter,
+                                    reference_fit,
+                                    replicate_fit,
+                                    reference_loadings,
+                                    replicate_loadings,
+                                    replicate_scores,
+                                    store_scores,
+                                    domain,
+                                    method_align) {
+  if (!is.null(adapter$align)) {
+    out <- .call_adapter_align(
+      adapter$align,
+      reference_fit = reference_fit,
+      replicate_fit = replicate_fit,
+      reference_loadings = reference_loadings,
+      replicate_loadings = replicate_loadings,
+      replicate_scores = replicate_scores,
+      store_scores = store_scores,
+      domain = domain,
+      method_align = method_align
+    )
+    return(.normalize_adapter_alignment(out, store_scores = store_scores))
+  }
+
+  perm <- match_components(reference_loadings, replicate_loadings)
+  Vb_perm <- replicate_loadings[, perm, drop = FALSE]
+  Sb_perm <- if (store_scores) replicate_scores[, perm, drop = FALSE] else NULL
+
+  if (method_align == "sign") {
+    signs <- sign(base::colSums(reference_loadings * Vb_perm))
+    signs[signs == 0L] <- 1L
+    aligned_L <- base::sweep(Vb_perm, 2L, signs, `*`)
+    aligned_S <- if (store_scores) base::sweep(Sb_perm, 2L, signs, `*`) else NULL
+  } else {
+    M <- base::crossprod(reference_loadings, Vb_perm)
+    sv <- base::svd(M)
+    Q <- sv$v %*% t(sv$u)
+    aligned_L <- Vb_perm %*% Q
+    aligned_S <- if (store_scores) Sb_perm %*% Q else NULL
+  }
+  list(loadings = aligned_L, scores = aligned_S)
+}
+
+.call_adapter_align <- function(align,
+                                reference_fit,
+                                replicate_fit,
+                                reference_loadings,
+                                replicate_loadings,
+                                replicate_scores,
+                                store_scores,
+                                domain,
+                                method_align) {
+  fml <- names(formals(align))
+  has_dots <- "..." %in% fml
+  if (has_dots || any(c("reference_loadings", "replicate_loadings") %in% fml)) {
+    return(align(
+      reference_loadings = reference_loadings,
+      replicate_loadings = replicate_loadings,
+      replicate_scores = replicate_scores,
+      reference_fit = reference_fit,
+      replicate_fit = replicate_fit,
+      store_scores = store_scores,
+      domain = domain,
+      method = method_align
+    ))
+  }
+
+  if (all(c("xb", "xref") %in% fml)) {
+    return(align(xb = replicate_loadings, xref = reference_loadings))
+  }
+  align(replicate_loadings, reference_loadings)
+}
+
+.normalize_adapter_alignment <- function(out, store_scores) {
+  if (is.matrix(out)) {
+    out <- list(loadings = out, scores = NULL)
+  }
+  if (!is.list(out) || is.null(out$loadings)) {
+    stop("`adapter$align()` must return a matrix or a list with `loadings`.",
+         call. = FALSE)
+  }
+  if (!is.matrix(out$loadings) || !is.numeric(out$loadings)) {
+    stop("`adapter$align()` must return numeric matrix `loadings`.",
+         call. = FALSE)
+  }
+  if (store_scores) {
+    if (is.null(out$scores)) {
+      stop("`adapter$align()` must return `scores` when aligned scores are requested.",
+           call. = FALSE)
+    }
+    if (!is.matrix(out$scores) || !is.numeric(out$scores)) {
+      stop("`adapter$align()` must return numeric matrix `scores`.",
+           call. = FALSE)
+    }
+  }
+  list(loadings = out$loadings, scores = out$scores)
 }
 
 # Draw row indices for bootstrap_fits according to the compiled design.

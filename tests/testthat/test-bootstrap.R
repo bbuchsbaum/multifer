@@ -423,6 +423,72 @@ test_that("bootstrap_fits stores adapter-projected scores for original data", {
                matrix(7, nrow = nrow(X), ncol = 2))
 })
 
+test_that("bootstrap_fits delegates loading and score alignment to adapter", {
+  clear_adapter_registry()
+
+  X <- matrix(seq_len(24), 6, 4)
+  fit <- list(
+    values = c(2, 1),
+    loadings = diag(4)[, 1:2, drop = FALSE],
+    scores = matrix(0, nrow = nrow(X), ncol = 2)
+  )
+  adapter <- infer_adapter(
+    adapter_id = "custom_align_bootstrap",
+    shape_kinds = "oneblock",
+    capabilities = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "score_stability")
+    ),
+    roots = function(x) x$values,
+    scores = function(x, domain = NULL) x$scores,
+    loadings = function(x, domain = NULL) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, resample_indices = as.integer(replicate))
+    },
+    project_scores = function(x, data, domain = NULL) {
+      matrix(2, nrow = nrow(data), ncol = ncol(x$loadings))
+    },
+    align = function(reference_loadings,
+                     replicate_loadings,
+                     replicate_scores,
+                     reference_fit,
+                     replicate_fit,
+                     domain,
+                     method,
+                     ...) {
+      list(
+        loadings = matrix(5, nrow = nrow(replicate_loadings),
+                          ncol = ncol(replicate_loadings)),
+        scores = matrix(6, nrow = nrow(replicate_scores),
+                        ncol = ncol(replicate_scores))
+      )
+    },
+    validity_level = "conditional"
+  )
+
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter = adapter,
+    targets = "score_stability"
+  )
+  art <- bootstrap_fits(
+    recipe = rec,
+    adapter = adapter,
+    data = X,
+    original_fit = fit,
+    units = form_units(adapter$roots(fit)),
+    R = 1L,
+    seed = 11L,
+    store_aligned_scores = TRUE
+  )
+
+  expect_equal(art$reps[[1L]]$aligned_loadings$X,
+               matrix(5, nrow = 4, ncol = 2))
+  expect_equal(art$reps[[1L]]$aligned_scores$X,
+               matrix(6, nrow = nrow(X), ncol = 2))
+})
+
 # ---------------------------------------------------------------------------
 # Test 6: Reproducibility under seed
 # ---------------------------------------------------------------------------

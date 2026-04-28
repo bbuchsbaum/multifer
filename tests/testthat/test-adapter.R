@@ -113,6 +113,50 @@ test_that("optional perturbation/projection hooks are accepted", {
   expect_true(is.function(a$project_scores))
 })
 
+test_that("adapter-owned component engine flag is accepted", {
+  a <- infer_adapter(
+    adapter_id      = "adapter_component_engine",
+    adapter_version = "0.0.1",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 1),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) 1,
+    residualize = function(x, k, data) data,
+    component_engine = "adapter",
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_equal(a$component_engine, "adapter")
+})
+
+test_that("invalid component engine flag errors", {
+  expect_error(
+    infer_adapter(
+      adapter_id      = "bad_component_engine",
+      adapter_version = "0.0.1",
+      shape_kinds     = "oneblock",
+      capabilities    = capability_matrix(
+        list(geometry = "oneblock", relation = "variance",
+             targets = "component_significance")
+      ),
+      roots = function(x) x$values,
+      refit = function(x, new_data) list(values = 1),
+      null_action = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize = function(x, k, data) data,
+      component_engine = "custom",
+      validity_level = "conditional"
+    ),
+    "component_engine"
+  )
+})
+
 test_that("project_scores can satisfy score_stability score extraction", {
   a <- infer_adapter(
     adapter_id      = "project_scores_only",

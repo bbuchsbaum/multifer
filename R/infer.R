@@ -147,16 +147,33 @@ infer <- function(adapter,
 
   t_engine_start <- proc.time()[["elapsed"]]
 
+  engine_original_fit <- NULL
+
   if (geom_kind == "oneblock") {
-    if (!is.matrix(data)) {
-      stop("For oneblock geometry, `data` must be a numeric matrix.",
-           call. = FALSE)
+    .validate_oneblock_data(data)
+    if (identical(adapter_obj$component_engine, "adapter")) {
+      engine_original_fit <- model %||% adapter_obj$refit(NULL, data)
+      engine_out <- run_adapter_ladder(
+        recipe = recipe,
+        adapter = adapter_obj,
+        data = data,
+        B = B,
+        B_total = B_total,
+        batch_size = mc_batch_size,
+        alpha = alpha,
+        seed = seed,
+        auto_subspace = auto_subspace,
+        tie_threshold = tie_threshold,
+        original_fit = engine_original_fit,
+        validate_data = .validate_oneblock_data
+      )
+    } else {
+      engine_out <- run_oneblock_ladder(
+        recipe = recipe, X = data, B = B, B_total = B_total,
+        batch_size = mc_batch_size, alpha = alpha, seed = seed,
+        auto_subspace = auto_subspace, tie_threshold = tie_threshold
+      )
     }
-    engine_out <- run_oneblock_ladder(
-      recipe = recipe, X = data, B = B, B_total = B_total,
-      batch_size = mc_batch_size, alpha = alpha, seed = seed,
-      auto_subspace = auto_subspace, tie_threshold = tie_threshold
-    )
   } else if (geom_kind == "cross") {
     if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
       stop("For cross geometry, `data` must be a list with X and Y.",
@@ -295,7 +312,9 @@ infer <- function(adapter,
     }
 
     if (is.null(model)) {
-      original_fit <- if (geom_kind == "oneblock") {
+      original_fit <- if (!is.null(engine_original_fit)) {
+        engine_original_fit
+      } else if (geom_kind == "oneblock") {
         adapter_obj$refit(NULL, data)
       } else if (geom_kind == "cross") {
         adapter_obj$refit(NULL, list(X = data$X, Y = data$Y, relation = rel_kind))

@@ -34,7 +34,6 @@ run_multiblock_ladder <- function(recipe,
                                   auto_subspace = TRUE,
                                   tie_threshold = 0.01,
                                   original_fit  = NULL) {
-
   if (!is_infer_recipe(recipe)) {
     stop("`recipe` must be a compiled multifer_infer_recipe.", call. = FALSE)
   }
@@ -49,105 +48,21 @@ run_multiblock_ladder <- function(recipe,
     stop("`adapter` must be a multifer_adapter.", call. = FALSE)
   }
 
-  .validate_multiblock_data(data)
-
-  if (is.null(original_fit)) {
-    original_fit <- adapter$refit(NULL, data)
-  }
-  roots_observed <- adapter$roots(original_fit)
-  if (!is.numeric(roots_observed) || length(roots_observed) == 0L ||
-      any(!is.finite(roots_observed))) {
-    stop("`adapter$roots()` must return a non-empty finite numeric vector.",
-         call. = FALSE)
-  }
-
-  if (is.null(max_steps)) {
-    max_steps <- min(length(roots_observed), 50L)
-  }
-  max_steps <- as.integer(max(1L, max_steps))
-
-  current_step <- NA_integer_
-  current_fit <- NULL
-  get_fit <- function(step, block_data) {
-    if (!identical(current_step, as.integer(step)) || is.null(current_fit)) {
-      current_fit <<- if (identical(step, 1L)) {
-        original_fit
-      } else {
-        adapter$refit(original_fit, block_data)
-      }
-      current_step <<- as.integer(step)
-    }
-    current_fit
-  }
-  reset_fit <- function() {
-    current_step <<- NA_integer_
-    current_fit <<- NULL
-  }
-
-  observed_stat_fn <- function(step, block_data) {
-    fit <- get_fit(step, block_data)
-    .multifer_scalar_stat(adapter$component_stat(fit, block_data, 1L))
-  }
-
-  null_stat_fn <- function(step, block_data) {
-    fit <- get_fit(step, block_data)
-    null_data <- adapter$null_action(fit, block_data)
-    .validate_multiblock_data(null_data)
-    .multifer_scalar_stat(adapter$component_stat(fit, null_data, 1L))
-  }
-
-  deflate_fn <- function(step, block_data) {
-    fit <- get_fit(step, block_data)
-    out <- adapter$residualize(fit, 1L, block_data)
-    .validate_multiblock_data(out)
-    reset_fit()
-    out
-  }
-
-  ladder_result <- ladder_driver(
-    observed_stat_fn = observed_stat_fn,
-    null_stat_fn     = null_stat_fn,
-    deflate_fn       = deflate_fn,
-    initial_data     = data,
-    max_steps        = max_steps,
-    B                = B,
-    B_total          = B_total,
-    batch_size       = batch_size,
-    alpha            = alpha,
-    seed             = seed
-  )
-
-  rejected_through <- ladder_result$rejected_through
-  selected <- logical(length(roots_observed))
-  if (rejected_through >= 1L) {
-    selected[seq_len(min(rejected_through, length(selected)))] <- TRUE
-  }
-
-  units <- form_units(
-    roots_observed,
-    selected        = selected,
-    group_near_ties = isTRUE(auto_subspace),
-    tie_threshold   = tie_threshold
-  )
-
-  sr <- ladder_result$step_results
-  component_tests <- data.frame(
-    step           = vapply(sr, function(x) x$step,          integer(1L)),
-    observed_stat  = vapply(sr, function(x) x$observed_stat, double(1L)),
-    p_value        = vapply(sr, function(x) x$p_value,       double(1L)),
-    mc_se          = vapply(sr, function(x) x$mc_se,         double(1L)),
-    r              = vapply(sr, function(x) x$r,             integer(1L)),
-    B              = vapply(sr, function(x) x$B,             integer(1L)),
-    selected       = vapply(sr, function(x) x$selected,      logical(1L)),
-    stringsAsFactors = FALSE
-  )
-
-  list(
-    units           = units,
-    component_tests = component_tests,
-    roots_observed  = roots_observed,
-    ladder_result   = ladder_result,
-    labels          = list(
+  run_adapter_ladder(
+    recipe = recipe,
+    adapter = adapter,
+    data = data,
+    B = B,
+    B_total = B_total,
+    batch_size = batch_size,
+    alpha = alpha,
+    max_steps = max_steps,
+    seed = seed,
+    auto_subspace = auto_subspace,
+    tie_threshold = tie_threshold,
+    original_fit = original_fit,
+    validate_data = .validate_multiblock_data,
+    labels = list(
       statistic = "adapter component_stat on multiblock data",
       null      = "adapter null_action on aligned block-list data",
       estimand  = "adapter latent roots"
