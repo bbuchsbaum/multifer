@@ -1,3 +1,25 @@
+make_fi_artifact <- function(loadings_by_rep, domains = names(loadings_by_rep[[1L]])) {
+  structure(
+    list(
+      reps = lapply(loadings_by_rep, function(L) list(aligned_loadings = L)),
+      R = length(loadings_by_rep),
+      method_align = "sign",
+      domains = domains,
+      seed = NULL
+    ),
+    class = "multifer_bootstrap_artifact"
+  )
+}
+
+slow_importance_reference <- function(L, units, unit_idx, alpha) {
+  members <- attr(units, "members")
+  q <- matrix(NA_real_, nrow = nrow(L), ncol = length(unit_idx))
+  for (u in seq_along(unit_idx)) {
+    q[, u] <- rowSums(L[, members[[unit_idx[u]]], drop = FALSE]^2)
+  }
+  as.numeric(q %*% alpha / sum(alpha))
+}
+
 test_that("feature_importance_from_bootstrap computes aggregate squared-loading importance", {
   units <- infer_units(
     unit_id = c("u1", "u2"),
@@ -10,10 +32,7 @@ test_that("feature_importance_from_bootstrap computes aggregate squared-loading 
     list(aligned_loadings = list(X = matrix(c(1, 0, 0, 1), nrow = 2))),
     list(aligned_loadings = list(X = matrix(c(1, 0, 0, 1), nrow = 2)))
   )
-  art <- structure(
-    list(reps = reps, R = 2L, method_align = "sign", domains = "X", seed = NULL),
-    class = "multifer_bootstrap_artifact"
-  )
+  art <- make_fi_artifact(lapply(reps, `[[`, "aligned_loadings"))
 
   out <- feature_importance_from_bootstrap(
     art, units, k = "selected", normalize = "none"
@@ -43,10 +62,7 @@ test_that("feature_importance_from_bootstrap handles subspace units and selected
     list(aligned_loadings = list(X = L)),
     list(aligned_loadings = list(X = L))
   )
-  art <- structure(
-    list(reps = reps, R = 2L, method_align = "sign", domains = "X", seed = NULL),
-    class = "multifer_bootstrap_artifact"
-  )
+  art <- make_fi_artifact(lapply(reps, `[[`, "aligned_loadings"))
 
   out <- feature_importance_from_bootstrap(
     art, units, k = "selected", scope = "both", normalize = "none"
@@ -73,10 +89,7 @@ test_that("feature_importance_from_bootstrap supports root weights, ranks, and t
     list(aligned_loadings = list(X = L1)),
     list(aligned_loadings = list(X = L2))
   )
-  art <- structure(
-    list(reps = reps, R = 2L, method_align = "sign", domains = "X", seed = NULL),
-    class = "multifer_bootstrap_artifact"
-  )
+  art <- make_fi_artifact(lapply(reps, `[[`, "aligned_loadings"))
 
   out <- feature_importance_from_bootstrap(
     art, units, k = "all", weights = "root", roots = c(3, 1),
@@ -86,6 +99,139 @@ test_that("feature_importance_from_bootstrap supports root weights, ranks, and t
   expect_equal(sum(out$estimate), 1)
   expect_true(all(out$rank_mean >= 1))
   expect_true(all(out$top_m_frequency >= 0 & out$top_m_frequency <= 1))
+})
+
+test_that("feature_importance_from_bootstrap matches an independent reference calculation", {
+  set.seed(81)
+  units <- infer_units(
+    unit_id = c("u1", "u2", "u3"),
+    unit_type = c("component", "subspace", "component"),
+    members = list(1L, c(2L, 3L), 4L),
+    identifiable = c(TRUE, FALSE, TRUE),
+    selected = c(TRUE, TRUE, FALSE)
+  )
+  L1 <- matrix(stats::rnorm(24), nrow = 6)
+  L2 <- matrix(stats::rnorm(24), nrow = 6)
+  rownames(L1) <- rownames(L2) <- paste0("v", seq_len(6))
+  roots <- c(4, 3, 2, 1)
+  unit_idx <- c(1L, 2L)
+  alpha <- c(roots[1], sum(roots[2:3]))
+  ref <- rowMeans(cbind(
+    slow_importance_reference(L1, units, unit_idx, alpha),
+    slow_importance_reference(L2, units, unit_idx, alpha)
+  ))
+
+  art <- make_fi_artifact(list(list(X = L1), list(X = L2)))
+  out <- feature_importance_from_bootstrap(
+    art, units, k = "selected", weights = "root", roots = roots,
+    normalize = "none"
+  )
+
+  expect_equal(out$variable, paste0("v", seq_len(6)))
+  expect_equal(out$estimate, ref, tolerance = 1e-14)
+  expect_true(all(is.finite(out$estimate)))
+  expect_true(all(out$estimate >= 0))
+})
+
+test_that("feature importance is invariant to component sign flips", {
+  units <- infer_units(
+    unit_id = c("u1", "u2"),
+    unit_type = c("component", "component"),
+    members = list(1L, 2L),
+    identifiable = c(TRUE, TRUE),
+    selected = c(TRUE, TRUE)
+  )
+  L <- matrix(c(1, -2, 3, 4, -5, 6), nrow = 3, ncol = 2)
+  art <- make_fi_artifact(list(list(X = L)))
+  art_flipped <- make_fi_artifact(list(list(X = sweep(L, 2L, c(-1, 1), `*`))))
+
+  out <- feature_importance_from_bootstrap(art, units, k = "all", normalize = "none")
+  out_flipped <- feature_importance_from_bootstrap(art_flipped, units, k = "all", normalize = "none")
+
+  expect_equal(out$estimate, out_flipped$estimate, tolerance = 1e-14)
+  expect_equal(out$rank_mean, out_flipped$rank_mean, tolerance = 1e-14)
+})
+
+test_that("feature importance obeys raw scale and block-normalization metamorphisms", {
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = TRUE
+  )
+  L <- matrix(c(1, 2, 3), ncol = 1)
+  art <- make_fi_artifact(list(list(X = L)))
+  art_scaled <- make_fi_artifact(list(list(X = 10 * L)))
+
+  raw <- feature_importance_from_bootstrap(art, units, normalize = "none")
+  raw_scaled <- feature_importance_from_bootstrap(art_scaled, units, normalize = "none")
+  norm <- feature_importance_from_bootstrap(art, units, normalize = "block")
+  norm_scaled <- feature_importance_from_bootstrap(art_scaled, units, normalize = "block")
+
+  expect_equal(raw_scaled$estimate, 100 * raw$estimate, tolerance = 1e-14)
+  expect_equal(norm_scaled$estimate, norm$estimate, tolerance = 1e-14)
+  expect_equal(sum(norm$estimate), 1, tolerance = 1e-14)
+})
+
+test_that("feature importance is equivariant to variable row permutations", {
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = TRUE
+  )
+  L <- matrix(c(1, 2, 3, 4), ncol = 1)
+  rownames(L) <- c("a", "b", "c", "d")
+  perm <- c(3, 1, 4, 2)
+  art <- make_fi_artifact(list(list(X = L)))
+  art_perm <- make_fi_artifact(list(list(X = L[perm, , drop = FALSE])))
+
+  out <- feature_importance_from_bootstrap(art, units, normalize = "none")
+  out_perm <- feature_importance_from_bootstrap(art_perm, units, normalize = "none")
+
+  expect_equal(out_perm$estimate, out$estimate[match(out_perm$variable, out$variable)])
+})
+
+test_that("feature importance rejects unavailable component members", {
+  units <- infer_units(
+    unit_id = c("u1", "u2"),
+    unit_type = c("component", "component"),
+    members = list(1L, 3L),
+    identifiable = c(TRUE, TRUE),
+    selected = c(TRUE, TRUE)
+  )
+  art <- make_fi_artifact(list(list(X = matrix(1, nrow = 2, ncol = 2))))
+
+  expect_error(
+    feature_importance_from_bootstrap(art, units, k = "selected"),
+    "outside the available loading columns"
+  )
+})
+
+test_that("feature importance handles empty selected set and validates weights", {
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = FALSE
+  )
+  art <- make_fi_artifact(list(list(X = matrix(1, nrow = 2, ncol = 1))))
+
+  empty <- feature_importance_from_bootstrap(art, units, k = "selected")
+  expect_s3_class(empty, "multifer_feature_importance")
+  expect_equal(nrow(empty), 0L)
+
+  expect_error(
+    feature_importance_from_bootstrap(art, units, k = "all", weights = "root"),
+    "`roots` must be supplied"
+  )
+  expect_error(
+    feature_importance_from_bootstrap(art, units, k = "all", weights = 0),
+    "positive sum"
+  )
 })
 
 test_that("feature_importance_pvalues uses null_action without a bootstrap artifact", {
@@ -119,4 +265,54 @@ test_that("feature_importance_pvalues uses null_action without a bootstrap artif
   expect_equal(nrow(out), ncol(X))
   expect_true(all(out$p_value >= 1 / 6 & out$p_value <= 1))
   expect_true(all(out$p_adjusted >= out$p_value))
+})
+
+test_that("feature_importance_pvalues calls null_action B times and uses maxT", {
+  calls <- new.env(parent = emptyenv())
+  calls$n <- 0L
+  L_obs <- matrix(c(2, 1), ncol = 1)
+  L_null <- matrix(c(1, 3), ncol = 1)
+  adapter <- structure(
+    list(
+      refit = function(x, new_data, ...) {
+        if (isTRUE(attr(new_data, "null"))) list(L = L_null) else list(L = L_obs)
+      },
+      loadings = function(x, domain = NULL, ...) x$L,
+      roots = function(x, ...) 1,
+      null_action = function(x, data, ...) {
+        calls$n <- calls$n + 1L
+        structure(data, null = TRUE)
+      }
+    ),
+    class = "multifer_adapter"
+  )
+  recipe <- structure(
+    list(
+      shape = typed_shape(geometry("oneblock"), relation("variance"), exchangeable_rows()),
+      validity_level = "conditional"
+    ),
+    class = "multifer_infer_recipe"
+  )
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = TRUE
+  )
+
+  out <- feature_importance_pvalues(
+    recipe = recipe,
+    adapter = adapter,
+    data = matrix(0, 2, 1),
+    original_fit = list(L = L_obs),
+    units = units,
+    B = 4L,
+    adjust = "maxT",
+    normalize = "none"
+  )
+
+  expect_equal(calls$n, 4L)
+  expect_equal(out$p_value, c(1 / 5, 1))
+  expect_equal(out$p_adjusted, c(1, 1))
 })

@@ -350,6 +350,10 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
 .fi_resolve_units <- function(units, k) {
   n <- nrow(units)
   if (n == 0L) return(integer(0))
+  if (is.character(k) && length(k) > 1L &&
+      any(k %in% c("selected", "all"))) {
+    k <- match.arg(k, c("selected", "all"))
+  }
   if (is.character(k) && length(k) == 1L && k == "selected") {
     return(which(units$selected))
   }
@@ -458,10 +462,20 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
     q <- matrix(NA_real_, nrow = nrow(L), ncol = length(unit_idx))
     for (u in seq_along(unit_idx)) {
       m <- as.integer(members[[unit_idx[u]]])
-      m <- m[m <= ncol(L)]
-      if (length(m) > 0L) {
-        q[, u] <- rowSums(L[, m, drop = FALSE]^2)
+      if (length(m) == 0L) {
+        stop("Selected units must contain at least one component member.",
+             call. = FALSE)
       }
+      if (any(m < 1L) || any(m > ncol(L))) {
+        stop(
+          sprintf(
+            "Selected unit '%s' has component members outside the available loading columns for domain '%s'.",
+            units$unit_id[unit_idx[u]], d
+          ),
+          call. = FALSE
+        )
+      }
+      q[, u] <- rowSums(L[, m, drop = FALSE]^2)
     }
     q
   })
