@@ -1,0 +1,400 @@
+{
+  "prd": {
+    "id": "feature-importance-bootstrap-null-prd",
+    "title": "Feature Importance for Latent Multiblock and Cross-Block Models",
+    "status": "draft",
+    "created_date": "2026-04-28",
+    "owner": "multifer",
+    "related_issue": "multifer-tvb",
+    "summary": {
+      "problem": "Users need feature-level importance summaries for one-block, cross-block, and future multiblock latent models, aggregated across selected components or subspace units, without running a second bootstrap.",
+      "solution": "Add feature importance as a design-aware bootstrap artifact consumer for descriptive estimates, intervals, ranks, and top-m frequencies. Add formal p-values later through the existing adapter null_action Monte Carlo path, not through the bootstrap distribution.",
+      "non_goals": [
+        "Do not add feature_importance to the frozen infer_result schema in the first milestone.",
+        "Do not expose p-values for unsigned bootstrap importance in the first milestone.",
+        "Do not claim subject- or stratum-valid intervals until bootstrap_fits uses design-aware row draws.",
+        "Do not expose predictive_gain weights unless an adapter-level per-component gain API exists."
+      ]
+    },
+    "background": {
+      "current_architecture": [
+        "bootstrap_fits produces a multifer_bootstrap_artifact containing per-replicate aligned_loadings by domain.",
+        "variable_stability_from_bootstrap, score_stability_from_bootstrap, and subspace_stability_from_bootstrap already consume the artifact as sidecar stability consumers.",
+        "infer_result has a fixed schema centered on units; adding a feature_importance table is a schema change.",
+        "Adapters already expose null_action in the contract, and engines use this for Monte Carlo null draws."
+      ],
+      "statistical_principles": [
+        "Bootstrap replicates estimate uncertainty and stability around the fitted analysis pipeline.",
+        "Unsigned importance is nonnegative, so ordinary bootstrap distributions should not be interpreted as null distributions for p-values.",
+        "Formal p-values for importance require a design-valid null action or permutation/randomization path.",
+        "Signed bootstrap summaries are meaningful only in the component orientation defined by sign or Procrustes alignment to the original fit."
+      ]
+    },
+    "users_and_use_cases": [
+      {
+        "user": "Analyst fitting PCA, PLSC, CCA, PLSR, or future multiblock latent models",
+        "goal": "Rank features by overall contribution across selected latent units and quantify rank stability."
+      },
+      {
+        "user": "Method developer",
+        "goal": "Reuse the existing bootstrap artifact and null_action machinery without duplicating refits unnecessarily."
+      },
+      {
+        "user": "Analyst with clustered or stratified rows",
+        "goal": "Obtain feature importance intervals that respect subject, cluster, or stratum exchangeability."
+      }
+    ],
+    "requirements": {
+      "functional": [
+        {
+          "id": "FI-FR-001",
+          "description": "Provide a public sidecar function feature_importance_from_bootstrap that consumes an existing multifer_bootstrap_artifact and units table."
+        },
+        {
+          "id": "FI-FR-002",
+          "description": "Compute per-unit feature importance from aligned loadings using squared loadings for singleton units and row-wise squared norm across members for subspace units."
+        },
+        {
+          "id": "FI-FR-003",
+          "description": "Support aggregate importance across units using k = selected, k = all, or an explicit unit selection."
+        },
+        {
+          "id": "FI-FR-004",
+          "description": "Define k = selected as the subset of units where units$selected is TRUE, not as an independent scalar rank estimate."
+        },
+        {
+          "id": "FI-FR-005",
+          "description": "Support initial unit weights equal, root, and root2, with root weights supplied or derived only when available from the fit/artifact context."
+        },
+        {
+          "id": "FI-FR-006",
+          "description": "Return descriptive bootstrap summaries: estimate, lower, upper, standard error, stability, rank_mean, rank_lower, rank_upper, and top_m_frequency when requested."
+        },
+        {
+          "id": "FI-FR-007",
+          "description": "Do not include a p_value column in the Phase 1 bootstrap sidecar table."
+        },
+        {
+          "id": "FI-FR-008",
+          "description": "Record method metadata that clearly labels Phase 1 output as descriptive bootstrap evidence, not formal significance."
+        },
+        {
+          "id": "FI-FR-009",
+          "description": "Add design-aware row resampling to bootstrap_fits before documenting clustered or stratified importance intervals as valid."
+        },
+        {
+          "id": "FI-FR-010",
+          "description": "Add optional null-calibrated importance p-values in a later function using adapter$null_action and Monte Carlo p-value calculation."
+        }
+      ],
+      "non_functional": [
+        {
+          "id": "FI-NFR-001",
+          "description": "The sidecar consumer must not trigger a second bootstrap."
+        },
+        {
+          "id": "FI-NFR-002",
+          "description": "The implementation must preserve the current infer_result schema until an explicit schema review."
+        },
+        {
+          "id": "FI-NFR-003",
+          "description": "Output should be deterministic for a fixed bootstrap artifact."
+        },
+        {
+          "id": "FI-NFR-004",
+          "description": "The API should use the existing domain and unit vocabulary rather than introducing component-only semantics."
+        },
+        {
+          "id": "FI-NFR-005",
+          "description": "The implementation should avoid adapter-specific branching except through explicit adapter capabilities or supplied metadata."
+        }
+      ]
+    },
+    "proposed_api": {
+      "phase_1_sidecar": {
+        "function": "feature_importance_from_bootstrap",
+        "signature": {
+          "artifact": "multifer_bootstrap_artifact",
+          "units": "multifer_units",
+          "k": "one of selected, all, or explicit unit ids/indices",
+          "weights": "one of equal, root, root2, or numeric vector matching units",
+          "roots": "optional numeric vector used by root/root2 weighting",
+          "normalize": "one of block, global, none",
+          "top_m": "optional positive integer for top-m frequency",
+          "probs": "numeric length-2 interval probabilities, default c(0.025, 0.975)"
+        },
+        "returns": {
+          "class": "multifer_feature_importance",
+          "columns": [
+            "scope",
+            "domain",
+            "variable",
+            "unit_id",
+            "estimate",
+            "lower",
+            "upper",
+            "std_error",
+            "stability",
+            "rank_mean",
+            "rank_lower",
+            "rank_upper",
+            "top_m_frequency",
+            "weighting",
+            "normalization",
+            "method"
+          ],
+          "method_value": "bootstrap_descriptive"
+        }
+      },
+      "future_null_pvalues": {
+        "function": "feature_importance_pvalues",
+        "signature": {
+          "recipe": "multifer_infer_recipe",
+          "adapter": "multifer_adapter",
+          "data": "row-aligned model data",
+          "original_fit": "adapter fit on original data",
+          "units": "multifer_units",
+          "observed_importance": "output from feature_importance_from_bootstrap or observed-fit calculation",
+          "B": "positive integer Monte Carlo draw count",
+          "adjust": "one of maxT, BH, none",
+          "seed": "optional integer"
+        },
+        "returns": {
+          "class": "multifer_feature_importance_pvalues",
+          "columns": [
+            "domain",
+            "variable",
+            "statistic",
+            "p_value",
+            "p_adjusted",
+            "adjustment",
+            "B",
+            "mc_uncertainty",
+            "null_label",
+            "validity_level"
+          ]
+        }
+      }
+    },
+    "estimands": {
+      "per_unit_importance": {
+        "singleton_unit": "q[j,u] = loading[j,u]^2",
+        "subspace_unit": "q[j,u] = sum_{m in members(u)} loading[j,m]^2"
+      },
+      "aggregate_importance": {
+        "formula": "I[j] = sum_u alpha[u] * q[j,u] / sum_u alpha[u]",
+        "unit_set_selected": "u where units$selected == TRUE",
+        "unit_set_all": "all rows in units",
+        "unit_set_explicit": "caller-supplied unit ids or indices"
+      },
+      "normalization": {
+        "none": "Return raw aggregate importance.",
+        "block": "Normalize within each domain so importances sum to one for that domain when possible.",
+        "global": "Normalize across all domains so importances sum to one when possible."
+      }
+    },
+    "design_aware_resampling": {
+      "motivation": "Feature importance intervals inherit the validity of the bootstrap artifact. Current iid row bootstrap is not valid for clustered subject designs or fixed-stratum designs.",
+      "required_before_public_clustered_claims": true,
+      "draw_types": [
+        {
+          "design": "exchangeable_rows",
+          "draw": "iid row bootstrap"
+        },
+        {
+          "design": "paired_rows",
+          "draw": "one shared iid row draw applied to every row-aligned domain"
+        },
+        {
+          "design": "blocked_rows(strata)",
+          "draw": "stratified row bootstrap preserving stratum sizes"
+        },
+        {
+          "design": "clustered_rows(subject)",
+          "draw": "cluster bootstrap sampling subjects with replacement and carrying all rows per subject"
+        },
+        {
+          "design": "clustered_rows(subject, strata)",
+          "draw": "cluster bootstrap sampling subjects within strata"
+        },
+        {
+          "design": "nuisance_adjusted(Z, groups)",
+          "draw": "apply the existing residual or exchangeability-preserving transform first, then draw within valid exchangeability groups"
+        }
+      ],
+      "artifact_extension": {
+        "resample_indices": "Retain the source row indices used by the replicate.",
+        "resample_map": "Optional future data frame with output_row, source_row, unit, and stratum.",
+        "resample_weights": "Optional future frequency weights for adapters that can consume weighted resamples."
+      }
+    },
+    "pvalue_policy": {
+      "phase_1": {
+        "bootstrap_unsigned_importance_pvalues": "forbidden",
+        "bootstrap_rank_pvalues": "forbidden",
+        "directional_bootstrap_pvalues": "deferred"
+      },
+      "phase_2_or_later": {
+        "signed_directional_summary": {
+          "allowed": true,
+          "condition": "Only for signed quantities after explicit sign or Procrustes alignment to original_fit.",
+          "caveat": "The result measures concentration relative to the original orientation frame, not orientation-free sign significance."
+        },
+        "null_calibrated_unsigned_pvalues": {
+          "allowed": true,
+          "method": "Use adapter$null_action to generate null fits, recompute the same importance statistic, and calculate Phipson-Smyth Monte Carlo p-values.",
+          "preferred_adjustment": "maxT"
+        }
+      }
+    },
+    "milestones": [
+      {
+        "id": "FI-M1",
+        "name": "Design-aware bootstrap substrate",
+        "deliverables": [
+          "Introduce an internal resampling-plan helper used by bootstrap_fits.",
+          "Preserve current iid behavior for exchangeable_rows and paired_rows.",
+          "Add tests for blocked/stratified and clustered draw semantics before exposing clustered claims."
+        ],
+        "exit_criteria": [
+          "Existing bootstrap tests pass unchanged for iid and paired cases.",
+          "New tests show that grouped/clustered draws preserve the intended row structure.",
+          "The artifact records enough draw provenance for later diagnostics."
+        ]
+      },
+      {
+        "id": "FI-M2",
+        "name": "Descriptive feature-importance sidecar",
+        "deliverables": [
+          "Implement feature_importance_from_bootstrap.",
+          "Support per-unit and aggregate selected/all importance.",
+          "Return intervals, standard errors, stability, ranks, and optional top-m frequency.",
+          "Document that output is descriptive bootstrap evidence with no p-values."
+        ],
+        "exit_criteria": [
+          "Unit tests cover oneblock and cross artifacts.",
+          "Subspace units use row-wise squared norms across member components.",
+          "k = selected uses units$selected exactly.",
+          "No p_value column is returned."
+        ]
+      },
+      {
+        "id": "FI-M3",
+        "name": "Observed-fit and weighting refinement",
+        "deliverables": [
+          "Allow observed-fit estimates to be used as point estimates when original loadings are supplied.",
+          "Gate root and root2 weights on available root metadata.",
+          "Leave predictive_gain out unless an adapter capability supplies per-component gains."
+        ],
+        "exit_criteria": [
+          "Weighting errors are explicit when required metadata is missing.",
+          "PCA/PLSC/CCA do not expose predictive_gain by default.",
+          "Numeric custom weights are validated against unit selection."
+        ]
+      },
+      {
+        "id": "FI-M4",
+        "name": "Null-calibrated importance p-values",
+        "deliverables": [
+          "Implement feature_importance_pvalues using adapter$null_action.",
+          "Support unadjusted and maxT adjusted Monte Carlo p-values.",
+          "Use the same importance statistic as the descriptive sidecar.",
+          "Record null_label and validity_level from the recipe/adapter context."
+        ],
+        "exit_criteria": [
+          "Null p-values do not depend on bootstrap replicates.",
+          "Phipson-Smyth p-values are used.",
+          "maxT adjustment is tested on a small deterministic fixture.",
+          "Design restrictions are inherited from the recipe and adapter null_action."
+        ]
+      },
+      {
+        "id": "FI-M5",
+        "name": "Schema review for infer integration",
+        "deliverables": [
+          "Decide whether infer_result gets a feature_importance field.",
+          "If accepted, add constructor, print method support, docs, and target validation.",
+          "If rejected, keep sidecar API as the stable public surface."
+        ],
+        "exit_criteria": [
+          "Schema change is explicitly documented.",
+          "Validity-level enum is not extended accidentally; any new value is deliberate and tested.",
+          "Backward compatibility tests pass."
+        ]
+      }
+    ],
+    "testing_strategy": [
+      {
+        "area": "bootstrap consumer correctness",
+        "tests": [
+          "A toy artifact with known loadings gives exact squared-loading importance.",
+          "A subspace unit with two members gives rowSums(loadings^2).",
+          "k = selected excludes unselected units.",
+          "block normalization sums to one within each domain when total importance is positive."
+        ]
+      },
+      {
+        "area": "descriptive summaries",
+        "tests": [
+          "Bootstrap lower and upper match existing quantile helper behavior.",
+          "rank_mean and rank intervals are deterministic for tied and untied examples.",
+          "top_m_frequency is NA when top_m is NULL and valid in [0,1] otherwise."
+        ]
+      },
+      {
+        "area": "design-aware resampling",
+        "tests": [
+          "paired_rows applies the same draw to X and Y.",
+          "blocked_rows preserves stratum sample counts.",
+          "clustered rows duplicate or omit whole clusters, not isolated rows.",
+          "clustered plus strata samples clusters within each stratum."
+        ]
+      },
+      {
+        "area": "null-calibrated p-values",
+        "tests": [
+          "Null action is called exactly B times.",
+          "Phipson-Smyth p-values equal (1 + exceedances) / (B + 1).",
+          "maxT adjusted p-values use the maximum feature statistic per null draw.",
+          "No bootstrap artifact is required for p-value calculation."
+        ]
+      }
+    ],
+    "documentation_plan": [
+      "Add an Rd page for feature_importance_from_bootstrap documenting descriptive-only interpretation.",
+      "Add examples for oneblock PCA and cross-block PLSC/CCA once design-aware bootstrap is in place.",
+      "Add a cautionary paragraph that rank intervals and top-m frequencies are stability summaries, not p-values.",
+      "Document that k = selected means units flagged selected by the ladder.",
+      "Document that clustered or stratified validity depends on the design supplied to infer/bootstrap_fits."
+    ],
+    "risks_and_mitigations": [
+      {
+        "risk": "Users interpret bootstrap rank intervals or top-m frequencies as significance.",
+        "mitigation": "Do not include p_value in the Phase 1 table; label method as bootstrap_descriptive; document rank summaries as descriptive only."
+      },
+      {
+        "risk": "Clustered designs get overly narrow intervals if iid bootstrap remains the only draw path.",
+        "mitigation": "Make design-aware bootstrap the first public milestone before documenting clustered claims."
+      },
+      {
+        "risk": "Predictive-gain weighting is requested for models where it is undefined.",
+        "mitigation": "Exclude predictive_gain from Phase 1 and require explicit adapter capability before adding it."
+      },
+      {
+        "risk": "Adding validity_level = bootstrap breaks existing validation.",
+        "mitigation": "Do not use bootstrap as a validity_level unless the enum is deliberately extended; use method metadata instead."
+      },
+      {
+        "risk": "Selected-unit semantics are confused with a scalar rank k.",
+        "mitigation": "Name and document k = selected as units$selected == TRUE; support explicit unit selection separately."
+      }
+    ],
+    "open_questions": [
+      "Should clustered_rows be a new design constructor or represented as a generalized blocked_rows variant with a sampling_unit field?",
+      "Should root metadata be added to bootstrap artifacts, inferred from original_fit, or passed explicitly into feature_importance_from_bootstrap?",
+      "Should the Phase 1 sidecar include both per-unit and aggregate rows in one table, or return separate tables?",
+      "Should null-calibrated p-values refit full models for every null draw, or use adapter core/update hooks where valid?",
+      "Should a future infer_result schema change include feature importance by default or only when requested as a target?"
+    ]
+  }
+}
