@@ -93,7 +93,10 @@ test_that("component_tests$null_label is supplied by the engine, not dispatch", 
 })
 
 test_that("R/infer.R dispatch contains no geometry-specific null-label branches", {
-  infer_src <- readLines(test_path("..", "..", "R", "infer.R"))
+  infer_path <- test_path("..", "..", "R", "infer.R")
+  skip_if_not(file.exists(infer_path), "R/infer.R is not available in installed-package checks")
+
+  infer_src <- readLines(infer_path)
   expect_false(any(grepl("geom_kind == \"geneig\"", infer_src, fixed = TRUE) &
                    grepl("permute_labels", infer_src, fixed = FALSE)))
   expect_false(any(grepl("\"permute_labels\"", infer_src, fixed = TRUE)))

@@ -16,7 +16,9 @@ resource_files:
 - albers-header.html
 
 vignette: |
-  %\VignetteIndexEntry{LDA / generalized-eigen inference with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{LDA / generalized-eigen inference with multifer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}

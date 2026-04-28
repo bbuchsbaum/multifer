@@ -16,7 +16,9 @@ resource_files:
 - albers-header.html
 
 vignette: |
-  %\VignetteIndexEntry{PLSC / two-block covariance inference with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{PLSC / two-block covariance inference with multifer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}

@@ -16,7 +16,9 @@ resource_files:
 - albers-header.html
 
 vignette: |
-  %\VignetteIndexEntry{CCA / two-block correlation inference with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{CCA / two-block correlation inference with multifer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}

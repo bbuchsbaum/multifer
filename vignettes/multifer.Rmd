@@ -16,7 +16,9 @@ resource_files:
 - albers-header.html
 
 vignette: |
-  %\VignetteIndexEntry{Getting started with multifer} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{Getting started with multifer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
@@ -90,8 +92,18 @@ dat$meta$true_rank
 ```
 
 ```{r fit-and-infer}
-fit <- multivarious::pca(dat$X)
-res <- infer_pca(dat$X, model = fit, B = 99, R = 20, seed = 2)
+if (requireNamespace("multivarious", quietly = TRUE)) {
+  fit <- multivarious::pca(dat$X)
+  res <- infer_pca(dat$X, model = fit, B = 99, R = 20, seed = 2)
+} else {
+  res <- infer_pca(
+    dat$X,
+    adapter = "prcomp_oneblock",
+    B = 99,
+    R = 20,
+    seed = 2
+  )
+}
 res
 ```
 

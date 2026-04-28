@@ -16,7 +16,9 @@ resource_files:
 - albers-header.html
 
 vignette: |
-  %\VignetteIndexEntry{Writing a multifer adapter} %\VignetteEngine{knitr::knitr} %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{Writing a multifer adapter}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}

@@ -120,7 +120,7 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
 
 .fit_lda_refit <- function(X, y) {
   fit <- MASS::lda(x = X, grouping = y)
-  scores <- predict(fit, X)$x
+  scores <- stats::predict(fit, X)$x
   op <- .lda_geneig_operator(X, y)
   roots <- .geneig_roots(.geneig_normalize_state(list(
     A = op$A,

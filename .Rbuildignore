@@ -3,6 +3,8 @@
 ^\.github$
 ^\.beads$
 ^\.omc$
+^\.mote$
+^\.lintr$
 ^notes$
 ^paper$
 ^LICENSE\.md$

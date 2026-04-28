@@ -236,28 +236,29 @@ If a top-level `README` is added, the opening positioning language should be clo
 >
 > The package emphasizes strict validity contracts: it prefers refusing ambiguous or invalid analyses over silently guessing, and distinguishes component significance (permutation-based) from stability reliability (bootstrap-based) at the schema level.
 
-## Roadmap to paper-quality v1
+## v1 support boundary
 
-The concrete next milestone is not another method family. It is a paper-quality
-v1 boundary that the notes, wrappers, and evidence all state the same way.
+The current package boundary is not another method family. It is the
+paper-quality v1 boundary that the notes, wrappers, and evidence state the same
+way.
 
-1. **Freeze the theorem-bearing core around latent-root SVD models.** One-block variance and cross-block covariance remain the cleanest theorem and speed center of gravity. Every broader claim should be phrased relative to that center.
+1. **The theorem-bearing core is frozen around latent-root SVD models.** One-block variance and cross-block covariance remain the cleanest theorem and speed center of gravity. Every broader claim is phrased relative to that center.
 
-2. **Defend the shipped CCA boundary explicitly.** The package now ships a real CCA path. The remaining work is not basic engine existence; it is a support matrix, executable validity checks, calibration evidence, and a clear supported-design versus conservative-fallback boundary.
+2. **The shipped CCA boundary is explicit.** The package ships a real CCA path with a support matrix, executable validity checks, calibration evidence, and a clear supported-design versus conservative-fallback boundary.
 
-3. **Keep the public `geneig` surface intentionally narrow.** `infer_lda()` should remain explicit about what it does and does not expose: discriminant-root significance is public, broader metric-weighted / contrastive families are not.
+3. **The public `geneig` surface is intentionally narrow.** `infer_lda()` is explicit about what it does and does not expose: discriminant-root significance is public, broader metric-weighted / contrastive families are not.
 
-4. **Keep the public predictive surface intentionally narrow.** `infer_plsr()` should remain explicit that predictive inference means held-out predictive gain and that v1 presently centers PLSR rather than a larger predictive-cross family.
+4. **The public predictive surface is intentionally narrow.** `infer_plsr()` is explicit that predictive inference means held-out predictive gain and that v1 centers PLSR rather than a larger predictive-cross family.
 
-5. **Keep validity contracts executable, not just declared.** Every shipped adapter family should keep adding concrete checks: rank, sample-size, nuisance-design, grouped-exchangeability, label-permutation admissibility, and similar support-boundary guards.
+5. **Validity contracts are executable, not just declared.** Every shipped adapter family carries concrete checks: rank, sample-size, nuisance-design, grouped-exchangeability, label-permutation admissibility, and similar support-boundary guards.
 
-6. **Keep significance and stability separate.** `component_tests` are significance outputs; variable, score, and subspace summaries are bootstrap reliability outputs. That separation should remain prominent in docs and print paths.
+6. **Significance and stability stay separate.** `component_tests` are significance outputs; variable, score, subspace, and feature-importance summaries are bootstrap reliability outputs. That separation is prominent in docs and print paths.
 
-7. **Keep subspace-first output as the default higher-level object.** Near ties should continue to print and summarize as subspaces and principal angles before singleton signed directions.
+7. **Subspace-first output remains the default higher-level object.** Near ties print and summarize as subspaces and principal angles before singleton signed directions.
 
-The v1 boundary is reached when the notes, wrappers, and evidence all agree on
-those seven points, and the package can describe its present scope without
-mixing current capability, paper scope, and future work.
+The v1 boundary is the agreement among the notes, wrappers, and evidence on
+those seven points. The package describes its present scope without mixing
+current capability, paper scope, and future work.
 
 ## Paper / package split
 

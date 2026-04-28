@@ -1,6 +1,6 @@
 Package: multifer
 Title: Typed Perturbation Inference for Projector-Based Multivariate Models
-Version: 0.0.0.9000
+Version: 1.0.0
 Authors@R:
     person(given = "Bradley",
            family = "Buchsbaum",
@@ -33,6 +33,8 @@ Imports:
     matrixStats,
     mirai
 Suggests:
+    albersdown,
+    ggplot2,
     knitr,
     MASS,
     multivarious,
