@@ -1,24 +1,53 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **mote** for local issue tracking and agent coordination.
+Use mote for all new work items, claims, path reservations, notes, handoffs,
+and completion records.
 
-## Quick Reference
+## Mote Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
+mote doctor
+mote actor show
+mote board
+mote ready
+mote show <id>
+mote preflight --issue <id> --paths <path> [<path> ...]
+mote begin <id> --paths <path> [<path> ...] --note "starting"
+mote note <id> --kind progress "what changed"
+mote done <id> --note "finished"
 ```
+
+## Mote Rules
+
+- Use `mote` for task tracking and coordination. Do not create new beads
+  issues for project work.
+- Before editing files, run `mote preflight` for the intended paths and then
+  `mote begin` with a narrow path reservation.
+- If `mote preflight` or `mote begin` reports a path conflict, inspect it with
+  `mote who-has <path>` and coordinate before editing.
+- Record material decisions and blockers with `mote note`.
+- Finish completed work with `mote done`, or use `mote handoff` / `mote release`
+  when stopping before completion.
+- Keep `.mote/` local and out of Git. It is intentionally ignored.
+
+## Legacy Beads
+
+This repository previously used **bd** / beads. Active beads have been migrated
+to mote; beads are now legacy history only. Do not use `bd` for new tracking
+unless explicitly asked to inspect or migrate old bead records.
 
 ## Non-Interactive Shell Commands
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+**ALWAYS use non-interactive flags** with file operations to avoid hanging on
+confirmation prompts.
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i`
+(interactive) mode on some systems, causing the agent to hang indefinitely
+waiting for y/n input.
 
 **Use these forms instead:**
+
 ```bash
 # Force overwrite without prompting
 cp -f source dest           # NOT: cp source dest
@@ -31,54 +60,27 @@ cp -rf source dest          # NOT: cp -r source dest
 ```
 
 **Other commands that may prompt:**
+
 - `scp` - use `-o BatchMode=yes` for non-interactive
 - `ssh` - use `-o BatchMode=yes` to fail instead of prompting
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+Before ending a work session:
 
-**MANDATORY WORKFLOW:**
+1. Record follow-up work in mote.
+2. Run relevant quality gates when code changed.
+3. Close or update mote items and release reservations.
+4. Commit intentional tracked changes.
+5. Push Git changes:
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+```bash
+git pull --rebase
+git push
+git status
+```
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+`git status` must show the branch up to date with `origin` and a clean working
+tree before calling the work complete.
