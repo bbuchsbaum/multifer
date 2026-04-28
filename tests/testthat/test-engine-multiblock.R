@@ -74,10 +74,13 @@ make_stub_multiblock_adapter <- function(ncomp = 4L) {
       x$v[x$block_indices[[domain]], , drop = FALSE]
     },
     residualize = function(x, k, data, ...) {
+      if (!identical(k, 1L)) {
+        stop("stub multiblock residualize expects k = 1 on current residual.",
+             call. = FALSE)
+      }
       X <- do.call(cbind, data)
       Xc <- sweep(X, 2L, colMeans(X), "-")
-      kk <- min(k, ncol(x$v))
-      V <- x$v[, seq_len(kk), drop = FALSE]
+      V <- x$v[, 1L, drop = FALSE]
       split_blocks(Xc - Xc %*% V %*% t(V), data)
     },
     refit = function(x, new_data, ...) fit_blocks(new_data),
@@ -89,13 +92,16 @@ make_stub_multiblock_adapter <- function(ncomp = 4L) {
       out
     },
     component_stat = function(x, data, k, ...) {
+      if (!identical(k, 1L)) {
+        stop("stub multiblock component_stat expects k = 1 on current residual.",
+             call. = FALSE)
+      }
       X <- do.call(cbind, data)
       Xc <- sweep(X, 2L, colMeans(X), "-")
       s2 <- svd(Xc)$d^2
-      if (k > length(s2)) return(0)
-      denom <- sum(s2[k:length(s2)])
+      denom <- sum(s2)
       if (denom <= .Machine$double.eps) return(0)
-      s2[k] / denom
+      s2[1L] / denom
     },
     validity_level = "conditional",
     declared_assumptions = c("aligned_rows", "rows_exchangeable"),
@@ -161,6 +167,34 @@ test_that("bootstrap_fits uses arbitrary multiblock domains", {
   expect_s3_class(art, "multifer_bootstrap_artifact")
   expect_equal(art$domains, names(dat))
   expect_equal(names(art$reps[[1L]]$aligned_loadings), names(dat))
+})
+
+test_that("infer passes supplied multiblock model into the ladder", {
+  set.seed(2003)
+  adapter <- make_stub_multiblock_adapter()
+  dat <- make_stub_multiblock_data()
+  fit <- adapter$refit(NULL, dat)
+  base_refit <- adapter$refit
+  adapter$refit <- function(x, new_data, ...) {
+    if (is.null(x)) {
+      stop("unexpected original refit", call. = FALSE)
+    }
+    base_refit(x, new_data, ...)
+  }
+
+  expect_no_error(res <- infer(
+    adapter = adapter,
+    data = dat,
+    model = fit,
+    geometry = "multiblock",
+    relation = "variance",
+    targets = "component_significance",
+    B = 5L,
+    R = 0L,
+    seed = 41L
+  ))
+
+  expect_s3_class(res, "infer_result")
 })
 
 test_that("multiblock geometry requires aligned matrix blocks", {

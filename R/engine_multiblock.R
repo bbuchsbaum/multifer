@@ -4,13 +4,18 @@
 #' `geometry = "multiblock"`. Unlike the oneblock and cross reference
 #' engines, this path is deliberately adapter-driven: the adapter owns
 #' refitting, null generation, component statistics, and residualization.
-#' The engine only supplies the common sequential testing loop and result
-#' assembly.
+#' At each rung the hook data are the current residual block list, so
+#' `component_stat()` and `residualize()` are called with `k = 1L` to act
+#' on the leading component of that current residual. The ladder step remains
+#' the global rung label in the returned results.
 #'
 #' @param recipe A compiled `multifer_infer_recipe` with geometry
 #'   `"multiblock"`.
 #' @param adapter A `multifer_adapter` whose hooks support the recipe.
 #' @param data A named or unnamed list of aligned numeric matrix blocks.
+#' @param original_fit Optional pre-fit object for `data`. When supplied,
+#'   the observed roots and first ladder rung use this fit instead of
+#'   refitting `data`.
 #' @inheritParams run_oneblock_ladder
 #'
 #' @return A list with the same fields as `run_oneblock_ladder()`.
@@ -25,7 +30,8 @@ run_multiblock_ladder <- function(recipe,
                                   max_steps     = NULL,
                                   seed          = NULL,
                                   auto_subspace = TRUE,
-                                  tie_threshold = 0.01) {
+                                  tie_threshold = 0.01,
+                                  original_fit  = NULL) {
 
   if (!is_infer_recipe(recipe)) {
     stop("`recipe` must be a compiled multifer_infer_recipe.", call. = FALSE)
@@ -43,7 +49,9 @@ run_multiblock_ladder <- function(recipe,
 
   .validate_multiblock_data(data)
 
-  original_fit <- adapter$refit(NULL, data)
+  if (is.null(original_fit)) {
+    original_fit <- adapter$refit(NULL, data)
+  }
   roots_observed <- adapter$roots(original_fit)
   if (!is.numeric(roots_observed) || length(roots_observed) == 0L ||
       any(!is.finite(roots_observed))) {
@@ -60,7 +68,11 @@ run_multiblock_ladder <- function(recipe,
   current_fit <- NULL
   get_fit <- function(step, block_data) {
     if (!identical(current_step, as.integer(step)) || is.null(current_fit)) {
-      current_fit <<- adapter$refit(original_fit, block_data)
+      current_fit <<- if (identical(step, 1L)) {
+        original_fit
+      } else {
+        adapter$refit(original_fit, block_data)
+      }
       current_step <<- as.integer(step)
     }
     current_fit
@@ -72,19 +84,19 @@ run_multiblock_ladder <- function(recipe,
 
   observed_stat_fn <- function(step, block_data) {
     fit <- get_fit(step, block_data)
-    .multifer_scalar_stat(adapter$component_stat(fit, block_data, step))
+    .multifer_scalar_stat(adapter$component_stat(fit, block_data, 1L))
   }
 
   null_stat_fn <- function(step, block_data) {
     fit <- get_fit(step, block_data)
     null_data <- adapter$null_action(fit, block_data)
     .validate_multiblock_data(null_data)
-    .multifer_scalar_stat(adapter$component_stat(fit, null_data, step))
+    .multifer_scalar_stat(adapter$component_stat(fit, null_data, 1L))
   }
 
   deflate_fn <- function(step, block_data) {
     fit <- get_fit(step, block_data)
-    out <- adapter$residualize(fit, step, block_data)
+    out <- adapter$residualize(fit, 1L, block_data)
     .validate_multiblock_data(out)
     reset_fit()
     out

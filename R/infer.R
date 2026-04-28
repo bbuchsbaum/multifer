@@ -208,7 +208,8 @@ infer <- function(adapter,
       alpha = alpha,
       seed = seed,
       auto_subspace = auto_subspace,
-      tie_threshold = tie_threshold
+      tie_threshold = tie_threshold,
+      original_fit = model
     )
   } else {
     stop(sprintf("infer() supports only 'oneblock', 'cross', 'multiblock', and 'geneig'; got '%s'.",

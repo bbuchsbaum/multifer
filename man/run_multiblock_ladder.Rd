@@ -15,7 +15,8 @@ run_multiblock_ladder(
   max_steps = NULL,
   seed = NULL,
   auto_subspace = TRUE,
-  tie_threshold = 0.01
+  tie_threshold = 0.01,
+  original_fit = NULL
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ run_multiblock_ladder(
 \item{adapter}{A \code{multifer_adapter} whose hooks support the recipe.}
 
 \item{data}{A named or unnamed list of aligned numeric matrix blocks.}
+
+\item{original_fit}{Optional pre-fit object for \code{data}. When supplied,
+the observed roots and first ladder rung use this fit instead of refitting
+\code{data}.}
 
 \item{B}{Per-rung cap on Monte Carlo draws. Default \code{1000}.}
 
@@ -56,6 +61,9 @@ A list with elements \code{units}, \code{component_tests},
 Executes the latent-root ladder for adapters that declare
 \code{geometry = "multiblock"}. Unlike the oneblock and cross reference
 engines, this path is adapter-driven: the adapter owns refitting, null
-generation, component statistics, and residualization. The engine only
-supplies the common sequential testing loop and result assembly.
+generation, component statistics, and residualization. At each rung the
+hook data are the current residual block list, so \code{component_stat()}
+and \code{residualize()} are called with \code{k = 1L} to act on the
+leading component of that current residual. The ladder step remains the
+global rung label in the returned results.
 }
