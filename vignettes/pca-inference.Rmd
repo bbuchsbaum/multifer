@@ -31,21 +31,6 @@ multivariate models. This vignette walks the PCA-family case: how to
 ask `multifer` a significance / stability question about a one-block
 variance decomposition, and how to read the result object.
 
-## What this vignette tests
-
-| piece         | value                                               |
-|---------------|-----------------------------------------------------|
-| **Maturity**  | mature                                              |
-| **Estimand**  | latent variance roots                               |
-| **Statistic** | Vitale P3 tail-ratio on latent variance roots       |
-| **Null**      | column permutation of residual matrix               |
-
-The estimand / statistic / null values above are the same strings the
-one-block engine writes into `res$mc$estimand_label`,
-`res$mc$statistic_label`, and `res$mc$null_label` on every call, so
-readers never have to guess which statistical object a given result
-reflects. `tests/testthat/test-v1-boundary.R` pins this consistency.
-
 ## What PCA inference looks like in `multifer`
 
 Every call to `infer()` is described by three orthogonal pieces:
@@ -114,6 +99,29 @@ res <- infer(
 )
 res
 ```
+
+## What this vignette tests
+
+```{r pca-labels, echo=FALSE, results='asis'}
+cat(knitr::kable(
+  data.frame(
+    piece = c("Maturity", "Statistic", "Null", "Estimand"),
+    value = c(
+      "mature",
+      res$mc$statistic_label,
+      res$mc$null_label,
+      res$mc$estimand_label
+    ),
+    check.names = FALSE
+  ),
+  col.names = c("piece", "value")
+), sep = "\n")
+```
+
+The statistic, null, and estimand values above are read from
+`res$mc$statistic_label`, `res$mc$null_label`, and
+`res$mc$estimand_label`, so this vignette cannot drift from the engine
+metadata. `tests/testthat/test-v1-boundary.R` pins this consistency.
 
 The header line counts **units** (latent objects to test) and
 distinguishes component units from subspace units. `auto_subspace = TRUE`

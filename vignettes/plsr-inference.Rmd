@@ -109,6 +109,28 @@ res <- infer_plsr(
 res
 ```
 
+## What this vignette tests
+
+```{r plsr-labels, echo=FALSE, results='asis'}
+cat(knitr::kable(
+  data.frame(
+    piece = c("Maturity", "Statistic", "Null", "Estimand"),
+    value = c(
+      "narrow",
+      res$mc$statistic_label,
+      res$mc$null_label,
+      res$mc$estimand_label
+    ),
+    check.names = FALSE
+  ),
+  col.names = c("piece", "value")
+), sep = "\n")
+```
+
+The statistic, null, and estimand values above come from the fitted
+result's `mc` provenance labels. They are not hardcoded covariance-root
+descriptions.
+
 ## Reading the result
 
 The component table reports p-values for successive **incremental

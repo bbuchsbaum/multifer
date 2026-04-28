@@ -194,6 +194,31 @@ components and badly overstate significance. The contract therefore
 builds the reviewer's admissibility rule directly into
 `infer_adapter()`: no held-out path, no registration.
 
+## Gates you will hit
+
+Adapter registration is intentionally strict. The most common refusals
+are:
+
+- **Predictive cross-fit gate**: an adapter claiming
+  `(cross, predictive, component_significance)` must provide
+  `predict_response()`, `refit()`, and a `component_stat()` hook with a
+  formal `split = NULL` argument. The registration gate lives in
+  `R/adapter.R`; the engine contract is described in
+  `notes/engine_predictive_spec.md`.
+- **Geneig SPD gate**: generalized-eigen operators require a symmetric
+  positive-definite metric. The implementation and tests are in
+  `R/engine_geneig.R`, `R/linear_operator.R`, and
+  `tests/testthat/test-engine-geneig.R`; the design rationale is in
+  `notes/engine_geneig_spec.md`.
+- **Geneig residualize gate**: adapters claiming
+  `(geneig, generalized_eigen, component_significance)` must either mark
+  their `residualize` hook as B-metric aware with
+  `attr(residualize, "b_metric") <- TRUE` or declare that the geneig
+  engine owns deflation with
+  `attr(residualize, "delegates_geneig_deflation") <- TRUE`. The
+  registration check is in `R/adapter.R`, with the mathematical
+  contract in `notes/engine_geneig_spec.md`.
+
 ## The realistic wrapper pattern
 
 When your fitted-model class lives in another package — which is

@@ -130,6 +130,27 @@ res <- infer_lda(
 res
 ```
 
+## What this vignette tests
+
+```{r lda-labels, echo=FALSE, results='asis'}
+cat(knitr::kable(
+  data.frame(
+    piece = c("Maturity", "Statistic", "Null", "Estimand"),
+    value = c(
+      "narrow",
+      res$mc$statistic_label,
+      res$mc$null_label,
+      res$mc$estimand_label
+    ),
+    check.names = FALSE
+  ),
+  col.names = c("piece", "value")
+), sep = "\n")
+```
+
+The statistic, null, and estimand values above are read from `res$mc`
+so this vignette reports the engine's current provenance labels.
+
 ```{r lda-units}
 res$units
 res$component_tests

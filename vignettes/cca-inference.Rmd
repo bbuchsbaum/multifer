@@ -113,6 +113,28 @@ res <- infer(
 res
 ```
 
+## What this vignette tests
+
+```{r cca-labels, echo=FALSE, results='asis'}
+cat(knitr::kable(
+  data.frame(
+    piece = c("Maturity", "Statistic", "Null", "Estimand"),
+    value = c(
+      "mature",
+      res$mc$statistic_label,
+      res$mc$null_label,
+      res$mc$estimand_label
+    ),
+    check.names = FALSE
+  ),
+  col.names = c("piece", "value")
+), sep = "\n")
+```
+
+The statistic, null, and estimand values above are live labels from
+`res$mc`; the text below explains the support boundary around those
+engine claims.
+
 ## Using the `cancor_cross` adapter explicitly
 
 If you want to spell out the correlation-only adapter directly,

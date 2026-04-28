@@ -102,6 +102,27 @@ res <- infer(
 res
 ```
 
+## What this vignette tests
+
+```{r plsc-labels, echo=FALSE, results='asis'}
+cat(knitr::kable(
+  data.frame(
+    piece = c("Maturity", "Statistic", "Null", "Estimand"),
+    value = c(
+      "mature",
+      res$mc$statistic_label,
+      res$mc$null_label,
+      res$mc$estimand_label
+    ),
+    check.names = FALSE
+  ),
+  col.names = c("piece", "value")
+), sep = "\n")
+```
+
+The statistic, null, and estimand values above come from the result's
+engine-provenance labels, not from hardcoded prose.
+
 ## Reading the result
 
 ```{r cross-units}
