@@ -4,6 +4,9 @@
 *.db
 .beads-credential-key
 
+# Local coordination state
+.mote/
+
 # R package
 .Rproj.user
 .Rhistory
