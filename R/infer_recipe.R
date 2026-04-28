@@ -50,6 +50,8 @@
 #'   is the preferred place to inspect the inferred shape, target
 #'   family, engine kind, and validity metadata in one place.
 #'
+#' @seealso [infer_problem()]
+#'
 #' @export
 infer_recipe <- function(shape    = NULL,
                          geometry = NULL,

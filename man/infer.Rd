@@ -32,9 +32,10 @@ infer(
 id registered with \code{\link{register_infer_adapter}()}.}
 
 \item{data}{For oneblock, a numeric matrix. For cross, a list with
-elements \code{X} and \code{Y}. For geneig, a data payload accepted
-by the adapter's operator constructor (currently the LDA wrapper
-uses a list with \code{X} and \code{y}).}
+elements \code{X} and \code{Y}. For multiblock, a list of aligned
+numeric matrix blocks. For geneig, a data payload accepted by the
+adapter's operator constructor (currently the LDA wrapper uses a
+list with \code{X} and \code{y}).}
 
 \item{...}{Reserved for future use.}
 
@@ -106,6 +107,7 @@ strict dispatch by default;
 \item dispatch on geometry to \code{\link{run_oneblock_ladder}()}
 or \code{\link{run_cross_ladder}()} or
 \code{\link{run_predictive_ladder}()} or
+\code{\link{run_multiblock_ladder}()} or
 \code{\link{run_geneig_ladder}()};
 \item fit (or use the supplied) original fit, then run
 \code{\link{bootstrap_fits}()} to produce a perturbation

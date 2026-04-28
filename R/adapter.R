@@ -42,9 +42,13 @@
 #' - `scores(x, domain)` -- matrix of scores.
 #' - `loadings(x, domain)` -- matrix of loadings.
 #' - `domains(x, data)` -- optional character vector of loading/score domains.
+#' - `project_scores(x, data, domain)` -- optional adapter-native projection of
+#'   original data through a bootstrap fit for score stability.
 #' - `truncate(x, k)` -- truncated fit.
 #' - `residualize(x, k, data)` -- deflated residual after removing k components.
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
+#' - `bootstrap_action(x, data, design, replicate)` -- optional adapter-owned
+#'   perturbation hook returning a replicate fit or replicate data.
 #' - `core(x, data)` -- optional fast-path core representation.
 #' - `update_core(core_obj, ...)` -- optional fast-path core update.
 #' - `align(xb, xref)` -- alignment (sign / legacy Procrustes / subspace).
@@ -64,12 +68,14 @@
 #'   `attr(residualize, "delegates_geneig_deflation") <- TRUE`. For
 #'   `(cross, predictive)`, the adapter must also provide `refit`,
 #'   `predict_response`, and a split-aware `component_stat(..., split = NULL)`.
-#' - `variable_stability` requires at least one of `{refit, core+update_core}`
-#'   AND (`variable_stat` OR `loadings`).
-#' - `score_stability` requires at least one of `{refit, core+update_core}`
-#'   AND `scores`.
-#' - `subspace_stability` requires at least one of `{refit, core+update_core}`
-#'   AND `loadings`.
+#' - `variable_stability` requires at least one of
+#'   `{refit, bootstrap_action, core+update_core}` AND
+#'   (`variable_stat` OR `loadings`).
+#' - `score_stability` requires at least one of
+#'   `{refit, bootstrap_action, core+update_core}`, `loadings`, AND
+#'   (`scores` OR `project_scores`).
+#' - `subspace_stability` requires at least one of
+#'   `{refit, bootstrap_action, core+update_core}` AND `loadings`.
 #' - `variable_significance` is excluded from v1 (Part 5 section 38) and
 #'   always errors.
 #'
@@ -141,8 +147,9 @@ infer_adapter <- function(adapter_id,
 
   # -- collect hooks ----------------------------------------------------------
   hooks_raw <- list(...)
-  valid_hooks <- c("roots", "scores", "loadings", "domains", "truncate", "residualize",
-                   "refit", "core", "update_core", "align", "null_action",
+  valid_hooks <- c("roots", "scores", "loadings", "domains", "project_scores",
+                   "truncate", "residualize", "refit", "bootstrap_action",
+                   "core", "update_core", "align", "null_action",
                    "component_stat", "predict_response",
                    "variable_stat", "score_stat")
   bad_hooks <- setdiff(names(hooks_raw), valid_hooks)
@@ -174,7 +181,8 @@ infer_adapter <- function(adapter_id,
   # helper to check if fast path is available: core + update_core both present
   has_fast_path <- !is.null(hooks[["core"]]) && !is.null(hooks[["update_core"]])
   has_slow_path <- !is.null(hooks[["refit"]])
-  has_perturbation_path <- has_fast_path || has_slow_path
+  has_adapter_bootstrap <- !is.null(hooks[["bootstrap_action"]])
+  has_perturbation_path <- has_fast_path || has_slow_path || has_adapter_bootstrap
 
   if ("component_significance" %in% claimed_targets) {
     missing_cs <- character(0)
@@ -264,7 +272,7 @@ infer_adapter <- function(adapter_id,
     if (!has_perturbation_path) {
       stop(paste0(
         "Claiming `variable_stability` requires at least one perturbation hook: ",
-        "`refit` or both `core` and `update_core`. None found."
+        "`refit`, `bootstrap_action`, or both `core` and `update_core`. None found."
       ), call. = FALSE)
     }
     if (is.null(hooks[["variable_stat"]]) && is.null(hooks[["loadings"]])) {
@@ -279,12 +287,19 @@ infer_adapter <- function(adapter_id,
     if (!has_perturbation_path) {
       stop(paste0(
         "Claiming `score_stability` requires at least one perturbation hook: ",
-        "`refit` or both `core` and `update_core`. None found."
+        "`refit`, `bootstrap_action`, or both `core` and `update_core`. None found."
       ), call. = FALSE)
     }
-    if (is.null(hooks[["scores"]])) {
+    if (is.null(hooks[["loadings"]])) {
       stop(paste0(
-        "Claiming `score_stability` requires the `scores` hook. It is not provided."
+        "Claiming `score_stability` requires the `loadings` hook for bootstrap alignment. ",
+        "It is not provided."
+      ), call. = FALSE)
+    }
+    if (is.null(hooks[["scores"]]) && is.null(hooks[["project_scores"]])) {
+      stop(paste0(
+        "Claiming `score_stability` requires `scores` or `project_scores`. ",
+        "Neither is provided."
       ), call. = FALSE)
     }
   }
@@ -293,7 +308,7 @@ infer_adapter <- function(adapter_id,
     if (!has_perturbation_path) {
       stop(paste0(
         "Claiming `subspace_stability` requires at least one perturbation hook: ",
-        "`refit` or both `core` and `update_core`. None found."
+        "`refit`, `bootstrap_action`, or both `core` and `update_core`. None found."
       ), call. = FALSE)
     }
     if (is.null(hooks[["loadings"]])) {

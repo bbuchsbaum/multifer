@@ -51,6 +51,20 @@ and \code{subspace_stability}. Same \code{domain} convention as \code{scores}.
 Return a \verb{p × k} numeric matrix (\code{p} is the number of variables
 in the relevant block).}
 
+\item{\code{domains(x, data = NULL)}}{Optional. Return the character vector
+of domain labels accepted by \code{scores()} and \code{loadings()}. Oneblock
+adapters default to \code{"X"}, cross adapters default to \code{c("X", "Y")},
+and multiblock adapters default to the names of the block-list data
+(or \code{"block1"}, \code{"block2"}, ... for unnamed lists). Provide this hook
+when domains are model-defined rather than data-name-defined.}
+
+\item{\code{project_scores(x, data, domain = NULL)}}{Optional. Return scores
+for \code{data} projected through fit \code{x} in the adapter's native
+preprocessing/projection space. When supplied, \code{bootstrap_fits()} uses
+this hook to store aligned scores for the original data, and
+\code{score_stability_from_bootstrap()} consumes those stored scores. Without
+it, score stability falls back to centered-data times aligned-loadings.}
+
 \item{\code{truncate(x, k)}}{Optional. Return a fit of the same class
 truncated to the leading \code{k} components. Used when downstream
 code needs a reduced-rank view of the original fit.}
@@ -63,11 +77,20 @@ next rung.}
 
 \item{\code{refit(x, new_data)}}{Required for \code{variable_stability},
 \code{score_stability}, and \code{subspace_stability} unless
-\code{core + update_core} are provided instead. Fit a new model of
-the same class on \code{new_data} (typically a bootstrap resample).
+\code{core + update_core} or \code{bootstrap_action} are provided instead.
+Fit a new model of the same class on \code{new_data} (typically a bootstrap resample).
 \code{new_data} has the same shape as the original \code{data} argument
 to \code{\link[=infer]{infer()}} (matrix for oneblock, list with \code{X} and \code{Y} for
 cross). Return shape: the same class as \code{x}.}
+
+\item{\code{bootstrap_action(x, data, design, replicate = NULL)}}{Optional.
+Adapter-owned perturbation hook for stability targets. Return a list
+with \code{fit} (a replicate fit) or \code{data} (a replicate data object to pass
+to \code{refit}), plus optional \code{resample_indices} and \code{info}. This hook is
+for methods whose exchangeable unit is not a row of the data matrix,
+such as subject blocks, studies, sites, sessions, or parametric draws.
+When absent, \code{bootstrap_fits()} uses its default row/aligned-block
+bootstrap.}
 
 \item{\code{core(x, data)}}{Optional, pairs with \code{update_core} to
 provide the Phase 1.5 fast path. Return a lightweight core
@@ -129,10 +152,11 @@ requires \code{refit}, \code{predict_response}, and a split-aware
 \code{component_stat(..., split = NULL)}. This is the predictive
 cross-fit admissibility rule: in-sample predictive significance
 is refused at registration time.
-\item \code{variable_stability} requires a perturbation path — either \code{refit}
-or both \code{core} and \code{update_core} — \strong{and} one of
+\item \code{variable_stability} requires a perturbation path — \code{refit},
+\code{bootstrap_action}, or both \code{core} and \code{update_core} — \strong{and} one of
 \code{variable_stat} or \code{loadings}.
-\item \code{score_stability} requires a perturbation path \strong{and} \code{scores}.
+\item \code{score_stability} requires a perturbation path, \code{loadings}, and
+either \code{scores} or \code{project_scores}.
 \item \code{subspace_stability} requires a perturbation path \strong{and} \code{loadings}.
 \item \code{variable_significance} is excluded from v1 and fails at
 registration time with a reference to Part 5 §38.
@@ -229,6 +253,12 @@ If your fitted-model class already lives in another package (e.g.
 you are writing an adapter for someone else's fitter), you do not
 need to vendor the fitter into your code — just import the classes
 you need and delegate the hooks.
+
+For multiblock fits, declare \code{geometry = "multiblock"} and pass
+list-of-matrix data with aligned rows through \code{refit()}, \code{null_action()},
+\code{component_stat()}, and \code{residualize()}. The generic multiblock ladder
+preserves block-list data; it does not flatten blocks internally. That
+keeps MFA/JIVE/AJIVE-style refit semantics under adapter control.
 }
 
 \seealso{

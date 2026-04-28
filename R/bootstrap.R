@@ -7,7 +7,8 @@
 #'
 #' For (oneblock, variance), uses ordinary row bootstrap with
 #' replacement. For cross and multiblock geometries, a single index
-#' vector is sampled and applied to every aligned block.
+#' vector is sampled and applied to every aligned block. Adapters can
+#' override this perturbation unit with `bootstrap_action`.
 #'
 #' @section Score alignment for procrustes:
 #' When \code{method_align = "procrustes"}, after the column permutation is
@@ -50,9 +51,10 @@
 #'   forces the refit path.
 #' @param store_aligned_scores Logical. When `TRUE` (default), compute
 #'   and store aligned replicate scores in each bootstrap replicate.
-#'   When `FALSE`, skip score extraction/alignment and store
-#'   `aligned_scores = NULL`. This is safe when downstream consumers
-#'   only need aligned loadings.
+#'   If the adapter supplies `project_scores`, these are scores for the
+#'   original data projected through each replicate fit. Otherwise they
+#'   are the replicate fit's native scores. When `FALSE`, skip score
+#'   extraction/alignment and store `aligned_scores = NULL`.
 #' @param core_rank Positive integer cap on the core rank used by the
 #'   fast path, or NULL to leave the full thin SVD untruncated.
 #'   Truncation is the knob that converts the §30 thin-SVD cache into
@@ -189,7 +191,11 @@ bootstrap_fits <- function(recipe,
   #   correlation : B^{-1/2}-whitened inner SVD (multifer-9u9.1.3).
   # Correlation-mode fast path requires the core to carry the full
   # block column rank; .truncate_core() leaves correlation cores alone.
+  has_custom_bootstrap <- !is.null(adapter$bootstrap_action)
+  has_project_scores <- !is.null(adapter$project_scores)
+
   has_fast_path <- fast_path == "auto" &&
+                   !has_custom_bootstrap &&
                    !is.null(adapter$core) &&
                    !is.null(adapter$update_core) &&
                    (geom_kind == "oneblock" ||
@@ -247,37 +253,54 @@ bootstrap_fits <- function(recipe,
   .fn_match_components   <- match_components
   .fn_truncate_fit_to_core <- .truncate_fit_to_core
   .fn_bootstrap_resample_indices <- .bootstrap_resample_indices
+  .fn_default_bootstrap_data <- .default_bootstrap_data
+  .fn_normalize_bootstrap_action <- .normalize_bootstrap_action
+  .fn_project_scores_for_bootstrap <- .project_scores_for_bootstrap
   .k_trunc_local <- if (has_fast_path) .core_effective_rank(core_obj) else NA_integer_
   design_local <- recipe$shape$design
 
   rep_fn <- function(b) {
-    indices <- .fn_bootstrap_resample_indices(n, design_local)
-
-    rep_data <- if (geom_kind == "oneblock") {
-      data[indices, , drop = FALSE]
-    } else if (geom_kind == "cross") {
-      list(
-        X        = data$X[indices, , drop = FALSE],
-        Y        = data$Y[indices, , drop = FALSE],
-        relation = rel_kind
-      )
-    } else {
-      .resample_multiblock_data(data, indices)
-    }
-
     used_fallback <- FALSE
-    rep_fit <- if (has_fast_path && rel_kind == "correlation") {
-      tryCatch(
-        adapter$update_core(core_obj, indices = indices),
-        multifer_core_rank_deficient = function(e) {
-          used_fallback <<- TRUE
-          adapter$refit(original_fit, rep_data)
-        }
+    action_info <- NULL
+
+    if (has_custom_bootstrap) {
+      action <- .fn_normalize_bootstrap_action(
+        adapter$bootstrap_action(
+          original_fit,
+          data,
+          design = design_local,
+          replicate = b
+        )
       )
-    } else if (has_fast_path) {
-      adapter$update_core(core_obj, indices = indices)
+      rep_data <- action$data
+      rep_fit <- if (!is.null(action$fit)) {
+        action$fit
+      } else {
+        if (is.null(adapter$refit)) {
+          stop("`bootstrap_action()` returned `data` but the adapter has no `refit` hook.",
+               call. = FALSE)
+        }
+        adapter$refit(original_fit, rep_data)
+      }
+      indices <- action$resample_indices
+      action_info <- action$info
     } else {
-      adapter$refit(original_fit, rep_data)
+      indices <- .fn_bootstrap_resample_indices(n, design_local)
+      rep_data <- .fn_default_bootstrap_data(data, indices, geom_kind, rel_kind)
+
+      rep_fit <- if (has_fast_path && rel_kind == "correlation") {
+        tryCatch(
+          adapter$update_core(core_obj, indices = indices),
+          multifer_core_rank_deficient = function(e) {
+            used_fallback <<- TRUE
+            adapter$refit(original_fit, rep_data)
+          }
+        )
+      } else if (has_fast_path) {
+        adapter$update_core(core_obj, indices = indices)
+      } else {
+        adapter$refit(original_fit, rep_data)
+      }
     }
 
     # Truncate the rep fit's loadings/scores to core_rank on the fast path
@@ -297,7 +320,11 @@ bootstrap_fits <- function(recipe,
     for (d in domains) {
       Vref <- orig_loadings[[d]]
       Vb   <- adapter$loadings(rep_fit, d)
-      Sb   <- if (store_aligned_scores) adapter$scores(rep_fit, d) else NULL
+      Sb   <- if (store_aligned_scores) {
+        .fn_project_scores_for_bootstrap(adapter, rep_fit, data, d)
+      } else {
+        NULL
+      }
 
       k_cmp <- min(ncol(Vref), ncol(Vb))
       if (k_cmp <= 0L) {
@@ -344,6 +371,7 @@ bootstrap_fits <- function(recipe,
       aligned_scores    = rep_aligned_scores,
       resample_indices  = indices,
       resample_design   = design_local$kind,
+      bootstrap_info    = action_info,
       used_fallback     = used_fallback
     )
   }
@@ -380,6 +408,14 @@ bootstrap_fits <- function(recipe,
       domains        = domains,
       seed           = seed,
       used_fast_path = has_fast_path,
+      used_bootstrap_action = has_custom_bootstrap,
+      score_source   = if (store_aligned_scores && has_project_scores) {
+        "project_scores"
+      } else if (store_aligned_scores) {
+        "fit_scores"
+      } else {
+        "none"
+      },
       parallel       = parallel,
       cost           = list(
         core_rank_deficient_fallbacks = as.integer(n_fallbacks)
@@ -387,6 +423,48 @@ bootstrap_fits <- function(recipe,
     ),
     class = "multifer_bootstrap_artifact"
   )
+}
+
+.default_bootstrap_data <- function(data, indices, geom_kind, rel_kind) {
+  if (geom_kind == "oneblock") {
+    data[indices, , drop = FALSE]
+  } else if (geom_kind == "cross") {
+    list(
+      X        = data$X[indices, , drop = FALSE],
+      Y        = data$Y[indices, , drop = FALSE],
+      relation = rel_kind
+    )
+  } else {
+    .resample_multiblock_data(data, indices)
+  }
+}
+
+.normalize_bootstrap_action <- function(x) {
+  if (!is.list(x)) {
+    stop("`bootstrap_action()` must return a list.", call. = FALSE)
+  }
+  if (is.null(x$fit) && is.null(x$data)) {
+    stop("`bootstrap_action()` must return at least one of `fit` or `data`.",
+         call. = FALSE)
+  }
+  list(
+    fit = x$fit,
+    data = x$data,
+    resample_indices = x$resample_indices,
+    info = x$info
+  )
+}
+
+.project_scores_for_bootstrap <- function(adapter, fit, data, domain) {
+  if (!is.null(adapter$project_scores)) {
+    out <- adapter$project_scores(fit, data, domain = domain)
+  } else {
+    out <- adapter$scores(fit, domain)
+  }
+  if (!is.matrix(out) || !is.numeric(out)) {
+    stop("Score hooks must return a numeric matrix.", call. = FALSE)
+  }
+  out
 }
 
 # Draw row indices for bootstrap_fits according to the compiled design.
@@ -567,6 +645,9 @@ print.multifer_bootstrap_artifact <- function(x, ...) {
   cat("  R:            ", x$R,                           "\n", sep = "")
   cat("  domains:      ", paste(x$domains, collapse = ", "), "\n", sep = "")
   cat("  method_align: ", x$method_align,                "\n", sep = "")
+  if (!is.null(x$score_source)) {
+    cat("  score_source: ", x$score_source,               "\n", sep = "")
+  }
   if (!is.null(x$seed)) {
     cat("  seed:         ", x$seed, "\n", sep = "")
   }

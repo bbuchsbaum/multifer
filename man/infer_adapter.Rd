@@ -64,9 +64,14 @@ the capability gate):
 \item \code{roots(x)} -- numeric vector of latent roots.
 \item \code{scores(x, domain)} -- matrix of scores.
 \item \code{loadings(x, domain)} -- matrix of loadings.
+\item \code{domains(x, data)} -- optional character vector of loading/score domains.
+\item \code{project_scores(x, data, domain)} -- optional adapter-native projection of
+original data through a bootstrap fit for score stability.
 \item \code{truncate(x, k)} -- truncated fit.
 \item \code{residualize(x, k, data)} -- deflated residual after removing k components.
 \item \code{refit(x, new_data)} -- refit on perturbed data (slow-path fallback).
+\item \code{bootstrap_action(x, data, design, replicate)} -- optional adapter-owned
+perturbation hook returning a replicate fit or replicate data.
 \item \code{core(x, data)} -- optional fast-path core representation.
 \item \code{update_core(core_obj, ...)} -- optional fast-path core update.
 \item \code{align(xb, xref)} -- alignment (sign / legacy Procrustes / subspace).
@@ -87,12 +92,14 @@ hook must explicitly declare B-metric deflation via
 \code{attr(residualize, "delegates_geneig_deflation") <- TRUE}. For
 \verb{(cross, predictive)}, the adapter must also provide \code{refit},
 \code{predict_response}, and a split-aware \code{component_stat(..., split = NULL)}.
-\item \code{variable_stability} requires at least one of \verb{\{refit, core+update_core\}}
-AND (\code{variable_stat} OR \code{loadings}).
-\item \code{score_stability} requires at least one of \verb{\{refit, core+update_core\}}
-AND \code{scores}.
-\item \code{subspace_stability} requires at least one of \verb{\{refit, core+update_core\}}
-AND \code{loadings}.
+\item \code{variable_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}} AND
+(\code{variable_stat} OR \code{loadings}).
+\item \code{score_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}}, \code{loadings}, AND
+(\code{scores} OR \code{project_scores}).
+\item \code{subspace_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}} AND \code{loadings}.
 \item \code{variable_significance} is excluded from v1 (Part 5 section 38) and
 always errors.
 }

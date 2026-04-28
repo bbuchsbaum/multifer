@@ -26,8 +26,7 @@ infer_problem(
 
 \item{adapter_version}{Optional adapter version string.}
 
-\item{validity_level}{One of \code{c("exact", "conditional", "asymptotic",
-"heuristic")}.}
+\item{validity_level}{One of \code{c("exact", "conditional", "asymptotic", "heuristic")}.}
 
 \item{strict}{Logical scalar recording whether strict dispatch was enforced.}
 
@@ -47,7 +46,7 @@ An object of class \code{multifer_infer_problem}.
 }
 \description{
 \code{infer_problem()} is the first-class representation of the inferential
-question that \pkg{multifer} has compiled from a typed shape and an adapter's
+question that \code{multifer} has compiled from a typed shape and an adapter's
 declared capabilities. It keeps the package's ontology in one inspectable
 place rather than spreading it across recipe fields and dispatch locals.
 }

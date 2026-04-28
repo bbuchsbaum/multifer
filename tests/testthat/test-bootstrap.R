@@ -322,6 +322,107 @@ test_that("bootstrap_fits can skip aligned_scores when requested", {
   expect_true(all(vapply(result$reps, function(rep) !is.null(rep$aligned_loadings$X), logical(1L))))
 })
 
+test_that("bootstrap_fits uses adapter-owned bootstrap_action", {
+  clear_adapter_registry()
+
+  X <- matrix(seq_len(24), 6, 4)
+  fit <- list(
+    values = c(2, 1),
+    loadings = diag(4)[, 1:2, drop = FALSE],
+    scores = matrix(0, nrow = nrow(X), ncol = 2)
+  )
+  adapter <- infer_adapter(
+    adapter_id = "custom_bootstrap",
+    shape_kinds = "oneblock",
+    capabilities = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "variable_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(
+        fit = x,
+        resample_indices = as.integer(replicate),
+        info = list(unit = "adapter")
+      )
+    },
+    validity_level = "conditional"
+  )
+
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter = adapter,
+    targets = "variable_stability"
+  )
+  art <- bootstrap_fits(
+    recipe = rec,
+    adapter = adapter,
+    data = X,
+    original_fit = fit,
+    units = form_units(adapter$roots(fit)),
+    R = 3L,
+    seed = 9L,
+    store_aligned_scores = FALSE
+  )
+
+  expect_true(art$used_bootstrap_action)
+  expect_equal(vapply(art$reps, function(rep) rep$resample_indices, integer(1L)),
+               as.integer(1:3))
+  expect_equal(art$reps[[1L]]$bootstrap_info$unit, "adapter")
+})
+
+test_that("bootstrap_fits stores adapter-projected scores for original data", {
+  clear_adapter_registry()
+
+  X <- matrix(seq_len(24), 6, 4)
+  fit <- list(
+    values = c(2, 1),
+    loadings = diag(4)[, 1:2, drop = FALSE],
+    scores = matrix(0, nrow = nrow(X), ncol = 2)
+  )
+  adapter <- infer_adapter(
+    adapter_id = "projecting_bootstrap",
+    shape_kinds = "oneblock",
+    capabilities = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "score_stability")
+    ),
+    roots = function(x) x$values,
+    scores = function(x, domain = NULL) x$scores,
+    loadings = function(x, domain = NULL) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, resample_indices = as.integer(replicate))
+    },
+    project_scores = function(x, data, domain = NULL) {
+      matrix(7, nrow = nrow(data), ncol = ncol(x$loadings))
+    },
+    validity_level = "conditional"
+  )
+
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter = adapter,
+    targets = "score_stability"
+  )
+  art <- bootstrap_fits(
+    recipe = rec,
+    adapter = adapter,
+    data = X,
+    original_fit = fit,
+    units = form_units(adapter$roots(fit)),
+    R = 2L,
+    seed = 10L,
+    store_aligned_scores = TRUE
+  )
+
+  expect_equal(art$score_source, "project_scores")
+  expect_equal(art$reps[[1L]]$aligned_scores$X,
+               matrix(7, nrow = nrow(X), ncol = 2))
+})
+
 # ---------------------------------------------------------------------------
 # Test 6: Reproducibility under seed
 # ---------------------------------------------------------------------------

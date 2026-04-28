@@ -317,7 +317,8 @@ infer <- function(adapter,
       seed         = seed,
       parallel     = parallel,
       fast_path    = fast_path,
-      store_aligned_scores = FALSE
+      store_aligned_scores = "score_stability" %in% resolved_targets &&
+        !is.null(adapter_obj$project_scores)
     )
 
     if ("variable_stability" %in% resolved_targets) {

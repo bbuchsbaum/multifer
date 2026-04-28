@@ -16,6 +16,8 @@
 #' @param original_fit Optional pre-fit object for `data`. When supplied,
 #'   the observed roots and first ladder rung use this fit instead of
 #'   refitting `data`.
+#' @param max_steps Maximum number of ladder rungs. Defaults to the number
+#'   of roots returned by the adapter, capped at 50.
 #' @inheritParams run_oneblock_ladder
 #'
 #' @return A list with the same fields as `run_oneblock_ladder()`.

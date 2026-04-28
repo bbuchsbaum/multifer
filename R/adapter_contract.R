@@ -52,6 +52,13 @@
 #'     (or `"block1"`, `"block2"`, ... for unnamed lists). Provide this hook
 #'     when domains are model-defined rather than data-name-defined.}
 #'
+#'   \item{`project_scores(x, data, domain = NULL)`}{Optional. Return scores
+#'     for `data` projected through fit `x` in the adapter's native
+#'     preprocessing/projection space. When supplied, `bootstrap_fits()` uses
+#'     this hook to store aligned scores for the original data, and
+#'     `score_stability_from_bootstrap()` consumes those stored scores. Without
+#'     it, score stability falls back to centered-data times aligned-loadings.}
+#'
 #'   \item{`truncate(x, k)`}{Optional. Return a fit of the same class
 #'     truncated to the leading `k` components. Used when downstream
 #'     code needs a reduced-rank view of the original fit.}
@@ -64,11 +71,20 @@
 #'
 #'   \item{`refit(x, new_data)`}{Required for `variable_stability`,
 #'     `score_stability`, and `subspace_stability` unless
-#'     `core + update_core` are provided instead. Fit a new model of
-#'     the same class on `new_data` (typically a bootstrap resample).
+#'     `core + update_core` or `bootstrap_action` are provided instead.
+#'     Fit a new model of the same class on `new_data` (typically a bootstrap resample).
 #'     `new_data` has the same shape as the original `data` argument
 #'     to [infer()] (matrix for oneblock, list with `X` and `Y` for
 #'     cross). Return shape: the same class as `x`.}
+#'
+#'   \item{`bootstrap_action(x, data, design, replicate = NULL)`}{Optional.
+#'     Adapter-owned perturbation hook for stability targets. Return a list
+#'     with `fit` (a replicate fit) or `data` (a replicate data object to pass
+#'     to `refit`), plus optional `resample_indices` and `info`. This hook is
+#'     for methods whose exchangeable unit is not a row of the data matrix,
+#'     such as subject blocks, studies, sites, sessions, or parametric draws.
+#'     When absent, `bootstrap_fits()` uses its default row/aligned-block
+#'     bootstrap.}
 #'
 #'   \item{`core(x, data)`}{Optional, pairs with `update_core` to
 #'     provide the Phase 1.5 fast path. Return a lightweight core
@@ -129,10 +145,11 @@
 #'   `component_stat(..., split = NULL)`. This is the predictive
 #'   cross-fit admissibility rule: in-sample predictive significance
 #'   is refused at registration time.
-#' - `variable_stability` requires a perturbation path — either `refit`
-#'   or both `core` and `update_core` — **and** one of
+#' - `variable_stability` requires a perturbation path — `refit`,
+#'   `bootstrap_action`, or both `core` and `update_core` — **and** one of
 #'   `variable_stat` or `loadings`.
-#' - `score_stability` requires a perturbation path **and** `scores`.
+#' - `score_stability` requires a perturbation path, `loadings`, and
+#'   either `scores` or `project_scores`.
 #' - `subspace_stability` requires a perturbation path **and** `loadings`.
 #' - `variable_significance` is excluded from v1 and fails at
 #'   registration time with a reference to Part 5 §38.

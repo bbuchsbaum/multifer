@@ -6,9 +6,10 @@
 #' Bootstrap samples have duplicates and omissions, which makes
 #' per-observation summaries on the resampled data interpretable only
 #' for the random subset of observations that happen to be present.
-#' Projecting the original data through each rep's loadings yields a
-#' clean per-observation distribution of scores under the rep's
-#' fitted basis.
+#' Projecting the original data through each rep's loadings, or consuming
+#' adapter-projected scores stored by `bootstrap_fits()` when the adapter
+#' provides `project_scores`, yields a clean per-observation distribution
+#' of scores under the rep's fitted basis.
 #'
 #' Concretely, for replicate \code{b} the score of observation \code{i}
 #' on the unit's first member column is
@@ -53,22 +54,38 @@ score_stability_from_bootstrap <- function(artifact,
   unit_ids <- units$unit_id
   members  <- attr(units, "members")
   if (is.null(members)) members <- vector("list", nrow(units))
+  if (R < 1L || length(reps) == 0L) {
+    return(infer_score_stability())
+  }
 
-  ## Resolve per-domain data matrices and centers.
-  data_by_domain <- .score_data_by_domain(original_data, domains)
+  use_projected_scores <- identical(artifact$score_source, "project_scores")
+  data_by_domain <- if (use_projected_scores) {
+    NULL
+  } else {
+    .score_data_by_domain(original_data, domains)
+  }
 
   score_cache <- stats::setNames(vector("list", length(domains)), domains)
   n_obs_by_domain <- integer(length(domains))
   names(n_obs_by_domain) <- domains
 
   for (d in domains) {
-    Xd <- data_by_domain[[d]]
-    n_obs_by_domain[d] <- nrow(Xd)
     score_cache[[d]] <- vector("list", R)
     for (b in seq_len(R)) {
-      Lb <- reps[[b]]$aligned_loadings[[d]]
-      score_cache[[d]][[b]] <- Xd %*% Lb
+      score_cache[[d]][[b]] <- if (use_projected_scores) {
+        reps[[b]]$aligned_scores[[d]]
+      } else {
+        Xd <- data_by_domain[[d]]
+        Lb <- reps[[b]]$aligned_loadings[[d]]
+        Xd %*% Lb
+      }
+      if (!is.matrix(score_cache[[d]][[b]]) ||
+          !is.numeric(score_cache[[d]][[b]])) {
+        stop("Stored or computed score matrices must be numeric matrices.",
+             call. = FALSE)
+      }
     }
+    n_obs_by_domain[d] <- nrow(score_cache[[d]][[1L]])
   }
 
   n_rows <- length(unit_ids) * sum(n_obs_by_domain)

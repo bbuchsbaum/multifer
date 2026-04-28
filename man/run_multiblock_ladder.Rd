@@ -27,10 +27,6 @@ run_multiblock_ladder(
 
 \item{data}{A named or unnamed list of aligned numeric matrix blocks.}
 
-\item{original_fit}{Optional pre-fit object for \code{data}. When supplied,
-the observed roots and first ladder rung use this fit instead of refitting
-\code{data}.}
-
 \item{B}{Per-rung cap on Monte Carlo draws. Default \code{1000}.}
 
 \item{B_total}{Optional integer global Monte Carlo budget shared
@@ -52,18 +48,21 @@ roots are automatically bundled into a subspace unit via
 
 \item{tie_threshold}{Positive numeric. Relative-gap threshold used
 when \code{auto_subspace = TRUE}. Default \code{0.01}.}
+
+\item{original_fit}{Optional pre-fit object for \code{data}. When supplied,
+the observed roots and first ladder rung use this fit instead of
+refitting \code{data}.}
 }
 \value{
-A list with elements \code{units}, \code{component_tests},
-\code{roots_observed}, \code{ladder_result}, and \code{labels}.
+A list with the same fields as \code{run_oneblock_ladder()}.
 }
 \description{
 Executes the latent-root ladder for adapters that declare
 \code{geometry = "multiblock"}. Unlike the oneblock and cross reference
-engines, this path is adapter-driven: the adapter owns refitting, null
-generation, component statistics, and residualization. At each rung the
-hook data are the current residual block list, so \code{component_stat()}
-and \code{residualize()} are called with \code{k = 1L} to act on the
-leading component of that current residual. The ladder step remains the
-global rung label in the returned results.
+engines, this path is deliberately adapter-driven: the adapter owns
+refitting, null generation, component statistics, and residualization.
+At each rung the hook data are the current residual block list, so
+\code{component_stat()} and \code{residualize()} are called with \code{k = 1L} to act
+on the leading component of that current residual. The ladder step remains
+the global rung label in the returned results.
 }

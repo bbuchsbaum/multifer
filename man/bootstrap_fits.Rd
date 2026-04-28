@@ -26,7 +26,8 @@ bootstrap_fits(
 \code{recipe$adapter} or looked up from the registry).}
 
 \item{data}{For oneblock, a numeric matrix. For cross, a list with
-elements \code{X} and \code{Y}.}
+elements \code{X} and \code{Y}. For multiblock, a list of aligned
+numeric matrix blocks.}
 
 \item{original_fit}{The output of \code{adapter$refit} applied to the
 original (unperturbed) data. Used as the alignment reference.}
@@ -56,9 +57,10 @@ forces the refit path.}
 
 \item{store_aligned_scores}{Logical. When \code{TRUE} (default), compute
 and store aligned replicate scores in each bootstrap replicate.
-When \code{FALSE}, skip score extraction/alignment and store
-\code{aligned_scores = NULL}. This is safe when downstream consumers
-only need aligned loadings.}
+If the adapter supplies \code{project_scores}, these are scores for the
+original data projected through each replicate fit. Otherwise they
+are the replicate fit's native scores. When \code{FALSE}, skip score
+extraction/alignment and store \code{aligned_scores = NULL}.}
 
 \item{core_rank}{Positive integer cap on the core rank used by the
 fast path, or NULL to leave the full thin SVD untruncated.
@@ -91,10 +93,9 @@ per-replicate aligned fits without having to re-do alignment.
 }
 \details{
 For (oneblock, variance), uses ordinary row bootstrap with
-replacement. For (cross, covariance | correlation), uses PAIRED row
-bootstrap -- a single index vector is sampled and applied to BOTH
-X and Y to preserve the observation pairing that the design
-assumes.
+replacement. For cross and multiblock geometries, a single index
+vector is sampled and applied to every aligned block. Adapters can
+override this perturbation unit with \code{bootstrap_action}.
 }
 \section{Score alignment for procrustes}{
 

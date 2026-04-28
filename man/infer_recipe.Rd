@@ -54,8 +54,8 @@ An object of class \code{multifer_infer_recipe} with fields:
 \code{validity_level}, \code{strict}, \code{downgrade_reason},
 \code{declared_assumptions}, \code{checked_assumptions}, \code{call}. The
 \code{problem} field is the first-class compiled inferential object and
-is the preferred place to inspect the inferred shape, target family,
-engine kind, and validity metadata in one place.
+is the preferred place to inspect the inferred shape, target
+family, engine kind, and validity metadata in one place.
 }
 \description{
 \code{infer_recipe()} is the compile-time validity gate (Part 5 section 36,
@@ -73,4 +73,8 @@ relations for the requested \code{geometry}, the caller must disambiguate.
 With \code{strict = FALSE} the ambiguity is resolved automatically (first
 declared relation wins), a \code{warning()} is emitted, and the recipe's
 \code{validity_level} is downgraded one step.
+}
+
+\seealso{
+\code{\link[=infer_problem]{infer_problem()}}
 }

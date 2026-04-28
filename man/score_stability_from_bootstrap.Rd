@@ -14,9 +14,9 @@ score_stability_from_bootstrap(
 \arguments{
 \item{artifact}{A \code{multifer_bootstrap_artifact}.}
 
-\item{original_data}{For oneblock, a numeric matrix. For cross, a
-list with \code{X} and \code{Y}. Must be the same data that was
-passed to \code{\link{bootstrap_fits}()}.}
+\item{original_data}{For oneblock, a numeric matrix. For cross or
+multiblock, a list of aligned matrix blocks. Must be the same data
+that was passed to \code{\link{bootstrap_fits}()}.}
 
 \item{units}{A \code{multifer_units} table.}
 
@@ -34,9 +34,10 @@ fit, NOT by summarizing scores on the bootstrap sample itself.
 Bootstrap samples have duplicates and omissions, which makes
 per-observation summaries on the resampled data interpretable only
 for the random subset of observations that happen to be present.
-Projecting the original data through each rep's loadings yields a
-clean per-observation distribution of scores under the rep's
-fitted basis.
+Projecting the original data through each rep's loadings, or consuming
+adapter-projected scores stored by \code{bootstrap_fits()} when the adapter
+provides \code{project_scores}, yields a clean per-observation distribution
+of scores under the rep's fitted basis.
 }
 \details{
 Concretely, for replicate \code{b} the score of observation \code{i}

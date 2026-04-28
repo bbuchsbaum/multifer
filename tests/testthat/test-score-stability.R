@@ -77,6 +77,35 @@ test_that("score_stability_from_bootstrap does not require stored aligned_scores
   expect_equal(tbl_light, tbl_full, tolerance = 1e-12)
 })
 
+test_that("score_stability_from_bootstrap consumes adapter-projected scores when present", {
+  units <- form_units(c(2, 1))
+  projected <- matrix(7, nrow = 4, ncol = 2)
+  art <- structure(
+    list(
+      reps = list(
+        list(
+          aligned_loadings = list(X = matrix(0, nrow = 2, ncol = 2)),
+          aligned_scores = list(X = projected)
+        ),
+        list(
+          aligned_loadings = list(X = matrix(0, nrow = 2, ncol = 2)),
+          aligned_scores = list(X = projected)
+        )
+      ),
+      R = 2L,
+      domains = "X",
+      method_align = "sign",
+      seed = NULL,
+      score_source = "project_scores"
+    ),
+    class = "multifer_bootstrap_artifact"
+  )
+
+  tbl <- score_stability_from_bootstrap(art, matrix(0, nrow = 4, ncol = 2), units)
+  expect_equal(nrow(tbl), nrow(units) * 4L)
+  expect_true(all(tbl$estimate == 7))
+})
+
 test_that("score_stability rejects malformed inputs", {
   expect_error(score_stability_from_bootstrap("nope", matrix(0, 2, 2),
                                               form_units(c(1))),

@@ -87,6 +87,56 @@ test_that("PCA stub adapter has all expected hook fields", {
   }
 })
 
+test_that("optional perturbation/projection hooks are accepted", {
+  a <- infer_adapter(
+    adapter_id      = "adapter_owned_bootstrap",
+    adapter_version = "0.0.1",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = c("variable_stability", "score_stability"))
+    ),
+    roots = function(x) x$values,
+    scores = function(x, domain) x$scores,
+    loadings = function(x, domain) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, info = list(replicate = replicate))
+    },
+    project_scores = function(x, data, domain = NULL) {
+      matrix(0, nrow = nrow(data), ncol = ncol(x$loadings))
+    },
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_true(is.function(a$bootstrap_action))
+  expect_true(is.function(a$project_scores))
+})
+
+test_that("project_scores can satisfy score_stability score extraction", {
+  a <- infer_adapter(
+    adapter_id      = "project_scores_only",
+    adapter_version = "0.0.1",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "score_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x)
+    },
+    project_scores = function(x, data, domain = NULL) {
+      matrix(0, nrow = nrow(data), ncol = ncol(x$loadings))
+    },
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_true(is.function(a$project_scores))
+})
+
 # ---------------------------------------------------------------------------
 # 2. Under-provisioned adapters error at construction
 # ---------------------------------------------------------------------------
@@ -288,7 +338,7 @@ test_that("claiming variable_stability without variable_stat or loadings errors"
   )
 })
 
-test_that("claiming score_stability without scores hook errors", {
+test_that("claiming score_stability without loadings hook errors", {
   expect_error(
     infer_adapter(
       adapter_id      = "bad",
@@ -298,10 +348,29 @@ test_that("claiming score_stability without scores hook errors", {
              targets  = "score_stability")
       ),
       refit          = function(x, new_data) x,
-      # scores deliberately omitted
+      scores         = function(x, domain = NULL) matrix(0, 1, 1),
+      # loadings deliberately omitted
       validity_level = "heuristic"
     ),
-    "scores"
+    "loadings"
+  )
+})
+
+test_that("claiming score_stability without score extraction hook errors", {
+  expect_error(
+    infer_adapter(
+      adapter_id      = "bad",
+      shape_kinds     = "oneblock",
+      capabilities    = capability_matrix(
+        list(geometry = "oneblock", relation = "variance",
+             targets  = "score_stability")
+      ),
+      refit          = function(x, new_data) x,
+      loadings       = function(x, domain = NULL) matrix(0, 1, 1),
+      # scores and project_scores deliberately omitted
+      validity_level = "heuristic"
+    ),
+    "scores.*project_scores|project_scores.*scores"
   )
 })
 
