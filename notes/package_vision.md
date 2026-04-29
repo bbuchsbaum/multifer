@@ -120,7 +120,7 @@ These are what the README should lead with. Paper 1 may still emphasize PCA + PL
 - **Generalized eigen** (`geneig`, `generalized_eigen`): the public wrapper is `infer_lda()` via `lda_refit`. This is a significance-first surface centered on discriminant roots. Broader metric-weighted / contrastive generalized-eigen families are not yet part of the public wrapper story.
 - **Predictive gain** (`cross`, `predictive`): the public wrapper is `infer_plsr()` via `plsr_refit`. The inferential target is held-out predictive gain, not a recycled covariance root. The public predictive surface is intentionally narrow in v1: PLSR is shipped, broader predictive-cross families remain future work.
 
-These surfaces are real and useful, but they are not yet the center of the package's high-level positioning sentence. Their immediate next step is boundary clarification, calibration evidence, and clearer author/user guidance rather than rapid expansion of scope.
+These surfaces are real and useful, but they are not yet the center of the package's high-level positioning sentence. Their immediate next step is boundary clarification, calibration evidence, and clearer author/user guidance rather than rapid expansion of scope. The current promotion decisions and remaining evidence gaps are recorded in `notes/maturity_promotion_roadmap.md`.
 
 ### Planned — architectural slot or broader family expansion, not current package surface
 
