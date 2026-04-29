@@ -124,3 +124,77 @@ test_that("run_oneblock_ladder delegates its callbacks through a ladder plan", {
   expect_equal(observed$roots_observed, expected$roots_observed)
   expect_equal(observed$labels, expected$labels)
 })
+
+test_that("compile_cross_ladder_plan resolves covariance callbacks", {
+  set.seed(7203)
+  X <- matrix(rnorm(120), 24, 5)
+  Y <- matrix(rnorm(96), 24, 4)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "covariance",
+    adapter = "cross_svd"
+  )
+
+  plan <- compile_cross_ladder_plan(rec, X, Y)
+  Xc <- sweep(X, 2L, colMeans(X), "-")
+  Yc <- sweep(Y, 2L, colMeans(Y), "-")
+  expected_roots <- svd(crossprod(Xc, Yc))$d^2
+
+  expect_true(is_ladder_plan(plan))
+  expect_equal(plan$roots_observed, expected_roots, tolerance = 1e-12)
+  expect_equal(plan$labels$null, "row permutation of Y")
+  expect_equal(plan$observed_stat_fn(1L, plan$initial_data),
+               expected_roots[1L],
+               tolerance = 1e-10)
+})
+
+test_that("compile_cross_ladder_plan resolves correlation callbacks and caps unsupported designs", {
+  set.seed(7204)
+  X <- matrix(rnorm(100), 20, 5)
+  Y <- matrix(rnorm(80), 20, 4)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "correlation",
+    design = exchangeable_rows(),
+    adapter = "cross_svd"
+  )
+
+  plan <- compile_cross_ladder_plan(rec, X, Y)
+
+  expect_true(is_ladder_plan(plan))
+  expect_equal(plan$max_steps, 1L)
+  expect_match(plan$labels$null, "first-root only")
+  expect_true(is.finite(plan$observed_stat_fn(1L, plan$initial_data)))
+})
+
+test_that("run_cross_ladder delegates covariance through a ladder plan", {
+  set.seed(7205)
+  X <- matrix(rnorm(120), 24, 5)
+  Y <- matrix(rnorm(96), 24, 4)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "covariance",
+    adapter = "cross_svd"
+  )
+
+  plan <- compile_cross_ladder_plan(rec, X, Y)
+  ladder <- ladder_driver(
+    observed_stat_fn = plan$observed_stat_fn,
+    null_stat_fn = plan$null_stat_fn,
+    deflate_fn = plan$deflate_fn,
+    initial_data = plan$initial_data,
+    max_steps = plan$max_steps,
+    B = 29L,
+    alpha = 0.05,
+    seed = 4L
+  )
+  expected <- .ladder_plan_result(plan, ladder)
+  observed <- run_cross_ladder(rec, X, Y, B = 29L, alpha = 0.05, seed = 4L)
+
+  expect_equal(observed$component_tests, expected$component_tests)
+  expect_equal(observed$roots_observed, expected$roots_observed)
+  expect_equal(observed$labels, expected$labels)
+})

@@ -149,6 +149,204 @@ compile_oneblock_ladder_plan <- function(recipe, X, max_steps = NULL) {
   )
 }
 
+compile_cross_ladder_plan <- function(recipe,
+                                      X,
+                                      Y,
+                                      max_steps = NULL,
+                                      cross_rank_cap = NULL) {
+  if (!is_infer_recipe(recipe)) {
+    stop("`recipe` must be a compiled multifer_infer_recipe.", call. = FALSE)
+  }
+  if (recipe$shape$geometry$kind != "cross") {
+    stop(paste0("`recipe` geometry must be \"cross\"; got \"",
+                recipe$shape$geometry$kind, "\"."), call. = FALSE)
+  }
+  rel_kind <- recipe$shape$relation$kind
+  if (!(rel_kind %in% c("covariance", "correlation"))) {
+    stop(paste0("`recipe` relation must be \"covariance\" or \"correlation\"; got \"",
+                rel_kind, "\"."), call. = FALSE)
+  }
+
+  .validate_cross_blocks(X, Y)
+  if (!is.null(cross_rank_cap)) {
+    if (!is.numeric(cross_rank_cap) || length(cross_rank_cap) != 1L ||
+        is.na(cross_rank_cap) || cross_rank_cap < 1L ||
+        cross_rank_cap != as.integer(cross_rank_cap)) {
+      stop("`cross_rank_cap` must be NULL or a positive integer scalar.",
+           call. = FALSE)
+    }
+  }
+
+  Xc <- sweep(X, 2L, colMeans(X), "-")
+  Yc <- sweep(Y, 2L, colMeans(Y), "-")
+  design_kind <- recipe$shape$design$kind
+  allow_multiroot_correlation <- rel_kind == "correlation" &&
+    design_kind %in% c("paired_rows", "nuisance_adjusted", "blocked_rows")
+
+  cross_stat <- if (identical(rel_kind, "covariance")) {
+    function(Xr, Yr) cached_svd(crossprod(Xr, Yr))$d
+  } else {
+    function(Qx, Qy) {
+      if (ncol(Qx) == 0L || ncol(Qy) == 0L) {
+        return(0)
+      }
+      cached_svd(crossprod(Qx, Qy))$d
+    }
+  }
+
+  qx_full <- NULL
+  qy_full <- NULL
+  corr_groups <- NULL
+  if (identical(rel_kind, "covariance")) {
+    s_full <- cross_stat(Xc, Yc)
+  } else {
+    if (identical(design_kind, "nuisance_adjusted")) {
+      resid_basis <- .nuisance_residual_basis(
+        recipe$shape$design$Z,
+        n = nrow(Xc),
+        groups = recipe$shape$design$groups
+      )
+      X_corr <- crossprod(resid_basis$Q, Xc)
+      Y_corr <- crossprod(resid_basis$Q, Yc)
+      corr_groups <- resid_basis$groups
+    } else {
+      X_corr <- Xc
+      Y_corr <- Yc
+      if (identical(design_kind, "blocked_rows")) {
+        corr_groups <- recipe$shape$design$groups
+      }
+    }
+    qx_full <- .orth_basis(X_corr)
+    qy_full <- .orth_basis(Y_corr)
+    s_full <- cross_stat(qx_full, qy_full)
+  }
+
+  roots_observed <- s_full^2
+  zero_tol <- max(1, sum(roots_observed)) * .Machine$double.eps
+
+  if (is.null(max_steps)) {
+    if (identical(rel_kind, "correlation") && allow_multiroot_correlation) {
+      max_steps <- min(length(roots_observed), 50L)
+    } else {
+      max_steps <- min(min(nrow(Xc), ncol(Xc), ncol(Yc)) - 1L, 50L)
+    }
+  }
+  max_steps <- as.integer(max(1L, max_steps))
+  if (identical(rel_kind, "correlation") && !allow_multiroot_correlation) {
+    max_steps <- min(max_steps, 1L)
+  }
+
+  cross_matrix <- if (identical(rel_kind, "covariance")) {
+    function(Xr, Yr) base::crossprod(Xr, Yr)
+  } else {
+    function(Qx, Qy) {
+      if (ncol(Qx) == 0L || ncol(Qy) == 0L) {
+        return(matrix(0, nrow = 1L, ncol = 1L))
+      }
+      base::crossprod(Qx, Qy)
+    }
+  }
+
+  cov_step_cache <- new.env(parent = emptyenv())
+  get_cov_step_core <- function(step, data) {
+    key <- as.character(step)
+    hit <- cov_step_cache[[key]]
+    if (!is.null(hit)) return(hit)
+    core <- .cross_covariance_core(data$X, data$Y)
+    cov_step_cache[[key]] <- core
+    core
+  }
+
+  observed_stat_fn <- function(step, data) {
+    if (identical(rel_kind, "covariance")) {
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        return(.cross_covariance_core_observed_sv2(core))
+      }
+      M <- cross_matrix(data$X, data$Y)
+    } else {
+      M <- cross_matrix(data$Qx, data$Qy)
+    }
+    s1 <- top_singular_values(M, 1L)[1L]
+    s1 * s1
+  }
+
+  null_stat_fn <- function(step, data) {
+    if (identical(rel_kind, "covariance")) {
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        perm <- base::sample.int(nrow(core$Uy))
+        return(.cross_covariance_core_null_sv2(core, perm))
+      }
+      perm <- base::sample.int(nrow(data$Y))
+      Yp <- data$Y[perm, , drop = FALSE]
+      M <- cross_matrix(data$X, Yp)
+    } else {
+      perm <- if (is.null(data$groups)) {
+        base::sample.int(nrow(data$Qy))
+      } else {
+        .restricted_row_permutation(data$groups)
+      }
+      Qyp <- data$Qy[perm, , drop = FALSE]
+      M <- cross_matrix(data$Qx, Qyp)
+    }
+    s1 <- top_singular_values(M, 1L)[1L]
+    s1 * s1
+  }
+
+  deflate_fn <- function(step, data) {
+    if (identical(rel_kind, "covariance")) {
+      core <- get_cov_step_core(step, data)
+      if (isTRUE(core$use_core)) {
+        next_xy <- .cross_covariance_core_deflate(core, data$X, data$Y)
+        Xn <- next_xy$X
+        Yn <- next_xy$Y
+      } else {
+        sv <- top_svd(crossprod(data$X, data$Y), 1L)
+        u1 <- sv$u[, 1L, drop = FALSE]
+        v1 <- sv$v[, 1L, drop = FALSE]
+        Xn <- data$X - data$X %*% u1 %*% t(u1)
+        Yn <- data$Y - data$Y %*% v1 %*% t(v1)
+      }
+      if (sum(Xn^2) + sum(Yn^2) <= zero_tol) {
+        return(list(
+          X = matrix(0, nrow = nrow(data$X), ncol = ncol(data$X)),
+          Y = matrix(0, nrow = nrow(data$Y), ncol = ncol(data$Y))
+        ))
+      }
+      return(list(X = Xn, Y = Yn))
+    }
+
+    if (ncol(data$Qx) == 0L || ncol(data$Qy) == 0L) {
+      return(list(Qx = data$Qx, Qy = data$Qy, groups = data$groups))
+    }
+    sv <- top_svd(crossprod(data$Qx, data$Qy), 1L)
+    tx <- data$Qx %*% sv$u[, 1L, drop = FALSE]
+    ty <- data$Qy %*% sv$v[, 1L, drop = FALSE]
+    Qx_next <- .orth_basis(data$Qx - tx %*% crossprod(tx, data$Qx))
+    Qy_next <- .orth_basis(data$Qy - ty %*% crossprod(ty, data$Qy))
+    list(Qx = Qx_next, Qy = Qy_next, groups = data$groups)
+  }
+
+  labels <- .cross_ladder_labels(rel_kind, design_kind, recipe$shape$design)
+  structure(
+    list(
+      initial_data = if (identical(rel_kind, "covariance")) {
+        list(X = Xc, Y = Yc)
+      } else {
+        list(Qx = qx_full, Qy = qy_full, groups = corr_groups)
+      },
+      max_steps = max_steps,
+      roots_observed = roots_observed,
+      observed_stat_fn = observed_stat_fn,
+      null_stat_fn = null_stat_fn,
+      deflate_fn = deflate_fn,
+      labels = labels
+    ),
+    class = "multifer_ladder_plan"
+  )
+}
+
 is_ladder_plan <- function(x) inherits(x, "multifer_ladder_plan")
 
 .ladder_plan_result <- function(plan,
@@ -162,7 +360,7 @@ is_ladder_plan <- function(x) inherits(x, "multifer_ladder_plan")
   roots_observed <- plan$roots_observed
   selected <- logical(length(roots_observed))
   if (rejected_through >= 1L) {
-    selected[seq_len(rejected_through)] <- TRUE
+    selected[seq_len(min(rejected_through, length(selected)))] <- TRUE
   }
 
   units <- form_units(
@@ -190,5 +388,67 @@ is_ladder_plan <- function(x) inherits(x, "multifer_ladder_plan")
     roots_observed = roots_observed,
     ladder_result = ladder_result,
     labels = plan$labels
+  )
+}
+
+.validate_cross_blocks <- function(X, Y) {
+  if (!is.matrix(X) || !is.numeric(X)) {
+    stop("`X` must be a numeric matrix.", call. = FALSE)
+  }
+  if (!is.matrix(Y) || !is.numeric(Y)) {
+    stop("`Y` must be a numeric matrix.", call. = FALSE)
+  }
+  if (nrow(X) != nrow(Y)) {
+    stop("`X` and `Y` must have the same number of rows.", call. = FALSE)
+  }
+  if (any(!is.finite(X)) || any(!is.finite(Y))) {
+    stop("`X` and `Y` must not contain NA, NaN, or Inf.", call. = FALSE)
+  }
+  if (nrow(X) < 2L || ncol(X) < 1L || ncol(Y) < 1L) {
+    stop("`X` must have at least 2 rows; `X` and `Y` need at least 1 column each.",
+         call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+.orth_basis <- function(M, tol = 1e-10) {
+  q <- qr(M, tol = tol)
+  r <- q$rank
+  if (r <= 0L) {
+    return(matrix(0, nrow = nrow(M), ncol = 0L))
+  }
+  qr.Q(q, complete = FALSE)[, seq_len(r), drop = FALSE]
+}
+
+.cross_ladder_labels <- function(rel_kind, design_kind, design) {
+  estimand_txt <- if (identical(rel_kind, "covariance")) {
+    "cross-covariance singular roots"
+  } else {
+    "canonical correlations"
+  }
+  statistic_txt <- if (identical(rel_kind, "covariance")) {
+    "Vitale P3 tail-ratio on cross-covariance roots"
+  } else {
+    "Vitale P3 tail-ratio on canonical correlations"
+  }
+  null_txt <- if (identical(rel_kind, "covariance")) {
+    "row permutation of Y"
+  } else if (identical(design_kind, "nuisance_adjusted") &&
+             is.null(design$groups)) {
+    "row permutation of Y in nuisance residual basis"
+  } else if (identical(design_kind, "nuisance_adjusted")) {
+    "row permutation of Y in nuisance residual basis, within block"
+  } else if (identical(design_kind, "blocked_rows")) {
+    "row permutation of Y within block"
+  } else if (identical(design_kind, "paired_rows")) {
+    "row permutation of Y"
+  } else {
+    "row permutation of Y (first-root only, conservative fallback)"
+  }
+
+  list(
+    statistic = statistic_txt,
+    null = null_txt,
+    estimand = estimand_txt
   )
 }
