@@ -89,6 +89,18 @@ The tempting phrase "maximally general inference machinery" is not the target. T
 
 Those families are ordered-root SVD models, canonical-correlation models, generalized-eigen / metric-weighted models, and supervised predictive-increment models. The paper's mainline theorem covers the first of those; the package exists to reuse as much of that scaffold as possible across the other three without pretending every multivariate method reduces to the same root test.
 
+### When `geometry = "adapter"` is the right answer
+
+The `geometry = "adapter"` slot is reserved for **irreducible latent / data geometry** — fitters whose inferential object is structurally beyond the built-in matrix and list shapes. Worked examples include precomputed opaque kernels, parametric-draw fitters, kernel payloads whose resampling unit is not a matrix row, and structured-constraint methods like Constrained PCA that carry row/column metrics and constraint subspaces alongside the primary data.
+
+It is not for ordinary latent families that happen to be missing a relation or data-shape combination in the current enumeration. When the missing combination is genuinely a one-block / cross / multiblock latent decomposition with a recognizable resampling unit, the right response is to extend the capability matrix or the data-role schema, not to widen the adapter wildcard.
+
+The package's generality boundary is therefore:
+
+**capability triple × data role schema × null spec, with `geometry = "adapter"` reserved for irreducible latent/data geometry, not merely missing taxonomy.**
+
+See `notes/pcr_consolidation_spec.md` for the falsifying test case (PCR — should *not* need the wildcard) and `notes/data_role_schema_spec.md` for the vindicating test case (Constrained PCA — irreducibly opaque, but bootstrap-plannable through a declared role schema).
+
 ## Support maturity levels
 
 Every inferential family the package ships is labeled internally with one of three maturity levels. This taxonomy is the **internal scope-decision vocabulary**: it is what the authors use to decide what is in scope for Paper 1, what is shipping today, and what is explicitly on the "not yet" list.
