@@ -198,3 +198,67 @@ test_that("run_cross_ladder delegates covariance through a ladder plan", {
   expect_equal(observed$roots_observed, expected$roots_observed)
   expect_equal(observed$labels, expected$labels)
 })
+
+test_that("compile_infer_execution_plan resolves cross engine runner", {
+  set.seed(7206)
+  X <- matrix(rnorm(120), 24, 5)
+  Y <- matrix(rnorm(96), 24, 4)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "cross",
+    relation = "covariance",
+    targets = "component_significance",
+    adapter = "cross_svd"
+  )
+
+  plan <- compile_infer_execution_plan(
+    rec,
+    data = list(X = X, Y = Y),
+    adapter = get_infer_adapter("cross_svd")
+  )
+  expected <- run_cross_ladder(rec, X, Y, B = 29L, alpha = 0.05, seed = 5L)
+  observed <- plan$run_engine(
+    B = 29L,
+    B_total = NULL,
+    batch_size = 32L,
+    alpha = 0.05,
+    seed = 5L,
+    auto_subspace = TRUE,
+    tie_threshold = 0.01
+  )
+
+  expect_true(is_infer_execution_plan(plan))
+  expect_equal(observed$component_tests, expected$component_tests)
+  expect_equal(observed$roots_observed, expected$roots_observed)
+  expect_equal(observed$labels, expected$labels)
+})
+
+test_that("compile_infer_execution_plan resolves stability-only as zero-rung engine", {
+  set.seed(7207)
+  X <- matrix(rnorm(80), 20, 4)
+  ensure_default_adapters()
+  adapter <- get_infer_adapter("prcomp_oneblock")
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    targets = "variable_stability",
+    adapter = adapter
+  )
+
+  plan <- compile_infer_execution_plan(rec, data = X, adapter = adapter)
+  engine <- plan$run_engine(
+    B = 29L,
+    B_total = NULL,
+    batch_size = 32L,
+    alpha = 0.05,
+    seed = 6L,
+    auto_subspace = TRUE,
+    tie_threshold = 0.01
+  )
+
+  expect_true(is_infer_execution_plan(plan))
+  expect_equal(nrow(engine$component_tests), 0L)
+  expect_equal(engine$ladder_result$rejected_through, 0L)
+  expect_identical(engine$original_fit, plan$original_fit(engine))
+  expect_equal(engine$labels$estimand, "adapter latent roots")
+})

@@ -6,11 +6,7 @@
 #'   \item resolve / build a \code{\link{typed_shape}};
 #'   \item compile a recipe via \code{\link{infer_recipe}()} with
 #'     strict dispatch by default;
-#'   \item dispatch on geometry to \code{\link{run_oneblock_ladder}()}
-#'     or \code{\link{run_cross_ladder}()} or
-#'     \code{\link{run_predictive_ladder}()} or
-#'     \code{\link{run_multiblock_ladder}()} or
-#'     \code{\link{run_geneig_ladder}()};
+#'   \item compile an executable plan and run its engine callback;
 #'   \item fit (or use the supplied) original fit, then run
 #'     \code{\link{bootstrap_fits}()} to produce a perturbation
 #'     artifact;
@@ -129,10 +125,14 @@ infer <- function(adapter,
     stop("`recipe` must be a multifer_infer_recipe.", call. = FALSE)
   }
 
-  problem <- .recipe_problem(recipe)
-  geom_kind <- problem$shape$geometry$kind
-  rel_kind  <- problem$shape$relation$kind
-  resolved_targets <- problem$targets
+  execution_plan <- compile_infer_execution_plan(
+    recipe = recipe,
+    adapter = adapter_obj,
+    data = data,
+    model = model
+  )
+  problem <- execution_plan$problem
+  resolved_targets <- execution_plan$targets
 
   ## --- executable validity checks --------------------------------------------
   # Every mature adapter ships concrete checked_assumptions; strict mode
@@ -148,151 +148,15 @@ infer <- function(adapter,
 
   t_engine_start <- proc.time()[["elapsed"]]
 
-  needs_component <- "component_significance" %in% resolved_targets
-  engine_original_fit <- NULL
-
-  if (!needs_component) {
-    engine_original_fit <- .infer_original_fit(
-      adapter_obj = adapter_obj,
-      data = data,
-      geom_kind = geom_kind,
-      rel_kind = rel_kind,
-      model = model
-    )
-    roots_observed <- adapter_obj$roots(engine_original_fit)
-    if (!is.numeric(roots_observed) || length(roots_observed) == 0L ||
-        any(!is.finite(roots_observed))) {
-      stop("`adapter$roots()` must return a non-empty finite numeric vector.",
-           call. = FALSE)
-    }
-    units <- form_units(
-      roots_observed,
-      selected = rep(FALSE, length(roots_observed)),
-      group_near_ties = isTRUE(auto_subspace),
-      tie_threshold = tie_threshold
-    )
-    engine_out <- list(
-      units = units,
-      component_tests = data.frame(),
-      roots_observed = roots_observed,
-      ladder_result = list(
-        step_results = list(),
-        rejected_through = 0L,
-        total_draws_used = 0L,
-        batch_schedule = integer(0L),
-        stopping_boundary = "not_run"
-      ),
-      labels = list(
-        statistic = NA_character_,
-        null = NA_character_,
-        estimand = "adapter latent roots"
-      ),
-      original_fit = engine_original_fit
-    )
-  } else if (geom_kind == "oneblock") {
-    .validate_oneblock_data(data)
-    if (identical(adapter_obj$component_engine, "adapter")) {
-      engine_original_fit <- model %||% adapter_obj$refit(NULL, data)
-      engine_out <- run_adapter_ladder(
-        recipe = recipe,
-        adapter = adapter_obj,
-        data = data,
-        B = B,
-        B_total = B_total,
-        batch_size = mc_batch_size,
-        alpha = alpha,
-        seed = seed,
-        auto_subspace = auto_subspace,
-        tie_threshold = tie_threshold,
-        original_fit = engine_original_fit,
-        validate_data = .validate_oneblock_data
-      )
-    } else {
-      engine_out <- run_oneblock_ladder(
-        recipe = recipe, X = data, B = B, B_total = B_total,
-        batch_size = mc_batch_size, alpha = alpha, seed = seed,
-        auto_subspace = auto_subspace, tie_threshold = tie_threshold
-      )
-    }
-  } else if (geom_kind == "cross") {
-    if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
-      stop("For cross geometry, `data` must be a list with X and Y.",
-           call. = FALSE)
-    }
-    if (rel_kind == "predictive") {
-      engine_out <- run_predictive_ladder(
-        recipe = recipe, X = data$X, Y = data$Y,
-        B = B, B_total = B_total, batch_size = mc_batch_size,
-        alpha = alpha, seed = seed,
-        auto_subspace = auto_subspace, tie_threshold = tie_threshold
-      )
-    } else {
-      engine_out <- run_cross_ladder(
-        recipe = recipe, X = data$X, Y = data$Y,
-        B = B, B_total = B_total, batch_size = mc_batch_size,
-        alpha = alpha, seed = seed,
-        auto_subspace = auto_subspace, tie_threshold = tie_threshold
-      )
-    }
-  } else if (geom_kind == "geneig") {
-    payload <- .as_geneig_payload(data)
-    operator <- geneig_operator(
-      A = payload$A,
-      B = payload$B,
-      metric = payload$metric
-    )
-    engine_out <- run_geneig_ladder(
-      recipe = recipe,
-      operator = operator,
-      state = payload$state,
-      B = B,
-      B_total = B_total,
-      batch_size = mc_batch_size,
-      alpha = alpha,
-      seed = seed,
-      auto_subspace = auto_subspace,
-      tie_threshold = tie_threshold
-    )
-  } else if (geom_kind == "multiblock") {
-    .validate_multiblock_data(data)
-    engine_out <- run_multiblock_ladder(
-      recipe = recipe,
-      adapter = adapter_obj,
-      data = data,
-      B = B,
-      B_total = B_total,
-      batch_size = mc_batch_size,
-      alpha = alpha,
-      seed = seed,
-      auto_subspace = auto_subspace,
-      tie_threshold = tie_threshold,
-      original_fit = model
-    )
-  } else if (geom_kind == "adapter") {
-    engine_original_fit <- .infer_original_fit(
-      adapter_obj = adapter_obj,
-      data = data,
-      geom_kind = geom_kind,
-      rel_kind = rel_kind,
-      model = model
-    )
-    engine_out <- run_adapter_ladder(
-      recipe = recipe,
-      adapter = adapter_obj,
-      data = data,
-      B = B,
-      B_total = B_total,
-      batch_size = mc_batch_size,
-      alpha = alpha,
-      seed = seed,
-      auto_subspace = auto_subspace,
-      tie_threshold = tie_threshold,
-      original_fit = engine_original_fit
-    )
-  } else {
-    stop(sprintf("infer() supports only 'oneblock', 'cross', 'multiblock', 'geneig', and 'adapter'; got '%s'.",
-                 geom_kind), call. = FALSE)
-  }
+  engine_out <- execution_plan$run_engine(
+    B = B,
+    B_total = B_total,
+    batch_size = mc_batch_size,
+    alpha = alpha,
+    seed = seed,
+    auto_subspace = auto_subspace,
+    tie_threshold = tie_threshold
+  )
 
   units <- engine_out$units
 
@@ -365,24 +229,11 @@ infer <- function(adapter,
   t_boot_end    <- t_boot_start
 
   if (needs_bootstrap && R > 0L) {
-    if (geom_kind == "geneig") {
-      stop(
-        "Bootstrap stability for geneig wrappers is not wired through infer() yet. Request `targets = \"component_significance\"` for now.",
-        call. = FALSE
-      )
+    if (!isTRUE(execution_plan$bootstrap_supported)) {
+      stop(execution_plan$bootstrap_error, call. = FALSE)
     }
 
-    if (is.null(model)) {
-      original_fit <- .infer_original_fit(
-        adapter_obj = adapter_obj,
-        data = data,
-        geom_kind = geom_kind,
-        rel_kind = rel_kind,
-        model = engine_original_fit
-      )
-    } else {
-      original_fit <- model
-    }
+    original_fit <- execution_plan$original_fit(engine_out)
 
     artifact <- bootstrap_fits(
       recipe       = recipe,
