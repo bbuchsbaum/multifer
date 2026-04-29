@@ -305,19 +305,27 @@ stopifnot(
 )
 ```
 
-```{r importance-plot, echo = FALSE, fig.cap = "Evidence for aggregate squared-loading importance. Bar height is -log10(BH-adjusted p-value), so taller bars mean stronger evidence against the column-permutation null; the dashed line marks adjusted p = 0.05."}
+The plot below uses `-log10(p_adjusted)` only to make small adjusted
+p-values visually taller. For example, a bar height of `0.08` means
+`p_adjusted = 10^-0.08`, about `0.83`; it does **not** mean an adjusted
+p-value of `0.08`. The dashed line is the usual `p_adjusted = 0.05`
+reference, which appears at `-log10(0.05) = 1.30`.
+
+```{r importance-plot, echo = FALSE, fig.cap = "Evidence for aggregate squared-loading importance. Bar height is -log10(BH-adjusted p-value), so taller bars mean smaller adjusted p-values under the column-permutation null. A height of 1.30 equals adjusted p = 0.05; the dashed line marks that reference level."}
 fi$evidence <- -log10(pmax(fi$p_adjusted, .Machine$double.xmin))
 ord <- order(fi$evidence, decreasing = TRUE)
 fi_o <- fi[ord, ]
 col  <- ifelse(fi_o$p_adjusted <= 0.05, "#2ca02c", "#d62728")
+threshold <- -log10(0.05)
 bp <- barplot(
   fi_o$evidence, names.arg = fi_o$feature, col = col,
   border = NA,
   ylab = expression(-log[10]("BH-adjusted p-value")),
   xlab = "variable",
-  main = "aggregate feature-importance evidence, X domain"
+  main = "aggregate feature-importance evidence, X domain",
+  ylim = c(0, max(fi_o$evidence, threshold) * 1.08)
 )
-abline(h = -log10(0.05), lty = 2, col = "gray30")
+abline(h = threshold, lty = 2, col = "gray30")
 ```
 
 The schema separates significance (per-unit p-values) from importance
