@@ -49,7 +49,7 @@ test_that("predictive gate refuses a non-split-aware component_stat", {
       component_stat  = function(x, data, k) 1.0,
       validity_level  = "conditional"
     ),
-    regexp = "Predictive cross-fit admissibility rule"
+    regexp = "Predictive admissibility rule"
   )
 })
 

@@ -102,6 +102,9 @@ infer_problem <- function(shape,
   if (identical(geom_kind, "cross") && identical(rel_kind, "predictive")) {
     return("predictive")
   }
+  if (identical(geom_kind, "adapter") && identical(rel_kind, "predictive")) {
+    return("adapter_predictive")
+  }
   if (identical(geom_kind, "oneblock")) {
     return("oneblock")
   }

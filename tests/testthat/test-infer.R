@@ -154,6 +154,53 @@ test_that("infer() supports component-significance adapter-owned geometry", {
   expect_match(res$mc$statistic_label, "adapter component_stat on adapter data")
 })
 
+test_that("infer() supports adapter-owned predictive component significance", {
+  payload <- list(
+    Y = matrix(seq_len(12), 4, 3),
+    X = list(a = matrix(seq_len(8), 4, 2))
+  )
+  calls <- new.env(parent = emptyenv())
+  calls$split <- 0L
+  adapter <- infer_adapter(
+    adapter_id = "opaque_predictive_component_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "predictive",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 1),
+    null_action = function(x, data) {
+      data$Y <- data$Y[rev(seq_len(nrow(data$Y))), , drop = FALSE]
+      data
+    },
+    component_stat = function(x, data, k, split = NULL) {
+      if (is.null(split)) calls$split <- calls$split + 1L
+      0.8
+    },
+    residualize = function(x, k, data) data,
+    validity_level = "conditional"
+  )
+
+  res <- infer(
+    adapter = adapter,
+    data = payload,
+    geometry = "adapter",
+    relation = "predictive",
+    targets = "component_significance",
+    B = 3L,
+    R = 0L,
+    seed = 6L
+  )
+
+  expect_true(is_infer_result(res))
+  expect_gt(calls$split, 0L)
+  expect_equal(res$component_tests$statistic, 0.8)
+  expect_equal(res$provenance$capabilities,
+               "adapter/predictive:component_significance")
+  expect_match(res$mc$estimand_label, "adapter predictive gain")
+})
+
 test_that("infer() cross end-to-end with explicit covariance", {
   ensure_default_adapters()
   set.seed(702)

@@ -130,7 +130,7 @@
 #'     for rung `k` on `data`. Must be algebraically consistent with
 #'     `null_action`: the ladder compares the observed statistic to
 #'     repeated draws of `component_stat(x, null_action(x, data), k)`.
-#'     For `(cross, predictive)`, the hook must accept a formal
+#'     For predictive component significance, the hook must accept a formal
 #'     `split` argument and use it for held-out scoring rather than
 #'     in-sample fit.}
 #'
@@ -159,6 +159,9 @@
 #'   `component_stat(..., split = NULL)`. This is the predictive
 #'   cross-fit admissibility rule: in-sample predictive significance
 #'   is refused at registration time.
+#' - `(adapter, predictive, component_significance)` requires `refit`
+#'   and a split-aware `component_stat(..., split = NULL)`. The adapter
+#'   owns held-out scoring for opaque predictive payloads.
 #' - `variable_stability` requires a perturbation path — `refit`,
 #'   `bootstrap_action`, or both `core` and `update_core` — **and** one of
 #'   `variable_stat` or `loadings`.

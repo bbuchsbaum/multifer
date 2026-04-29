@@ -90,6 +90,24 @@ clear_adapter_registry()
   )
 }
 
+.make_adapter_predictive_stub <- function(id = "stub_adapter_predictive") {
+  infer_adapter(
+    adapter_id      = id,
+    adapter_version = "0.0.1",
+    shape_kinds     = "adapter",
+    capabilities    = capability_matrix(
+      list(geometry = "adapter", relation = "predictive",
+           targets  = "component_significance")
+    ),
+    roots          = function(x) x$values,
+    null_action    = function(x, data) data,
+    component_stat = function(x, data, k, split = NULL) 1.0,
+    residualize    = function(x, k, data) data,
+    refit          = function(x, new_data) list(values = 1),
+    validity_level = "conditional"
+  )
+}
+
 .make_geneig_stub <- function(id = "stub_geneig") {
   residualize_geneig <- function(x, k, data) data
   attr(residualize_geneig, "b_metric") <- TRUE
@@ -217,7 +235,25 @@ test_that("cross predictive adapter compiles when it declares the triple", {
   expect_equal(r$problem$engine_kind, "predictive")
 })
 
-test_that("predictive relation is rejected for non-cross geometry at recipe compile time", {
+test_that("adapter predictive adapter compiles when it declares the triple", {
+  clear_adapter_registry()
+  register_infer_adapter("stub_adapter_predictive",
+                         .make_adapter_predictive_stub())
+
+  r <- infer_recipe(
+    geometry = "adapter",
+    relation = "predictive",
+    adapter  = "stub_adapter_predictive"
+  )
+
+  expect_true(is_infer_recipe(r))
+  expect_equal(r$shape$geometry$kind, "adapter")
+  expect_equal(r$shape$relation$kind, "predictive")
+  expect_equal(r$problem$target_family, "predictive_gain")
+  expect_equal(r$problem$engine_kind, "adapter_predictive")
+})
+
+test_that("predictive relation is rejected for unsupported geometries at recipe compile time", {
   clear_adapter_registry()
   register_infer_adapter("stub_predictive", .make_predictive_stub())
 
@@ -227,7 +263,7 @@ test_that("predictive relation is rejected for non-cross geometry at recipe comp
       relation = "predictive",
       adapter  = "stub_predictive"
     ),
-    regexp = "requires geometry 'cross'"
+    regexp = "requires geometry 'cross' or 'adapter'"
   )
 })
 

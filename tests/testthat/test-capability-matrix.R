@@ -40,20 +40,23 @@ test_that("capability_matrix rejects unknown geometry / relation / target", {
   )
 })
 
-test_that("capability_matrix accepts predictive for cross and rejects it elsewhere", {
+test_that("capability_matrix accepts predictive for cross and adapter", {
   cm <- capability_matrix(
     list(geometry = "cross", relation = "predictive",
+         targets = "component_significance"),
+    list(geometry = "adapter", relation = "predictive",
          targets = "component_significance")
   )
 
   expect_true(supports(cm, "cross", "predictive", "component_significance"))
+  expect_true(supports(cm, "adapter", "predictive", "component_significance"))
 
   expect_error(
     capability_matrix(
       list(geometry = "oneblock", relation = "predictive",
            targets = "component_significance")
     ),
-    "cross-only in v1"
+    "cross.*adapter"
   )
 
   expect_error(
@@ -61,15 +64,7 @@ test_that("capability_matrix accepts predictive for cross and rejects it elsewhe
       list(geometry = "geneig", relation = "predictive",
            targets = "component_significance")
     ),
-    "cross-only in v1"
-  )
-
-  expect_error(
-    capability_matrix(
-      list(geometry = "adapter", relation = "predictive",
-           targets = "component_significance")
-    ),
-    "cross-only in v1"
+    "cross.*adapter"
   )
 })
 

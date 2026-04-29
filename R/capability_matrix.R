@@ -91,9 +91,11 @@ capability_matrix <- function(...) {
         i, paste(valid_rel, collapse = ", ")
       ), call. = FALSE)
     }
-    if (identical(e$relation, "predictive") && !identical(e$geometry, "cross")) {
+    if (identical(e$relation, "predictive") &&
+        !(e$geometry %in% c("cross", "adapter"))) {
       stop(sprintf(
-        paste0("entry %d: relation 'predictive' is cross-only in v1; ",
+        paste0("entry %d: relation 'predictive' requires geometry ",
+               "'cross' or 'adapter'; ",
                "got geometry '%s'."),
         i, e$geometry
       ), call. = FALSE)

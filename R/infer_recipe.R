@@ -104,10 +104,10 @@ infer_recipe <- function(shape    = NULL,
 
   if (!is.null(shape) &&
       identical(rel_kind, "predictive") &&
-      !identical(geom_kind, "cross")) {
+      !(geom_kind %in% c("cross", "adapter"))) {
     stop(
       sprintf(
-        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        "Relation 'predictive' requires geometry 'cross' or 'adapter' during recipe compilation; got '%s'.",
         geom_kind
       ),
       call. = FALSE
@@ -124,10 +124,10 @@ infer_recipe <- function(shape    = NULL,
   if (is.null(shape) &&
       !is.null(relation) &&
       identical(relation, "predictive") &&
-      !identical(geom_kind, "cross")) {
+      !(geom_kind %in% c("cross", "adapter"))) {
     stop(
       sprintf(
-        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        "Relation 'predictive' requires geometry 'cross' or 'adapter' during recipe compilation; got '%s'.",
         geom_kind
       ),
       call. = FALSE
@@ -246,10 +246,11 @@ infer_recipe <- function(shape    = NULL,
       call. = FALSE
     )
   }
-  if (identical(rel_kind, "predictive") && !identical(geom_kind, "cross")) {
+  if (identical(rel_kind, "predictive") &&
+      !(geom_kind %in% c("cross", "adapter"))) {
     stop(
       sprintf(
-        "Relation 'predictive' requires geometry 'cross' during recipe compilation; got '%s'.",
+        "Relation 'predictive' requires geometry 'cross' or 'adapter' during recipe compilation; got '%s'.",
         geom_kind
       ),
       call. = FALSE

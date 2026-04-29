@@ -97,6 +97,47 @@ test_that("adapter-owned geometry is accepted", {
   expect_equal(a$shape_kinds, "adapter")
 })
 
+test_that("adapter-owned predictive component significance is accepted", {
+  a <- infer_adapter(
+    adapter_id = "opaque_predictive_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "predictive",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 1),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k, split = NULL) 1,
+    residualize = function(x, k, data) data,
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_true(adapter_supports(a, "adapter", "predictive",
+                               "component_significance"))
+})
+
+test_that("adapter-owned predictive component significance requires split-aware stat", {
+  expect_error(
+    infer_adapter(
+      adapter_id = "opaque_predictive_no_split",
+      shape_kinds = "adapter",
+      capabilities = capability_matrix(
+        list(geometry = "adapter", relation = "predictive",
+             targets = "component_significance")
+      ),
+      roots = function(x) x$values,
+      refit = function(x, new_data) list(values = 1),
+      null_action = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize = function(x, k, data) data,
+      validity_level = "conditional"
+    ),
+    "Predictive admissibility"
+  )
+})
+
 test_that("PCA stub adapter has all expected hook fields", {
   a <- .make_pca_adapter()
   for (hook in c("roots", "scores", "loadings", "truncate", "residualize",
@@ -346,7 +387,7 @@ test_that("predictive component_significance refuses in-sample component_stat ho
       },
       validity_level  = "conditional"
     ),
-    "Predictive cross-fit admissibility rule"
+    "Predictive admissibility rule"
   )
 })
 

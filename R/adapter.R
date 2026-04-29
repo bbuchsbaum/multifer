@@ -73,6 +73,9 @@
 #'   `attr(residualize, "delegates_geneig_deflation") <- TRUE`. For
 #'   `(cross, predictive)`, the adapter must also provide `refit`,
 #'   `predict_response`, and a split-aware `component_stat(..., split = NULL)`.
+#'   For `(adapter, predictive)`, the adapter must provide `refit` and
+#'   a split-aware `component_stat(..., split = NULL)`; prediction lives
+#'   inside the adapter-owned statistic for opaque payloads.
 #' - `variable_stability` requires at least one of
 #'   `{refit, bootstrap_action, core+update_core}` AND
 #'   (`variable_stat` OR `loadings`).
@@ -238,7 +241,16 @@ infer_adapter <- function(adapter_id,
   }
 
   predictive_component_claim <- any(
+    capabilities$relation == "predictive" &
+      capabilities$target == "component_significance"
+  )
+  predictive_cross_component_claim <- any(
     capabilities$geometry == "cross" &
+      capabilities$relation == "predictive" &
+      capabilities$target == "component_significance"
+  )
+  predictive_adapter_component_claim <- any(
+    capabilities$geometry == "adapter" &
       capabilities$relation == "predictive" &
       capabilities$target == "component_significance"
   )
@@ -247,7 +259,7 @@ infer_adapter <- function(adapter_id,
     if (is.null(hooks[["refit"]])) {
       missing_predictive <- c(missing_predictive, "refit")
     }
-    if (is.null(hooks[["predict_response"]])) {
+    if (predictive_cross_component_claim && is.null(hooks[["predict_response"]])) {
       missing_predictive <- c(missing_predictive, "predict_response")
     }
     if (length(missing_predictive) > 0L || !.has_formal_arg(hooks[["component_stat"]], "split")) {
@@ -256,7 +268,11 @@ infer_adapter <- function(adapter_id,
       } else {
         "`component_stat` with a formal `split` argument"
       }
-      required <- c("refit", "predict_response", split_msg)
+      required <- c(
+        "refit",
+        if (predictive_cross_component_claim) "predict_response",
+        split_msg
+      )
       required <- required[!vapply(required, is.null, logical(1))]
       detail <- c(
         if (length(missing_predictive) > 0L) {
@@ -268,8 +284,15 @@ infer_adapter <- function(adapter_id,
       )
       stop(
         paste0(
-          "Predictive cross-fit admissibility rule: claiming ",
-          "(cross, predictive, component_significance) requires ",
+          "Predictive admissibility rule: claiming ",
+          if (predictive_adapter_component_claim && !predictive_cross_component_claim) {
+            "(adapter, predictive, component_significance)"
+          } else if (predictive_cross_component_claim && !predictive_adapter_component_claim) {
+            "(cross, predictive, component_significance)"
+          } else {
+            "predictive component_significance"
+          },
+          " requires ",
           paste(required, collapse = ", "),
           ". ",
           paste(detail, collapse = "; "),

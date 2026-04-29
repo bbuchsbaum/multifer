@@ -65,6 +65,7 @@ run_adapter_ladder <- function(recipe,
   }
   max_steps <- as.integer(max(1L, max_steps))
 
+  rel_kind <- recipe$shape$relation$kind
   current_step <- NA_integer_
   current_fit <- NULL
   get_fit <- function(step, rung_data) {
@@ -85,7 +86,12 @@ run_adapter_ladder <- function(recipe,
 
   observed_stat_fn <- function(step, rung_data) {
     fit <- get_fit(step, rung_data)
-    .multifer_scalar_stat(adapter$component_stat(fit, rung_data, 1L))
+    stat <- if (identical(rel_kind, "predictive")) {
+      adapter$component_stat(fit, rung_data, 1L, split = NULL)
+    } else {
+      adapter$component_stat(fit, rung_data, 1L)
+    }
+    .multifer_scalar_stat(stat)
   }
 
   null_stat_fn <- function(step, rung_data) {
@@ -94,7 +100,12 @@ run_adapter_ladder <- function(recipe,
     if (!is.null(validate_data)) {
       validate_data(null_data)
     }
-    .multifer_scalar_stat(adapter$component_stat(fit, null_data, 1L))
+    stat <- if (identical(rel_kind, "predictive")) {
+      adapter$component_stat(fit, null_data, 1L, split = NULL)
+    } else {
+      adapter$component_stat(fit, null_data, 1L)
+    }
+    .multifer_scalar_stat(stat)
   }
 
   deflate_fn <- function(step, rung_data) {
@@ -146,6 +157,16 @@ run_adapter_ladder <- function(recipe,
   )
 
   geom_kind <- recipe$shape$geometry$kind
+  default_statistic <- if (identical(rel_kind, "predictive")) {
+    sprintf("adapter predictive component_stat on %s data", geom_kind)
+  } else {
+    sprintf("adapter component_stat on %s data", geom_kind)
+  }
+  default_estimand <- if (identical(rel_kind, "predictive")) {
+    "adapter predictive gain"
+  } else {
+    "adapter latent roots"
+  }
   labels <- labels %||% list()
   list(
     units           = units,
@@ -154,10 +175,10 @@ run_adapter_ladder <- function(recipe,
     ladder_result   = ladder_result,
     labels          = list(
       statistic = labels$statistic %||%
-        sprintf("adapter component_stat on %s data", geom_kind),
+        default_statistic,
       null      = labels$null %||%
         sprintf("adapter null_action on %s data", geom_kind),
-      estimand  = labels$estimand %||% "adapter latent roots"
+      estimand  = labels$estimand %||% default_estimand
     ),
     original_fit = original_fit
   )
