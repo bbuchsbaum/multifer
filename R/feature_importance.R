@@ -165,6 +165,12 @@ feature_importance_from_bootstrap <- function(artifact,
 #' @param adjust One of \code{"maxT"}, \code{"BH"}, or \code{"none"}.
 #' @param seed Optional integer seed.
 #'
+#' @details This sidecar API uses the adapter's \code{domains()},
+#'   \code{loadings()}, \code{null_action()}, and \code{refit()} hooks. When
+#'   a geometry's null payload is not already shaped like the adapter's
+#'   \code{refit()} input, the adapter can provide a \code{refit_data()} hook
+#'   to translate it.
+#'
 #' @return A \code{multifer_feature_importance_pvalues} data frame.
 #' @export
 feature_importance_pvalues <- function(recipe,
@@ -333,6 +339,18 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
   )
 }
 
+.fi_validate_pvalue_hooks <- function(adapter) {
+  required <- c("loadings", "null_action", "refit")
+  missing <- required[!vapply(required, function(h) is.function(adapter[[h]]), logical(1L))]
+  if (length(missing) > 0L) {
+    stop(sprintf(
+      "feature_importance_pvalues() requires adapter hook(s): %s.",
+      paste(missing, collapse = ", ")
+    ), call. = FALSE)
+  }
+  invisible(adapter)
+}
+
 .default_refit_data <- function(null_payload, geom_kind, rel_kind) {
   if (identical(geom_kind, "oneblock")) {
     if (is.list(null_payload) && !is.null(null_payload$X)) {
@@ -341,8 +359,16 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
       null_payload
     }
   } else if (identical(geom_kind, "cross")) {
+    if (!is.list(null_payload) || is.null(null_payload$X) ||
+        is.null(null_payload$Y)) {
+      stop(
+        "feature_importance_pvalues: cross null payloads must be lists with `X` and `Y`, or the adapter must provide `refit_data`.",
+        call. = FALSE
+      )
+    }
     list(X = null_payload$X, Y = null_payload$Y, relation = rel_kind)
   } else if (identical(geom_kind, "multiblock")) {
+    .validate_multiblock_data(null_payload)
     null_payload
   } else {
     stop(sprintf(
@@ -353,6 +379,7 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
 }
 
 compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL) {
+  .fi_validate_pvalue_hooks(adapter)
   geom_kind <- recipe$shape$geometry$kind
   rel_kind  <- recipe$shape$relation$kind
   list(
@@ -373,11 +400,19 @@ compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL
       }
       adapter$refit(fit, refit_input)
     },
-    null_label = if (identical(geom_kind, "cross")) {
-      "adapter_null_action_cross"
-    } else {
-      "adapter_null_action"
-    }
+    null_label = .fi_null_label(geom_kind)
+  )
+}
+
+.fi_null_label <- function(geom_kind) {
+  switch(
+    geom_kind,
+    oneblock = "adapter_null_action_oneblock",
+    cross = "adapter_null_action_cross",
+    multiblock = "adapter_null_action_multiblock",
+    geneig = "adapter_null_action_geneig",
+    adapter = "adapter_null_action",
+    "adapter_null_action"
   )
 }
 
