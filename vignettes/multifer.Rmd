@@ -86,21 +86,31 @@ top of Gaussian noise:
 ```{r make-data}
 dat <- bench_oneblock_shadowing(
   n = 40, p = 8,
-  root_profile = c(6, 3, 1.5),
+  root_profile = c(8, 5, 3),
   seed = 1
 )
 dim(dat$X)
 dat$meta$true_rank
 ```
 
-`infer_pca()` is the convenience wrapper. It picks the
-`multivarious_pca` adapter by default (falling back to
-`prcomp_oneblock` if `multivarious` isn't installed) and runs the
-full ladder + bootstrap stability sweep:
+`infer_pca()` is the convenience wrapper. It uses the
+`multivarious_pca` adapter by default and runs the full ladder +
+bootstrap stability sweep. If you want a different fitting engine, name
+that adapter explicitly or write one for your fitted-model class:
 
 ```{r infer-pca}
 res <- infer_pca(dat$X, B = 99, R = 20, seed = 2)
 res
+```
+
+```{r check-first-win, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  sum(res$units$selected) == dat$meta$true_rank,
+  all(res$component_tests$p_value[seq_len(dat$meta$true_rank)] <= 0.05),
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1)
+)
 ```
 
 Read the header: the ladder tested the latent ordering, rejected
@@ -246,6 +256,15 @@ res_tied <- infer_pca(
   tie_threshold = 0.05, seed = 3
 )
 res_tied
+```
+
+```{r check-tied-infer, include = FALSE}
+stopifnot(
+  is_infer_result(res_tied),
+  any(res_tied$units$unit_type == "subspace"),
+  any(!res_tied$units$identifiable),
+  all(is.finite(res_tied$subspace_stability$mean_angle))
+)
 ```
 
 The `Subspace inference (near-tied roots)` line is the headline: one

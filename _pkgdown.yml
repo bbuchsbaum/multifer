@@ -16,6 +16,7 @@ articles:
   - title: Extension
     navbar: Extension
     contents:
+      - designs-and-null-actions
       - writing-adapters
 reference:
   - title: Latent-root family

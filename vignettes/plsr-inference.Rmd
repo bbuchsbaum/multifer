@@ -117,6 +117,17 @@ res <- infer_plsr(
 res
 ```
 
+```{r check-plsr-result, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  identical(res$provenance$adapter_id, "plsr_refit"),
+  nrow(res$component_tests) >= 3L,
+  identical(res$units$selected[seq_len(3L)], c(TRUE, TRUE, FALSE)),
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1)
+)
+```
+
 ## What this vignette tests
 
 ```{r plsr-labels, echo=FALSE, results='asis'}
@@ -158,8 +169,28 @@ As elsewhere in `multifer`, variable and score summaries are
 predictors, but they are not p-values.
 
 ```{r variable-stability}
-head(res$variable_stability, 12)
-head(res$score_stability, 12)
+head(
+  res$variable_stability[
+    ,
+    c("unit_id", "domain", "variable", "estimate", "stability")
+  ],
+  12
+)
+head(
+  res$score_stability[
+    ,
+    c("unit_id", "domain", "observation", "estimate", "lower", "upper")
+  ],
+  12
+)
+```
+
+```{r check-plsr-stability, include = FALSE}
+stopifnot(
+  all(is.na(res$variable_stability$selection_freq)),
+  all(is.na(res$variable_stability$weight_sensitivity)),
+  all(is.na(res$score_stability$leverage))
+)
 ```
 
 You can already see the expected pattern: variables aligned with the
@@ -174,6 +205,14 @@ artifact `multifer` already built during `infer_plsr()`'s stability
 sweep. Because it consumes the artifact directly, it does **not**
 refit anything — it just aggregates squared aligned loadings across
 the selected predictive components.
+
+The resulting `estimate`, `lower`, and `upper` columns are descriptive
+bootstrap summaries on a non-negative squared-loading scale. The
+interval is a percentile interval across bootstrap replicates of this
+descriptive importance statistic; it is not a null interval and it does
+not imply a feature-level p-value. Signs are intentionally removed by
+the squaring. If you want signed loading stability, use
+`res$variable_stability` above.
 
 ```{r plsr-importance}
 adapter <- adapter_plsr_refit()
@@ -194,8 +233,34 @@ fi <- feature_importance_from_bootstrap(
   art, units, k = "all", weights = "root",
   roots = adapter$roots(fit)
 )
-fi[fi$domain == "X", c("variable", "estimate", "lower", "upper", "stability")]
+fi_x <- as.data.frame(
+  fi[fi$domain == "X", c("variable", "estimate", "lower", "upper", "stability")]
+)
+fi_x
 ```
+
+```{r check-plsr-importance, include = FALSE}
+fx_check <- fi[fi$domain == "X", , drop = FALSE]
+stopifnot(
+  nrow(fx_check) == ncol(X),
+  all(is.finite(fx_check$estimate)),
+  all(fx_check$estimate >= 0),
+  all(fx_check$lower >= 0),
+  all(fx_check$lower <= fx_check$upper),
+  min(fx_check$estimate[seq_len(6L)]) > max(fx_check$estimate[7:8])
+)
+```
+
+If you want null-calibrated feature-level p-values, use
+`feature_importance_pvalues()`. That is a separate refit-based
+calculation using the adapter's `null_action()` and `refit()` hooks. In
+predictive PLSR, use it only after deciding that squared loading
+importance is the feature-level estimand you want; coefficient- or
+VIP-style statistics are different feature questions. New adapters can
+surface those questions through `feature_stat_spec()` and
+`feature_stat()`, then use `feature_evidence_pvalues()` to calibrate
+adapter-owned VIP, coefficient, or permutation-importance statistics
+without pretending they are generic loadings.
 
 ```{r plsr-importance-plot, echo = FALSE, fig.cap = "Aggregate predictive importance per X-variable across the selected latent predictors, with bootstrap 95\\% intervals. The first three variables (the planted predictors of LV1) and the next three (LV2) dominate."}
 fx <- fi[fi$domain == "X", , drop = FALSE]

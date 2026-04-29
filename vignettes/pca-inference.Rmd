@@ -104,6 +104,19 @@ res <- infer_pca(X, B = 99, R = 20, alpha = 0.05, seed = 2)
 res
 ```
 
+```{r check-pca-result, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  nrow(res$component_tests) >= 1L,
+  sum(res$units$selected) >= 1L,
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1),
+  all(is.na(res$variable_stability$stability) |
+        (res$variable_stability$stability >= 0 &
+           res$variable_stability$stability <= 1))
+)
+```
+
 If you need the explicit form — for instance, to swap in a different
 adapter while testing — `infer_pca()` is exactly equivalent to
 `infer(adapter = "multivarious_pca", data = X, geometry = "oneblock", relation = "variance", ...)`.
@@ -184,13 +197,78 @@ res$assumptions$checked
 ## Variable importance: the right object for "which variable matters?"
 
 `variable_stability` is a *stability* measure. To ask whether a
-variable's loading magnitude is detectable above the column-permutation
-null, use `feature_importance_pvalues()`. The statistic below is an
-**aggregate** squared-loading statistic over the selected latent units.
-With `form_units(adapter$roots(fit))`, every SVD component is selected,
-so the question is "does this variable matter across the fitted
-component set?" For a component-specific question, pass a single unit id
-with `k = "u1"`, `k = "u2"`, and so on.
+variable's loading magnitude is detectable above perturbation or a null,
+use the `feature_evidence` sidecar. Bootstrap evidence gives intervals
+and bootstrap ratios; p-values are reported only by the null-calibrated
+path.
+
+For component-wise evidence, keep the bootstrap artifact and summarize
+each feature × selected-unit row. Signed loadings are allowed for
+identifiable singleton units. Tied or non-identifiable units
+automatically use a subspace norm instead.
+
+```{r feature-evidence-bootstrap}
+bundle <- infer_bundle(
+  adapter = "multivarious_pca",
+  data = X,
+  geometry = "oneblock",
+  relation = "variance",
+  B = 49,
+  R = 20,
+  seed = 21
+)
+
+ev <- feature_evidence_from_bootstrap(
+  bundle$artifacts$bootstrap,
+  bundle$result$units,
+  original_fit = bundle$artifacts$original_fit,
+  adapter = bundle$artifacts$adapter,
+  statistic = "loading",
+  orientation = "auto",
+  k = "selected",
+  normalize = "none"
+)
+head(ev[, c("unit_id", "feature", "estimate", "std_error", "z",
+            "orientation", "p_value")], 8)
+```
+
+```{r check-feature-evidence-bootstrap, include = FALSE}
+stopifnot(
+  inherits(ev, "multifer_feature_evidence"),
+  nrow(ev) > 0L,
+  all(ev$calibration == "bootstrap"),
+  all(is.na(ev$p_value))
+)
+```
+
+The `z` column above is a bootstrap ratio, not a p-value. For PCA with
+the `multivarious_pca` adapter, method-native conditional subspace
+bootstrap is also available through the adapter action:
+
+```{r feature-evidence-native}
+native_ev <- feature_evidence_from_adapter(
+  adapter = bundle$artifacts$adapter,
+  fit = bundle$artifacts$original_fit,
+  data = X,
+  units = bundle$result$units,
+  statistic = "loading",
+  orientation = "auto",
+  R = 20,
+  seed = 22
+)
+head(native_ev[, c("unit_id", "feature", "estimate", "std_error", "z",
+                  "method")], 8)
+```
+
+`method = "conditional_subspace_bootstrap"` means the bootstrap is
+conditional on the fitted PCA span. It is useful loading evidence, but it
+is still not a null-calibrated p-value.
+
+For aggregate p-values, use `feature_evidence_pvalues()`. The statistic
+below is an **aggregate** squared-loading statistic over the selected
+latent units. With `form_units(adapter$roots(fit))`, every SVD component
+is selected, so the question is "does this variable matter across the
+fitted component set?"
 
 The setup objects are the same pieces used internally by `infer()`:
 `adapter` defines how to fit and read the SVD model, `recipe` defines the
@@ -207,19 +285,21 @@ recipe <- infer_recipe(
 )
 fit   <- adapter$refit(NULL, X)
 units <- form_units(adapter$roots(fit))
-fi <- feature_importance_pvalues(
+fi <- feature_evidence_pvalues(
   recipe, adapter,
   data = X, units = units, original_fit = fit,
+  statistic = "squared_loading",
+  scope = "aggregate",
   B = 99,  # column-permutation null draws; use more for real analysis
   adjust = "BH", seed = 11
 )
-head(fi[, c("variable", "statistic", "p_value", "p_adjusted")], 8)
+head(fi[, c("feature", "statistic", "estimate", "p_value", "p_adjusted")], 8)
 ```
 
 ```{r check-importance-pvalues, include = FALSE}
 stopifnot(
   nrow(fi) == ncol(X),
-  all(is.finite(fi$statistic)),
+  all(is.finite(fi$estimate)),
   all(fi$p_value >= 0 & fi$p_value <= 1),
   all(fi$p_adjusted >= 0 & fi$p_adjusted <= 1)
 )
@@ -231,7 +311,7 @@ ord <- order(fi$evidence, decreasing = TRUE)
 fi_o <- fi[ord, ]
 col  <- ifelse(fi_o$p_adjusted <= 0.05, "#2ca02c", "#d62728")
 bp <- barplot(
-  fi_o$evidence, names.arg = fi_o$variable, col = col,
+  fi_o$evidence, names.arg = fi_o$feature, col = col,
   border = NA,
   ylab = expression(-log[10]("BH-adjusted p-value")),
   xlab = "variable",

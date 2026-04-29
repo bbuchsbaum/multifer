@@ -8,7 +8,7 @@ adapter_plsr_refit(
   adapter_id = "plsr_refit",
   adapter_version = "0.0.1",
   ncomp = NULL,
-  method = "simpls"
+  method = c("simpls", "oscorespls", "kernelpls", "widekernelpls")
 )
 }
 \arguments{
@@ -20,7 +20,11 @@ adapter_plsr_refit(
 the refit hook chooses \code{min(nrow(X) - 1, ncol(X), ncol(Y), 50L)}.}
 
 \item{method}{Character PLS algorithm passed to \code{\link[pls:mvr]{pls::plsr()}}.
-Default \code{"simpls"}.}
+One of \code{"simpls"} (default), \code{"oscorespls"}, \code{"kernelpls"}, or
+\code{"widekernelpls"}. Validated via \code{\link[=match.arg]{match.arg()}} at construction time;
+unknown values error before any fitting happens. The \code{"model.frame"}
+value accepted by \code{pls::plsr()} itself is excluded because it returns
+a model frame rather than a fitted model.}
 }
 \value{
 A \code{multifer_adapter}.

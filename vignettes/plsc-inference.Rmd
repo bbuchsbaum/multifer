@@ -54,11 +54,12 @@ cat(sprintf(
 library(multifer)
 ```
 
-This vignette walks the two-block covariance case: cross-block
-inference where the test target is the ordered singular values of
-`X^T Y`. This is the **PLSC** (partial least squares, covariance) family
-in classical multivariate terminology, and it is the second
-mature-tier family in `multifer`.
+You have two matched data blocks, `X` and `Y`, and you want to know
+whether their shared covariance structure is stronger than paired-row
+noise would produce. This vignette walks that two-block covariance
+case. The test target is the ordered singular values of `X^T Y`, the
+classical **PLSC** (partial least squares, covariance) family, and it is
+the second mature-tier family in `multifer`.
 
 ## Geometry and relation
 
@@ -66,15 +67,6 @@ mature-tier family in `multifer`.
 - relation: `"covariance"` — we care about the roots of `X^T Y`
 - design: defaults to `paired_rows()` — rows of `X` and `Y` are a
   matched pairing (observation `i` is the same unit in both blocks)
-
-Under the hood, the engine uses an **exact core-space resampling
-identity**: given the block thin SVDs
-`X = Ux Dx Vx^T` and `Y = Uy Dy Vy^T`, the centered resampled cross
-product factors as `Vx M Vy^T` with
-`M = Dx · (Ux^T · Uy[perm, ]) · Dy`. The top singular value of the
-full product equals the top singular value of the `k_x × k_y` inner
-core M, so null draws collapse to a small inner matrix instead of
-reforming the full `p × q` cross product at every permutation.
 
 ## A synthetic PLSC example with a shared latent factor
 
@@ -97,12 +89,23 @@ Y <- U %*% diag(sig, nrow = k) %*% t(Wy) +
 ## Running `infer_plsc()`
 
 `infer_plsc()` is the convenience wrapper. It pins the geometry,
-relation, and design, and uses the `multivarious_plsc` adapter when
-available (falling back to `cross_svd` otherwise):
+relation, and design, and uses the `multivarious_plsc` adapter by
+default. If you want the base-R reference path, request it explicitly
+with `adapter = "cross_svd"`:
 
 ```{r infer-plsc}
 res <- infer_plsc(X, Y, B = 99, R = 20, alpha = 0.05, seed = 2)
 res
+```
+
+```{r check-plsc-result, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  nrow(res$component_tests) >= 1L,
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1),
+  any(res$units$selected)
+)
 ```
 
 ## What this vignette tests
@@ -125,6 +128,15 @@ cat(knitr::kable(
 
 The statistic, null, and estimand values above come from the result's
 engine-provenance labels, not from hardcoded prose.
+
+Under the hood, the engine uses an **exact core-space resampling
+identity**: given the block thin SVDs
+`X = Ux Dx Vx^T` and `Y = Uy Dy Vy^T`, the centered resampled cross
+product factors as `Vx M Vy^T` with
+`M = Dx * (Ux^T * Uy[perm, ]) * Dy`. The top singular value of the
+full product equals the top singular value of the `k_x x k_y` inner
+core M, so null draws collapse to a small inner matrix instead of
+reforming the full `p x q` cross product at every permutation.
 
 ## Reading the result
 
@@ -163,6 +175,28 @@ for (d in c("X", "Y")) {
 Both blocks load mostly on the leading unit, and stability is
 high there; the trailing unit recovers signal in only a few
 variables, with broader uncertainty.
+
+These stability rows are descriptive bootstrap summaries, not
+variable-level p-values. For PLSC/CCA-style cross-decomposition, a
+component-wise feature-evidence sidecar should label signed salience
+summaries as bootstrap ratios unless a separate null refit calibrates
+the statistic. Aggregate squared salience or subspace-norm evidence is
+the safer target for feature-level p-values because it is invariant to
+sign changes and rotations within tied cross-pair subspaces.
+
+```{r check-plsc-stability, include = FALSE}
+selected_vs <- res$variable_stability[
+  res$variable_stability$unit_id %in% res$units$unit_id[res$units$selected],
+  ,
+  drop = FALSE
+]
+stopifnot(
+  nrow(selected_vs) > 0L,
+  all(c("X", "Y") %in% selected_vs$domain),
+  all(is.finite(selected_vs$stability)),
+  all(selected_vs$stability >= 0 & selected_vs$stability <= 1)
+)
+```
 
 ## Subspace stability for tied canonical pairs
 

@@ -1,0 +1,216 @@
+---
+title: Choosing designs and null actions in multifer
+output:
+  rmarkdown::html_vignette:
+    toc: yes
+    toc_depth: 2.0
+    css: albers.css
+    includes:
+      in_header: albers-header.html
+params:
+  family: red
+  preset: homage
+resource_files:
+- albers.css
+- albers.js
+- albers-header.html
+
+vignette: |
+  %\VignetteIndexEntry{Choosing designs and null actions in multifer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
+)
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+```
+
+```{r albers-classes, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
+```
+
+You choose a `multifer` design when the rows of your data carry
+structure that changes which perturbations are valid. For a two-block
+analysis, the most common case is simple: row `i` of `X` and row `i` of
+`Y` describe the same observation, so the null must break the
+cross-block pairing without changing either block's marginal geometry.
+
+The design is the third part of a typed shape:
+
+```{r typed-shape}
+typed_shape(
+  geometry("cross"),
+  relation("covariance"),
+  paired_rows()
+)
+```
+
+That object says what data shape you have, what root family you are
+testing, and which row perturbations the engine may use.
+
+## What does a paired-row design do?
+
+Here is a small two-block covariance example. The first latent score is
+shared by `X` and `Y`, so the leading covariance root should stand out
+from paired-row noise.
+
+```{r make-cross-data}
+set.seed(1)
+n <- 48
+p_x <- 7
+p_y <- 5
+
+score <- scale(rnorm(n), center = TRUE, scale = FALSE)
+X <- matrix(rnorm(n * p_x, sd = 0.5), n, p_x)
+Y <- matrix(rnorm(n * p_y, sd = 0.5), n, p_y)
+X[, 1:3] <- X[, 1:3] + score %*% matrix(c(1.4, -1.1, 0.9), 1)
+Y[, 1:2] <- Y[, 1:2] + score %*% matrix(c(1.2, -0.8), 1)
+```
+
+```{r paired-plsc}
+res <- infer_plsc(
+  X, Y,
+  design = paired_rows(),
+  B = 49,
+  R = 8,
+  seed = 4
+)
+res$component_tests
+```
+
+```{r check-paired-plsc, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  nrow(res$component_tests) >= 1L,
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1),
+  isTRUE(res$units$selected[[1L]]),
+  res$component_tests$p_value[[1L]] <= 0.05
+)
+```
+
+For this shape, `paired_rows()` tells `infer_plsc()` to use the
+cross-block null action appropriate for matched observations. If you
+omit the design, the wrapper uses this same paired-row default for
+cross-block inference.
+
+## Which design matches your rows?
+
+Use the design that matches the exchangeability claim you would be
+willing to defend.
+
+```{r design-examples}
+paired_rows()
+
+groups <- rep(c("site_a", "site_b", "site_c"), each = 16)
+blocked_rows(groups)
+
+Z <- cbind(intercept = 1, age = seq(-1, 1, length.out = n))
+nuisance_adjusted(Z)
+```
+
+```{r check-design-examples, include = FALSE}
+stopifnot(
+  is_design(paired_rows()),
+  is_design(blocked_rows(groups)),
+  is_design(nuisance_adjusted(Z)),
+  length(blocked_rows(groups)$groups) == n,
+  nrow(nuisance_adjusted(Z)$Z) == n
+)
+```
+
+`paired_rows()` is for matched cross-block rows. `blocked_rows(groups)`
+keeps permutations inside known exchangeability blocks. Use
+`nuisance_adjusted(Z)` when the null should be conditional on nuisance
+covariates, with one row of `Z` for each observation.
+
+## What does the design protect?
+
+The design is not metadata for display. It is part of the validity
+contract. If the rows no longer match, a cross-block call should fail
+before the engine spends time fitting ladders or bootstraps.
+
+```{r row-mismatch, error = TRUE}
+infer_plsc(
+  X[-1, ], Y,
+  design = paired_rows(),
+  B = 19,
+  R = 4,
+  seed = 5
+)
+```
+
+The same principle applies to richer designs. A blocked design with
+missing block labels is not a valid exchangeability statement:
+
+```{r bad-blocks, error = TRUE}
+bad_groups <- groups
+bad_groups[1] <- NA
+blocked_rows(bad_groups)
+```
+
+## How does CCA differ?
+
+CCA uses the same design vocabulary, but the correlation relation has a
+stricter stepwise validity boundary. The public `infer_cca()` wrapper
+uses the dedicated `cancor_cross` adapter and supports paired rows, a
+common nuisance matrix, and nuisance-adjusted designs with within-block
+exchangeability.
+
+```{r cca-design}
+cca_res <- infer_cca(
+  X, Y,
+  design = paired_rows(),
+  B = 39,
+  R = 6,
+  seed = 6
+)
+head(cca_res$component_tests)
+```
+
+```{r check-cca-design, include = FALSE}
+stopifnot(
+  is_infer_result(cca_res),
+  identical(cca_res$provenance$adapter_id, "cancor_cross"),
+  nrow(cca_res$component_tests) >= 1L,
+  all(is.finite(cca_res$component_tests$p_value)),
+  all(cca_res$component_tests$p_value >= 0 & cca_res$component_tests$p_value <= 1)
+)
+```
+
+If a design is outside the exact multi-root CCA boundary, the engine
+keeps the first-root claim conservative rather than silently extending
+the stepwise ladder.
+
+## Where to go next
+
+- `vignette("pca-inference")` for one-block variance inference.
+- `vignette("plsc-inference")` for paired two-block covariance.
+- `vignette("cca-inference")` for the CCA support boundary.
+- `vignette("writing-adapters")` for declaring adapter capabilities and
+  checked assumptions.

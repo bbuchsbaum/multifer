@@ -54,16 +54,11 @@ cat(sprintf(
 library(multifer)
 ```
 
-This vignette walks the **canonical correlation** case: inference on
-the ordered correlations between paired blocks `X` and `Y`. This is a
-shipped part of `multifer`'s latent-root surface, with an explicit
-support boundary:
-
-- the exact whitened-space stepwise deflation is implemented for the
-  paired-row design, common-`Z` nuisance-adjusted designs, and
-  nuisance-adjusted designs with within-block exchangeability
-- richer structured designs fall back to the conservative first-root
-  cap until their validity story is fully settled
+Use `infer_cca()` when each row of `X` and `Y` is the same
+observational unit and the question is whether successive canonical
+correlations survive a paired-row null. This vignette walks that
+canonical-correlation case and then shows where the shipped support
+boundary matters.
 
 ## A paired-row CCA example
 
@@ -99,6 +94,16 @@ res <- infer_cca(
 res
 ```
 
+```{r check-cca-wrapper, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  identical(res$provenance$adapter_id, "cancor_cross"),
+  nrow(res$component_tests) >= 1L,
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1)
+)
+```
+
 ## Running `infer()` with the `cross_svd` reference adapter
 
 The `cross_svd` adapter claims **both** `(cross, covariance)` and
@@ -119,6 +124,15 @@ res <- infer(
   seed     = 2
 )
 res
+```
+
+```{r check-cca-cross-svd, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  identical(res$provenance$adapter_id, "cross_svd"),
+  nrow(res$component_tests) >= 1L,
+  all(is.finite(res$component_tests$p_value))
+)
 ```
 
 ## What this vignette tests
@@ -193,6 +207,14 @@ When canonical correlations are close, the canonical pairs are only
 identifiable up to rotation. `auto_subspace = TRUE` (the default)
 bundles tied roots into a subspace unit and `print()` leads with the
 principal-angle stability.
+
+The same boundary applies at the feature level. Signed canonical
+coefficients or structure correlations can be summarized as bootstrap
+ratios for identifiable singleton roots, but those ratios are evidence
+summaries rather than p-values. Null-calibrated feature p-values should
+target an invariant statistic, such as squared coefficient, squared
+structure correlation, or a subspace norm, so sign flips and rotations
+do not change the claim.
 
 ```{r subspace-cca}
 head(res$subspace_stability)

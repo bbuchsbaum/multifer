@@ -91,18 +91,17 @@ the `lda_refit` adapter uses label permutation only.
 ## Why the ladder is naturally short
 
 With `K` classes, classical LDA has at most `K - 1` non-zero
-discriminant roots. The sequential ladder inherits that bound: there is
-no reason to test beyond the maximum discriminant rank the model can
-support.
+discriminant directions. In finite samples, the returned unit table may
+still include trailing numerical roots from the fitted object, but the
+scientific question remains the short discriminant-root ladder rather
+than an open-ended component sequence.
 
-## A planted rank-1 discriminant example
+## A planted discriminant example
 
 We build a three-class problem where the classes differ strongly along
-one axis and only weakly elsewhere. The planted signal has one dominant
-discriminant direction, so the inferential target is:
-
-- root 1: signal
-- root 2: noise
+one axis and only weakly elsewhere. The example is intentionally small:
+it gives you a compact result object to inspect without turning the
+vignette into a calibration study.
 
 ```{r lda-sim}
 set.seed(1)
@@ -136,6 +135,16 @@ res <- infer_lda(
   seed = 41
 )
 res
+```
+
+```{r check-lda-result, include = FALSE}
+stopifnot(
+  is_infer_result(res),
+  identical(res$provenance$adapter_id, "lda_refit"),
+  nrow(res$component_tests) >= 1L,
+  all(is.finite(res$component_tests$p_value)),
+  all(res$component_tests$p_value >= 0 & res$component_tests$p_value <= 1)
+)
 ```
 
 ## What this vignette tests
@@ -191,6 +200,14 @@ test on aggregate squared-loading importance, using the adapter's
 own label-permutation null and a `refit_data` hook that translates
 the geneig operator payload back to LDA `(X, y)` data.
 
+For generalized-eigen methods, raw Euclidean loadings are rarely the
+right default estimand. A mature LDA adapter should expose a
+metric-aware feature statistic, such as a B-metric discriminant
+contribution or class-separation contribution, through the
+feature-evidence hook family. The loading-based sidecar below is a
+small worked example of the calibration route, not a claim that raw
+loadings are the final LDA feature statistic.
+
 ```{r lda-importance}
 adapter <- adapter_lda_refit()
 data    <- list(X = X, y = labels)
@@ -209,7 +226,16 @@ fi <- feature_importance_pvalues(
 fi[, c("variable", "statistic", "p_value", "p_adjusted")]
 ```
 
-```{r lda-scatter, echo = FALSE, fig.cap = "Discriminant scores colored by class. The first axis separates classes; the second carries little signal — consistent with the planted rank-1 design."}
+```{r check-lda-importance, include = FALSE}
+stopifnot(
+  nrow(fi) == ncol(X),
+  all(is.finite(fi$statistic)),
+  all(fi$p_value >= 0 & fi$p_value <= 1),
+  which.min(fi$p_adjusted) == 1L
+)
+```
+
+```{r lda-scatter, echo = FALSE, fig.cap = "Discriminant scores colored by class. The first axis separates the planted class means; the second shows residual sample-level structure."}
 fit <- adapter$refit(NULL, data)
 S <- adapter$scores(fit)
 op <- par(mar = c(4, 4, 3, 1))
@@ -224,8 +250,8 @@ legend("topright", legend = levels(labels), bty = "n",
        col = c("#1f77b4", "#2ca02c", "#d62728"), pch = 19L)
 ```
 
-Variable 1 — the planted discriminant axis — carries the lowest
-adjusted p-value; the others track the noise model. The result is a
+Variable 1 -- the planted discriminant axis -- carries the lowest
+adjusted p-value. The result is a
 companion to `res$component_tests`, not a replacement: roots and
 variables are different inferential objects.
 
