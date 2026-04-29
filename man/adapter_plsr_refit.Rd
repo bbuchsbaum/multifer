@@ -34,5 +34,7 @@ A Tier-1 refit-only adapter wrapping \code{\link[pls:mvr]{pls::plsr()}} for the
 \verb{(cross, predictive)} family. This adapter is intentionally
 predictive rather than covariance-based: component significance is
 understood as held-out incremental predictive gain, not as a
-singular-value tail ratio.
+singular-value tail ratio. The null action permutes rows of \code{Y}
+relative to fixed \code{X}, and the component statistic refuses to run
+without explicit train/test split indices.
 }

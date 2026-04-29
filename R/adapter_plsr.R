@@ -4,7 +4,9 @@
 #' `(cross, predictive)` family. This adapter is intentionally
 #' predictive rather than covariance-based: component significance is
 #' understood as held-out incremental predictive gain, not as a
-#' singular-value tail ratio.
+#' singular-value tail ratio. The null action permutes rows of `Y`
+#' relative to fixed `X`, and the component statistic refuses to run
+#' without explicit train/test split indices.
 #'
 #' @param adapter_id Character, default `"plsr_refit"`.
 #' @param adapter_version Character, default `"0.0.1"`.

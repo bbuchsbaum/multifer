@@ -69,6 +69,35 @@ test_that("adapter_plsr_refit refit and predictive hooks round-trip", {
   expect_gte(stat, 0)
 })
 
+test_that("plsr_refit null_action permutes Y relative to fixed X", {
+  skip_if_not_installed("pls")
+
+  a <- adapter_plsr_refit()
+  dat <- make_plsr_fixture(seed = 13L)
+  fit <- a$refit(NULL, dat)
+  set.seed(19L)
+  nul <- a$null_action(fit, dat)
+
+  expect_equal(nul$X, dat$X)
+  expect_false(identical(nul$Y, dat$Y))
+  expect_equal(sort(nul$Y[, 1L]), sort(dat$Y[, 1L]))
+  expect_equal(sort(nul$Y[, 2L]), sort(dat$Y[, 2L]))
+})
+
+test_that("plsr_refit component_stat is explicitly split-aware", {
+  skip_if_not_installed("pls")
+
+  a <- adapter_plsr_refit()
+  dat <- make_plsr_fixture(seed = 14L)
+  fit <- a$refit(NULL, dat)
+
+  expect_true("split" %in% names(formals(a$component_stat)))
+  expect_error(
+    a$component_stat(fit, dat, k = 1L),
+    "requires a split"
+  )
+})
+
 test_that("register_plsr_refit_adapter registers the default id", {
   skip_if_not_installed("pls")
   clear_adapter_registry()

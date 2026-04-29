@@ -87,7 +87,8 @@ infer_plsc <- function(X,
 #'
 #' The default adapter is `"plsr_refit"`, a Tier-1 wrapper around
 #' `pls::plsr()`. For the predictive-relation doctrine and the
-#' registration-time cross-fit gate, see
+#' registration-time cross-fit gate, see `notes/plsr_maturity_contract.md`
+#' and
 #' `vignette("writing-adapters")`, especially the section
 #' "The predictive relation is stricter on purpose".
 #'

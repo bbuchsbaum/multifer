@@ -78,7 +78,9 @@ Current limitations are deliberate:
   classical full-rank path, so p > n - K and singular within-class designs are
   validity failures rather than silently regularized analyses,
 - the predictive-gain public surface is intentionally narrow: PLSR is shipped,
-  while broader predictive-cross models remain planned,
+  while broader predictive-cross models remain planned; `plsr_refit` tests
+  cross-fitted incremental held-out gain under a response-permutation null,
+  not covariance roots or variable-level significance,
 - bootstrap stability defaults to sign alignment; Procrustes alignment is
   retained only for backward compatibility and is not an endorsed inferential
   target,
@@ -241,7 +243,8 @@ meaning each:
   only full-rank LDA discriminant-root significance for
   `(geneig, generalized_eigen)`,
   and `plsr_refit` exposes only held-out predictive gain for
-  `(cross, predictive)`.
+  `(cross, predictive)`. The precise predictive boundary is recorded in
+  `notes/plsr_maturity_contract.md`.
 - **planned**: architecturally allocated but not shipped in v1 as a public
   method family — currently bundled multiblock adapters / wrappers beyond the
   downstream adapter path.

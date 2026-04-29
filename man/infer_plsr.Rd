@@ -34,7 +34,8 @@ out-of-sample prediction of \code{Y} beyond the previous ones.
 
 The default adapter is \code{"plsr_refit"}, a Tier-1 wrapper around
 \code{pls::plsr()}. For the predictive-relation doctrine and the
-registration-time cross-fit gate, see
+registration-time cross-fit gate, see \code{notes/plsr_maturity_contract.md}
+and
 \code{vignette("writing-adapters")}, especially the section
 "The predictive relation is stricter on purpose".
 

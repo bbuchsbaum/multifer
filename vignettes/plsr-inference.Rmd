@@ -65,6 +65,8 @@ The default public path is `infer_plsr()`, which uses the
 `"plsr_refit"` adapter on top of `pls::plsr()`. This public predictive
 surface is intentionally narrow in v1: PLSR is shipped, while broader
 predictive-cross families remain future work.
+The exact support boundary is recorded in
+`notes/plsr_maturity_contract.md`.
 
 ## Geometry and relation
 
@@ -75,6 +77,11 @@ predictive-cross families remain future work.
 This is a different inferential family from covariance-mode PLSC. The
 predictive relation keeps that distinction explicit in the type system
 and at adapter registration time.
+
+The v1 null action permutes rows of `Y` relative to fixed `X`, and the
+component statistic is always computed on held-out folds. That split
+discipline is what prevents the wrapper from reporting in-sample
+pseudo-significance.
 
 ## A synthetic predictive example
 
