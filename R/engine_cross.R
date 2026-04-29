@@ -134,12 +134,6 @@
 #' @param max_steps Maximum ladder rungs. Default
 #'   \code{min(nrow, ncol(X), ncol(Y)) - 1}, capped at 50.
 #' @param seed Integer or NULL.
-#' @param cross_rank_cap Reserved opt-in for an approximate rank-capped
-#'   core path on very large problems. Default `NULL` (exact only, no
-#'   approximation). Setting a positive integer enables a truncated
-#'   block-SVD pre-projection whose top-1 statistic is biased and
-#'   whose use is NOT paper-faithful; it exists as a screening knob
-#'   only.
 #' @param auto_subspace Logical. When `TRUE` (default), near-tied
 #'   roots are automatically bundled into a subspace unit via
 #'   [form_units()] `group_near_ties = TRUE`.
@@ -160,7 +154,6 @@ run_cross_ladder <- function(recipe,
                              alpha          = 0.05,
                              max_steps      = NULL,
                              seed           = NULL,
-                             cross_rank_cap = NULL,
                              auto_subspace  = TRUE,
                              tie_threshold  = 0.01) {
 
@@ -168,8 +161,7 @@ run_cross_ladder <- function(recipe,
     recipe = recipe,
     X = X,
     Y = Y,
-    max_steps = max_steps,
-    cross_rank_cap = cross_rank_cap
+    max_steps = max_steps
   )
 
   ## --- run the ladder ---------------------------------------------------------

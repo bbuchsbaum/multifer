@@ -2,6 +2,8 @@
 
 **Inference for fitted multivariate latent-variable models.**
 
+**A typed perturbation inference platform for latent multivariate models, with mature support for one-block variance and two-block latent-root families, narrower but shipped surfaces for generalized-eigen and predictive-gain inference, and an extensible adapter / typed-shape architecture that brings new ordered-latent families into the same shared scaffold without modifying it.**
+
 `multifer` adds component tests and bootstrap stability summaries to
 models you have already fit. The usual path is to fit with
 [multivarious](https://github.com/bbuchsbaum/multivarious) and pass the
@@ -97,16 +99,17 @@ rather than guess.
 remotes::install_github("bbuchsbaum/multifer")
 ```
 
-Optional packages:
+Engine dependencies:
 
+- `multivarious` is a required dependency and supplies the default
+  public engines for `infer_pca()` and `infer_plsc()` through the
+  `multivarious_pca` and `multivarious_plsc` adapters. The
+  `multivarious_cca` adapter is registered as an explicit alternate
+  CCA backend, though `infer_cca()` still defaults to `cancor_cross`.
+  Base-R reference adapters such as `prcomp_oneblock` and `cross_svd`
+  remain available, but callers must request them explicitly with
+  `adapter = `.
 - `RSpectra` improves the partial-SVD fast path on larger problems.
-- `multivarious` enables the multivarious-backed adapters. When it is
-  installed, `infer_pca()` defaults to `multivarious_pca` and
-  `infer_plsc()` defaults to `multivarious_plsc`; the
-  `multivarious_cca` adapter is also registered as an alternate CCA
-  backend, though `infer_cca()` still defaults to `cancor_cross`.
-  Without `multivarious`, the PCA / PLSC wrappers fall back to
-  `prcomp_oneblock` and `cross_svd`.
 - `MASS` enables the `lda_refit` adapter and the `infer_lda()` wrapper.
 - `pls` enables the `plsr_refit` adapter and the `infer_plsr()` wrapper.
 
@@ -238,9 +241,10 @@ Call `list_infer_adapters(details = TRUE)` to read the same table
 directly from the registry; the drift-guard test asserts it stays in
 sync with this README.
 
-For CCA specifically, `infer_cca()` still defaults to `cancor_cross`. The new
-`multivarious_cca` adapter is available as an alternate backend, but it is not
-the public default until parity with the shipped path is pinned more broadly.
+For CCA specifically, `infer_cca()` still defaults to `cancor_cross`.
+The `multivarious_cca` adapter is available as an explicit alternate
+backend, but it is not the public default until parity with the shipped
+path is pinned more broadly.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data

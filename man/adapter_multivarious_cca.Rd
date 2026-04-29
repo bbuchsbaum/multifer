@@ -42,9 +42,10 @@ A \code{multifer_adapter}.
 }
 \description{
 A Tier-2 adapter wrapping \code{multivarious::cca} for the
-(cross, correlation) shape. Requires the multivarious package at
-invocation time only -- constructing and registering the adapter
-does not itself require multivarious to be loaded.
+(cross, correlation) shape. \pkg{multivarious} is a hard dependency
+of \pkg{multifer}. This adapter is available as an explicit CCA
+backend; \code{\link[=infer_cca]{infer_cca()}} still defaults to the
+dedicated \code{"cancor_cross"} adapter.
 }
 \details{
 This is a SINGLE-relation adapter. It declares only correlation

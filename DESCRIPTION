@@ -31,13 +31,14 @@ Depends:
 Imports:
     digest,
     matrixStats,
-    mirai
+    mirai,
+    multivarious
 Suggests:
     albersdown,
     ggplot2,
     knitr,
     MASS,
-    multivarious,
+    clue,
     pls,
     rmarkdown,
     RSpectra,

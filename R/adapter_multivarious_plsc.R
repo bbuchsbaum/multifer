@@ -1,9 +1,9 @@
 #' multifer adapter for multivarious::plsc
 #'
 #' A Tier-2 adapter wrapping \code{multivarious::plsc} for the
-#' (cross, covariance) shape. Requires the multivarious package at
-#' invocation time only -- constructing and registering the adapter
-#' does not itself require multivarious to be loaded.
+#' (cross, covariance) shape. \pkg{multivarious} is a hard dependency
+#' of \pkg{multifer}; this adapter is the default engine behind
+#' \code{\link[=infer_plsc]{infer_plsc()}}.
 #'
 #' This is a SINGLE-relation adapter. It declares only covariance
 #' because plsc is fundamentally a covariance method. Users wanting
@@ -121,16 +121,12 @@ adapter_multivarious_plsc <- function(adapter_id = "multivarious_plsc",
 }
 
 
-#' Register the multivarious::plsc adapter when multivarious is installed
+#' Register the multivarious::plsc adapter
 #'
-#' Called from the package \code{.onLoad} hook. Skips registration silently
-#' if \code{multivarious} is not installed.
+#' Called from the package \code{.onLoad} hook.
 #'
 #' @keywords internal
 register_multivarious_plsc_adapter <- function() {
-  if (!requireNamespace("multivarious", quietly = TRUE)) {
-    return(invisible(NULL))
-  }
   register_infer_adapter(
     adapter_id = "multivarious_plsc",
     adapter    = adapter_multivarious_plsc(),

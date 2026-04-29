@@ -464,8 +464,7 @@ compile_oneblock_ladder_plan <- function(recipe, X, max_steps = NULL) {
 compile_cross_ladder_plan <- function(recipe,
                                       X,
                                       Y,
-                                      max_steps = NULL,
-                                      cross_rank_cap = NULL) {
+                                      max_steps = NULL) {
   if (!is_infer_recipe(recipe)) {
     stop("`recipe` must be a compiled multifer_infer_recipe.", call. = FALSE)
   }
@@ -480,14 +479,6 @@ compile_cross_ladder_plan <- function(recipe,
   }
 
   .validate_cross_blocks(X, Y)
-  if (!is.null(cross_rank_cap)) {
-    if (!is.numeric(cross_rank_cap) || length(cross_rank_cap) != 1L ||
-        is.na(cross_rank_cap) || cross_rank_cap < 1L ||
-        cross_rank_cap != as.integer(cross_rank_cap)) {
-      stop("`cross_rank_cap` must be NULL or a positive integer scalar.",
-           call. = FALSE)
-    }
-  }
 
   Xc <- sweep(X, 2L, colMeans(X), "-")
   Yc <- sweep(Y, 2L, colMeans(Y), "-")

@@ -24,9 +24,9 @@ A \code{multifer_adapter}.
 }
 \description{
 A Tier-2 adapter wrapping \code{multivarious::plsc} for the
-(cross, covariance) shape. Requires the multivarious package at
-invocation time only -- constructing and registering the adapter
-does not itself require multivarious to be loaded.
+(cross, covariance) shape. \pkg{multivarious} is a hard dependency
+of \pkg{multifer}; this adapter is the default engine behind
+\code{\link[=infer_plsc]{infer_plsc()}}.
 }
 \details{
 This is a SINGLE-relation adapter. It declares only covariance

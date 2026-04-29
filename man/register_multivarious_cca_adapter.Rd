@@ -2,12 +2,11 @@
 % Please edit documentation in R/adapter_multivarious_cca.R
 \name{register_multivarious_cca_adapter}
 \alias{register_multivarious_cca_adapter}
-\title{Register the multivarious::cca adapter when multivarious is installed}
+\title{Register the multivarious::cca adapter}
 \usage{
 register_multivarious_cca_adapter()
 }
 \description{
-Called from the package \code{.onLoad} hook. Skips registration silently
-if \code{multivarious} is not installed.
+Called from the package \code{.onLoad} hook.
 }
 \keyword{internal}

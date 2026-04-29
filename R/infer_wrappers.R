@@ -5,19 +5,16 @@
 #' inference, defended by executable calibration and parity evidence.
 #'
 #' Thin convenience wrapper over [infer()] for one-block variance models.
-#' When the `multivarious_pca` adapter is registered, `infer_pca()` uses
-#' it by default. Otherwise it falls back to the base-R
-#' `"prcomp_oneblock"` adapter. The base-R adapters remain available as
-#' reference examples and as a zero-extra-dependency fitting path.
+#' The default adapter is `"multivarious_pca"`. Base-R reference adapters
+#' such as `"prcomp_oneblock"` and `"svd_oneblock"` remain available, but
+#' callers must request them explicitly with `adapter = `.
 #'
 #' If you have already fit a model via `multivarious::pca()` (or any
 #' other compatible fitter), pass it through `model = ` and `infer_pca()`
 #' will reuse your fit directly instead of refitting the original data.
 #'
 #' @param X Numeric matrix with observations in rows and variables in columns.
-#' @param adapter Adapter id or object. Defaults to `NULL`, which chooses
-#'   `"multivarious_pca"` when available and otherwise falls back to
-#'   `"prcomp_oneblock"`.
+#' @param adapter Adapter id or object. Defaults to `"multivarious_pca"`.
 #' @param ... Additional arguments forwarded to [infer()]. In particular
 #'   `model = ` accepts a pre-fit projector (e.g. `multivarious::pca(X)`)
 #'   so you can fit once and re-infer.
@@ -25,14 +22,8 @@
 #' @return An [infer_result].
 #' @export
 infer_pca <- function(X,
-                      adapter = NULL,
+                      adapter = "multivarious_pca",
                       ...) {
-  adapter <- .resolve_wrapper_adapter(
-    adapter = adapter,
-    preferred = "multivarious_pca",
-    fallbacks = c("prcomp_oneblock", "svd_oneblock"),
-    wrapper = "infer_pca"
-  )
   infer(
     adapter = adapter,
     data = X,
@@ -50,9 +41,9 @@ infer_pca <- function(X,
 #' identity.
 #'
 #' Thin convenience wrapper over [infer()] for two-block covariance models.
-#' When the `multivarious_plsc` adapter is registered, `infer_plsc()`
-#' uses it by default. Otherwise it falls back to the base-R
-#' `"cross_svd"` adapter.
+#' The default adapter is `"multivarious_plsc"`. The `"cross_svd"`
+#' reference adapter remains available, but callers must request it
+#' explicitly with `adapter = "cross_svd"`.
 #'
 #' If you have already fit a model via `multivarious::plsc()`, pass it
 #' through `model = ` and `infer_plsc()` will reuse your fit directly.
@@ -60,9 +51,7 @@ infer_pca <- function(X,
 #' @param X Numeric matrix for the first block.
 #' @param Y Numeric matrix for the second block. Must have the same
 #'   number of rows as `X`.
-#' @param adapter Adapter id or object. Defaults to `NULL`, which chooses
-#'   `"multivarious_plsc"` when available and otherwise falls back to
-#'   `"cross_svd"`.
+#' @param adapter Adapter id or object. Defaults to `"multivarious_plsc"`.
 #' @param ... Additional arguments forwarded to [infer()]. In particular
 #'   `model = ` accepts a pre-fit projector (e.g. `multivarious::plsc(X, Y)`).
 #'
@@ -70,14 +59,8 @@ infer_pca <- function(X,
 #' @export
 infer_plsc <- function(X,
                        Y,
-                       adapter = NULL,
+                       adapter = "multivarious_plsc",
                        ...) {
-  adapter <- .resolve_wrapper_adapter(
-    adapter = adapter,
-    preferred = "multivarious_plsc",
-    fallbacks = "cross_svd",
-    wrapper = "infer_plsc"
-  )
   infer(
     adapter = adapter,
     data = list(X = X, Y = Y),
@@ -160,29 +143,6 @@ infer_plsr <- function(X,
       ),
       dots
     )
-  )
-}
-
-.resolve_wrapper_adapter <- function(adapter, preferred, fallbacks, wrapper) {
-  if (!is.null(adapter)) {
-    return(adapter)
-  }
-
-  registered <- list_infer_adapters()
-  candidates <- c(preferred, fallbacks)
-  hits <- candidates[candidates %in% registered]
-
-  if (length(hits) >= 1L) {
-    return(hits[[1L]])
-  }
-
-  stop(
-    sprintf(
-      "`%s()` could not find any registered default adapters among: %s.",
-      wrapper,
-      paste(sprintf('"%s"', candidates), collapse = ", ")
-    ),
-    call. = FALSE
   )
 }
 

@@ -14,7 +14,6 @@ run_cross_ladder(
   alpha = 0.05,
   max_steps = NULL,
   seed = NULL,
-  cross_rank_cap = NULL,
   auto_subspace = TRUE,
   tie_threshold = 0.01
 )
@@ -43,13 +42,6 @@ each rung. Default \code{32L}.}
 \code{min(nrow, ncol(X), ncol(Y)) - 1}, capped at 50.}
 
 \item{seed}{Integer or NULL.}
-
-\item{cross_rank_cap}{Reserved opt-in for an approximate rank-capped
-core path on very large problems. Default \code{NULL} (exact only, no
-approximation). Setting a positive integer enables a truncated
-block-SVD pre-projection whose top-1 statistic is biased and
-whose use is NOT paper-faithful; it exists as a screening knob
-only.}
 
 \item{auto_subspace}{Logical. When \code{TRUE} (default), near-tied
 roots are automatically bundled into a subspace unit via

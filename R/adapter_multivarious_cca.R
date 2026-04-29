@@ -1,9 +1,10 @@
 #' multifer adapter for multivarious::cca
 #'
 #' A Tier-2 adapter wrapping \code{multivarious::cca} for the
-#' (cross, correlation) shape. Requires the multivarious package at
-#' invocation time only -- constructing and registering the adapter
-#' does not itself require multivarious to be loaded.
+#' (cross, correlation) shape. \pkg{multivarious} is a hard dependency
+#' of \pkg{multifer}. This adapter is available as an explicit CCA
+#' backend; \code{\link[=infer_cca]{infer_cca()}} still defaults to the
+#' dedicated \code{"cancor_cross"} adapter.
 #'
 #' This is a SINGLE-relation adapter. It declares only correlation
 #' because canonical correlation is fundamentally a correlation-mode
@@ -135,16 +136,12 @@ adapter_multivarious_cca <- function(adapter_id = "multivarious_cca",
 }
 
 
-#' Register the multivarious::cca adapter when multivarious is installed
+#' Register the multivarious::cca adapter
 #'
-#' Called from the package \code{.onLoad} hook. Skips registration silently
-#' if \code{multivarious} is not installed.
+#' Called from the package \code{.onLoad} hook.
 #'
 #' @keywords internal
 register_multivarious_cca_adapter <- function() {
-  if (!requireNamespace("multivarious", quietly = TRUE)) {
-    return(invisible(NULL))
-  }
   register_infer_adapter(
     adapter_id = "multivarious_cca",
     adapter    = adapter_multivarious_cca(),

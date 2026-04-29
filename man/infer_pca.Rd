@@ -4,14 +4,12 @@
 \alias{infer_pca}
 \title{Infer PCA-family significance and stability}
 \usage{
-infer_pca(X, adapter = NULL, ...)
+infer_pca(X, adapter = "multivarious_pca", ...)
 }
 \arguments{
 \item{X}{Numeric matrix with observations in rows and variables in columns.}
 
-\item{adapter}{Adapter id or object. Defaults to \code{NULL}, which chooses
-\code{"multivarious_pca"} when available and otherwise falls back to
-\code{"prcomp_oneblock"}.}
+\item{adapter}{Adapter id or object. Defaults to \code{"multivarious_pca"}.}
 
 \item{...}{Additional arguments forwarded to \code{\link[=infer]{infer()}}. In particular
 \verb{model = } accepts a pre-fit projector (e.g. \code{multivarious::pca(X)})
@@ -25,10 +23,9 @@ An \link{infer_result}.
 inference, defended by executable calibration and parity evidence.
 
 Thin convenience wrapper over \code{\link[=infer]{infer()}} for one-block variance models.
-When the \code{multivarious_pca} adapter is registered, \code{infer_pca()} uses
-it by default. Otherwise it falls back to the base-R
-\code{"prcomp_oneblock"} adapter. The base-R adapters remain available as
-reference examples and as a zero-extra-dependency fitting path.
+The default adapter is \code{"multivarious_pca"}. Base-R reference adapters
+such as \code{"prcomp_oneblock"} and \code{"svd_oneblock"} remain available, but
+callers must request them explicitly with \verb{adapter = }.
 
 If you have already fit a model via \code{multivarious::pca()} (or any
 other compatible fitter), pass it through \verb{model = } and \code{infer_pca()}
