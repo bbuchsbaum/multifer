@@ -3,6 +3,9 @@
 This note defines what it would mean for `lda_refit` to become mature,
 and why the current v1 label remains **narrow**.
 
+Executable evidence for the current narrow boundary is recorded in
+[`lda_evidence.md`](./lda_evidence.md).
+
 ## Current Public Claim
 
 `infer_lda()` ships one public inference claim:

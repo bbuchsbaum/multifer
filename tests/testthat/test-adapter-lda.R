@@ -93,6 +93,41 @@ test_that("lda_refit fails early for unsupported within-class rank regimes", {
   expect_false(collinear_checks$lda_within_class_full_rank$passed)
 })
 
+test_that("lda_refit distinguishes class imbalance from too-small classes", {
+  skip_if_not_installed("MASS")
+  a <- adapter_lda_refit()
+
+  set.seed(33L)
+  imbalanced_y <- factor(rep(c("a", "b", "c"), times = c(2L, 5L, 9L)))
+  imbalanced_x <- matrix(stats::rnorm(length(imbalanced_y) * 4L),
+                         nrow = length(imbalanced_y))
+  ok <- run_adapter_checks(
+    a,
+    list(X = imbalanced_x, y = imbalanced_y),
+    strict = FALSE
+  )
+  expect_true(ok$lda_within_class_sample_size$passed)
+  expect_true(ok$lda_within_class_full_rank$passed)
+
+  res <- infer_lda(imbalanced_x, imbalanced_y, adapter = a, B = 9L, seed = 33L)
+  expect_true(is_infer_result(res))
+  expect_true(all(is.finite(res$component_tests$p_value)))
+
+  too_small_y <- factor(rep(c("a", "b", "c"), times = c(1L, 5L, 5L)))
+  too_small_x <- matrix(stats::rnorm(length(too_small_y) * 3L),
+                        nrow = length(too_small_y))
+  fail <- run_adapter_checks(
+    a,
+    list(X = too_small_x, y = too_small_y),
+    strict = FALSE
+  )
+  expect_false(fail$lda_within_class_sample_size$passed)
+  expect_error(
+    infer_lda(too_small_x, too_small_y, adapter = a, B = 9L, seed = 34L),
+    "lda_within_class_sample_size"
+  )
+})
+
 test_that("lda_refit + geneig engine recovers rank bounded by K - 1", {
   skip_if_not_installed("MASS")
   dat <- make_lda_signal_fixture(seed = 4L)
