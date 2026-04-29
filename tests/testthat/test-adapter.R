@@ -167,6 +167,54 @@ test_that("optional perturbation/projection hooks are accepted", {
   expect_true(is.function(a$project_scores))
 })
 
+test_that("optional feature evidence hooks are accepted but not required", {
+  a <- infer_adapter(
+    adapter_id      = "feature_evidence_hooks",
+    adapter_version = "0.0.1",
+    shape_kinds     = "oneblock",
+    capabilities    = capability_matrix(
+      list(geometry = "oneblock", relation = "variance",
+           targets = "variable_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) x,
+    feature_stat_spec = function(x = NULL, data = NULL, ...) {
+      data.frame(
+        statistic = "vip",
+        scope = "aggregate",
+        orientation = "adapter_invariant",
+        requires_identifiable_unit = FALSE,
+        nonnegative = TRUE,
+        supports_bootstrap = TRUE,
+        supports_null = TRUE,
+        validity_level = "conditional",
+        stringsAsFactors = FALSE
+      )
+    },
+    feature_stat = function(x, data, domain, unit_id, members, statistic,
+                            orientation, scope, ...) {
+      stats::setNames(rep(1, nrow(x$loadings)), rownames(x$loadings))
+    },
+    feature_evidence_action = function(x, data, units, design, statistic,
+                                       orientation, R = NULL, seed = NULL,
+                                       ...) {
+      infer_feature_evidence()
+    },
+    feature_null_action = function(x, data, units, statistic, B, seed = NULL,
+                                   ...) {
+      matrix(0, nrow = 0, ncol = B)
+    },
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_true(is.function(a$feature_stat_spec))
+  expect_true(is.function(a$feature_stat))
+  expect_true(is.function(a$feature_evidence_action))
+  expect_true(is.function(a$feature_null_action))
+})
+
 test_that("adapter-owned component execution field is accepted", {
   a <- infer_adapter(
     adapter_id      = "adapter_component_execution",

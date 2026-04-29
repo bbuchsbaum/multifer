@@ -23,9 +23,9 @@ A \code{multifer_adapter}.
 }
 \description{
 A Tier-2 adapter wrapping \code{multivarious::pca} for the
-(oneblock, variance) shape. Requires the multivarious package
-at invocation time only -- constructing and registering the
-adapter does not itself require multivarious to be loaded.
+(oneblock, variance) shape. \pkg{multivarious} is a hard dependency
+of \pkg{multifer}; this adapter is the default engine behind
+\code{\link[=infer_pca]{infer_pca()}}.
 }
 \details{
 Declares \code{component_significance}, \code{variable_stability},

@@ -90,6 +90,12 @@ used by \code{\link[=feature_importance_pvalues]{feature_importance_pvalues()}}.
 multiblock payloads; geneig and adapter-owned payloads should provide
 this hook when the null payload is not already a refit payload.}
 
+\item{\code{component_execution}}{Constructor field, not a hook. Set to
+\code{"adapter"} to route component-significance through adapter-owned
+\code{component_stat}, \code{null_action}, and \code{residualize} callbacks for a
+geometry that otherwise has a built-in reference engine. The default
+is \code{"default"}.}
+
 \item{\code{bootstrap_action(x, data, design, replicate = NULL)}}{Optional.
 Adapter-owned perturbation hook for stability targets. Return a list
 with \code{fit} (a replicate fit) or \code{data} (a replicate data object to pass
@@ -117,9 +123,12 @@ exact-core-space bootstrap lands.}
 \item{\code{align(...)}}{Optional. Custom bootstrap alignment between a
 replicate fit and the reference fit. New adapters should accept named
 arguments \code{reference_loadings}, \code{replicate_loadings},
-\code{replicate_scores}, \code{reference_fit}, \code{replicate_fit},
-\code{domain}, and \code{method}, and return a list with \code{loadings}
-and optionally \code{scores}.}
+\code{replicate_scores}, \code{reference_fit}, \code{replicate_fit}, \code{domain}, and
+\code{method}, and return a list with \code{loadings} and optionally \code{scores}.
+This lets adapters perform component matching and sign/rotation under
+their own inner product. Without it, bootstrap alignment uses Euclidean
+matching plus sign or legacy Procrustes alignment on the loading
+matrices.}
 
 \item{\code{null_action(x, data)}}{Required by
 \code{component_significance}. Return one null resample of \code{data}
@@ -132,7 +141,7 @@ pairing by permuting rows of \code{Y}.}
 for rung \code{k} on \code{data}. Must be algebraically consistent with
 \code{null_action}: the ladder compares the observed statistic to
 repeated draws of \code{component_stat(x, null_action(x, data), k)}.
-For \verb{(cross, predictive)}, the hook must accept a formal
+For predictive component significance, the hook must accept a formal
 \code{split} argument and use it for held-out scoring rather than
 in-sample fit.}
 
@@ -165,11 +174,16 @@ requires \code{refit}, \code{predict_response}, and a split-aware
 \code{component_stat(..., split = NULL)}. This is the predictive
 cross-fit admissibility rule: in-sample predictive significance
 is refused at registration time.
+\item \verb{(adapter, predictive, component_significance)} requires \code{refit}
+and a split-aware \code{component_stat(..., split = NULL)}. The adapter
+owns held-out scoring for opaque predictive payloads.
 \item \code{variable_stability} requires a perturbation path — \code{refit},
 \code{bootstrap_action}, or both \code{core} and \code{update_core} — \strong{and} one of
 \code{variable_stat} or \code{loadings}.
 \item \code{score_stability} requires a perturbation path, \code{loadings}, and
-either \code{scores} or \code{project_scores}.
+either \code{scores} or \code{project_scores}. For \code{geometry = "adapter"},
+\code{project_scores} is required because multifer cannot infer scores
+from opaque adapter-owned payloads.
 \item \code{subspace_stability} requires a perturbation path \strong{and} \code{loadings}.
 \item \code{variable_significance} is excluded from v1 and fails at
 registration time with a reference to Part 5 §38.
@@ -188,8 +202,8 @@ Geneig adapters carry one extra registration-time rule. If an
 adapter claims \verb{(geneig, generalized_eigen, component_significance)},
 its constructor must set \code{geneig_deflation = "b_metric"} when the
 \code{residualize} hook performs B-metric deflation itself, or
-\code{geneig_deflation = "delegated"} when \code{run_geneig_ladder()} owns
-the deflation. Euclidean residualization is not admissible for the geneig
+\code{geneig_deflation = "delegated"} when \code{run_geneig_ladder()} owns the
+deflation. Euclidean residualization is not admissible for the geneig
 family; the gate fails immediately with a pointer to
 \code{notes/engine_geneig_spec.md}.
 }

@@ -20,7 +20,7 @@ supplied, the individual \code{geometry}, \code{relation}, and \code{design}
 arguments are ignored.}
 
 \item{geometry}{Character scalar -- one of \code{"oneblock"}, \code{"cross"},
-\code{"multiblock"}, \code{"geneig"}.  Used when \code{shape} is \code{NULL}.}
+\code{"multiblock"}, \code{"geneig"}, \code{"adapter"}.  Used when \code{shape} is \code{NULL}.}
 
 \item{relation}{Character scalar -- one of \code{"variance"},
 \code{"covariance"}, \code{"correlation"}, \code{"generalized_eigen"},

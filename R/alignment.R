@@ -4,23 +4,34 @@
 #' best match to \code{Vref} in terms of summed absolute inner products.
 #'
 #' @details
-#' Implementation note: the Hungarian algorithm (optimal assignment) is not
-#' available in base R. This function uses a greedy fallback: for each column
-#' of \code{Vref} in order, the unused column of \code{Vb} with the largest
-#' absolute inner product is assigned. The greedy solution is suboptimal in
-#' pathological cases (e.g. two nearly equal scores) but is acceptable for
-#' v1 where components are assumed to be reasonably well separated. A future
-#' version may add optional Hungarian via \pkg{clue} or \pkg{RcppHungarian}.
+#' `method = "auto"` uses \pkg{clue}'s Hungarian implementation when
+#' installed. Without \pkg{clue}, it uses an exact exhaustive assignment for
+#' small component counts and falls back to the historical greedy matcher for
+#' larger problems. The return value carries diagnostics as attributes:
+#' `match_score`, `match_margin`, `ambiguous_match`, and `match_method`.
 #'
 #' @param Vref Numeric matrix. Reference loading matrix, n x k.
 #' @param Vb Numeric matrix. Bootstrap/replicate loading matrix, n x k.
 #'   Must have the same dimensions as \code{Vref}.
+#' @param method Character scalar. One of `"auto"`, `"greedy"`, or
+#'   `"hungarian"`.
+#' @param metric Character scalar. Currently `"abs_inner_product"`.
+#' @param ambiguity_tol Numeric tolerance for declaring an ambiguous match.
+#' @param diagnostics Logical; when `TRUE`, attach matching diagnostics as
+#'   attributes to the returned permutation.
 #'
 #' @return An integer vector of length \code{ncol(Vref)} giving the
 #'   permutation \code{p} such that \code{Vb[, p]} best matches \code{Vref}.
 #'
 #' @export
-match_components <- function(Vref, Vb) {
+match_components <- function(Vref,
+                             Vb,
+                             method = c("auto", "greedy", "hungarian"),
+                             metric = c("abs_inner_product", "cosine"),
+                             ambiguity_tol = 1e-8,
+                             diagnostics = FALSE) {
+  method <- match.arg(method)
+  metric <- match.arg(metric)
   if (!is.matrix(Vref) || !is.matrix(Vb)) {
     stop("`Vref` and `Vb` must both be matrices.", call. = FALSE)
   }
@@ -34,19 +45,113 @@ match_components <- function(Vref, Vb) {
 
   # absolute inner product matrix: entry [i, j] = |Vref[,i] . Vb[,j]|
   ip <- abs(t(Vref) %*% Vb)   # k x k
-
-  perm    <- integer(k)
-  used    <- logical(k)
-
-  for (i in seq_len(k)) {
-    row_scores <- ip[i, ]
-    row_scores[used] <- -Inf
-    j        <- which.max(row_scores)
-    perm[i]  <- j
-    used[j]  <- TRUE
+  if (metric == "cosine") {
+    ref_norm <- sqrt(colSums(Vref * Vref))
+    rep_norm <- sqrt(colSums(Vb * Vb))
+    denom <- outer(ref_norm, rep_norm, `*`)
+    denom[denom == 0] <- NA_real_
+    ip <- ip / denom
+    ip[!is.finite(ip)] <- 0
   }
 
+  if (method == "greedy") {
+    perm <- .match_components_greedy(ip)
+    actual_method <- "greedy"
+  } else {
+    optimal <- .match_components_optimal(ip)
+    if (is.null(optimal)) {
+      if (method == "hungarian") {
+        stop(
+          "`method = \"hungarian\"` requires package `clue` or k <= 8 for the base-R exact fallback.",
+          call. = FALSE
+        )
+      }
+      perm <- .match_components_greedy(ip)
+      actual_method <- "greedy"
+    } else {
+      perm <- optimal$perm
+      actual_method <- optimal$method
+    }
+  }
+
+  if (isTRUE(diagnostics)) {
+    diag <- .match_components_diagnostics(ip, perm, actual_method,
+                                          ambiguity_tol)
+    attr(perm, "match_score") <- diag$match_score
+    attr(perm, "match_margin") <- diag$match_margin
+    attr(perm, "ambiguous_match") <- diag$ambiguous_match
+    attr(perm, "match_method") <- diag$match_method
+  }
   perm
+}
+
+.match_components_greedy <- function(score) {
+  k <- nrow(score)
+  perm <- integer(k)
+  used <- logical(k)
+  for (i in seq_len(k)) {
+    row_scores <- score[i, ]
+    row_scores[used] <- -Inf
+    j <- which.max(row_scores)
+    perm[i] <- j
+    used[j] <- TRUE
+  }
+  perm
+}
+
+.match_components_optimal <- function(score) {
+  k <- nrow(score)
+  if (requireNamespace("clue", quietly = TRUE)) {
+    return(list(
+      perm = as.integer(clue::solve_LSAP(score, maximum = TRUE)),
+      method = "hungarian"
+    ))
+  }
+  if (k > 8L) {
+    return(NULL)
+  }
+  best_score <- -Inf
+  best_perm <- seq_len(k)
+  used <- logical(k)
+  current <- integer(k)
+  search <- function(i, total) {
+    if (i > k) {
+      if (total > best_score) {
+        best_score <<- total
+        best_perm <<- current
+      }
+      return(invisible(NULL))
+    }
+    for (j in seq_len(k)) {
+      if (!used[j]) {
+        used[j] <<- TRUE
+        current[i] <<- j
+        search(i + 1L, total + score[i, j])
+        used[j] <<- FALSE
+      }
+    }
+    invisible(NULL)
+  }
+  search(1L, 0)
+  list(perm = best_perm, method = "exhaustive")
+}
+
+.match_components_diagnostics <- function(score, perm, method, ambiguity_tol) {
+  k <- nrow(score)
+  assigned <- score[cbind(seq_len(k), perm)]
+  margin <- rep(Inf, k)
+  for (i in seq_len(k)) {
+    alternatives <- score[i, -perm[i], drop = TRUE]
+    if (length(alternatives) > 0L) {
+      margin[i] <- assigned[i] - max(alternatives)
+    }
+  }
+  list(
+    match_score = sum(assigned),
+    match_margin = min(margin),
+    ambiguous_match = is.finite(min(margin)) && min(margin) <= ambiguity_tol,
+    match_method = method
+  )
 }
 
 

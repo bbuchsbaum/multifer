@@ -153,6 +153,34 @@
 #'
 #'   \item{`score_stat(x, data, domain, k)`}{Optional alternative to
 #'     `scores` for `score_stability`.}
+#'
+#'   \item{`feature_stat_spec(x = NULL, data = NULL, ...)`}{Optional.
+#'     Return a data frame declaring adapter-owned feature evidence
+#'     statistics. Expected columns include `statistic`, `scope`,
+#'     `orientation`, `requires_identifiable_unit`, `nonnegative`,
+#'     `supports_bootstrap`, `supports_null`, and `validity_level`.
+#'     `multifer` derives default loading, squared-loading, and subspace-norm
+#'     evidence from `loadings()` when this hook is absent.}
+#'
+#'   \item{`feature_stat(x, data, domain, unit_id, members, statistic,
+#'     orientation, scope, ...)`}{Optional. Return one named numeric vector of
+#'     feature statistics for `domain`. This is the method-specific route for
+#'     VIP scores, metric-aware discriminant contributions, block
+#'     contributions, coefficients, saliences, and other estimands that should
+#'     not be forced through generic loading matrices.}
+#'
+#'   \item{`feature_evidence_action(x, data, units, design, statistic,
+#'     orientation, R = NULL, seed = NULL, ...)`}{Optional native/fast feature
+#'     evidence producer. This is the intended route for method-native
+#'     procedures such as conditional PCA subspace bootstrap or PLSC bootstrap
+#'     ratios. The output must be normalized into the
+#'     `multifer_feature_evidence` schema or an artifact that a compiler can
+#'     normalize into that schema.}
+#'
+#'   \item{`feature_null_action(x, data, units, statistic, B, seed = NULL,
+#'     ...)`}{Optional native null feature-statistic producer for methods that
+#'     can compute null feature statistics more directly than repeated
+#'     `null_action()` + `refit()` calls.}
 #' }
 #'
 #' @section Capability gate rules:

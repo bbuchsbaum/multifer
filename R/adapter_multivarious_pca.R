@@ -1,9 +1,9 @@
 #' multifer adapter for multivarious::pca
 #'
 #' A Tier-2 adapter wrapping \code{multivarious::pca} for the
-#' (oneblock, variance) shape. Requires the multivarious package
-#' at invocation time only -- constructing and registering the
-#' adapter does not itself require multivarious to be loaded.
+#' (oneblock, variance) shape. \pkg{multivarious} is a hard dependency
+#' of \pkg{multifer}; this adapter is the default engine behind
+#' \code{\link[=infer_pca]{infer_pca()}}.
 #'
 #' Declares \code{component_significance}, \code{variable_stability},
 #' \code{score_stability}, and \code{subspace_stability} for
@@ -91,6 +91,88 @@ adapter_multivarious_pca <- function(adapter_id = "multivarious_pca",
       s2[k] / sum(s2[k:length(s2)])
     },
 
+    feature_evidence_action = function(x,
+                                       data,
+                                       units,
+                                       design,
+                                       statistic = c("loading",
+                                                     "squared_loading",
+                                                     "subspace_norm"),
+                                       orientation = c("auto", "signed",
+                                                       "unsigned",
+                                                       "subspace_norm"),
+                                       R = NULL,
+                                       seed = NULL,
+                                       ...) {
+      require_multivarious()
+      if (!exists("bootstrap_pca", envir = asNamespace("multivarious"),
+                  inherits = FALSE)) {
+        stop("multivarious::bootstrap_pca() is required for PCA native feature evidence.",
+             call. = FALSE)
+      }
+      if (!inherits(units, "multifer_units")) {
+        stop("`units` must be a multifer_units table.", call. = FALSE)
+      }
+      statistic <- match.arg(statistic)
+      orientation <- match.arg(orientation)
+      members <- attr(units, "members")
+      V_all <- stats::coef(x)
+      available <- ncol(V_all)
+      keep <- vapply(members, function(m) all(m <= available), logical(1L))
+      if (!all(keep)) {
+        units <- units[keep, , drop = FALSE]
+        members <- members[keep]
+        attr(units, "members") <- members
+      }
+      max_member <- max(unlist(members, use.names = FALSE), 0L)
+      if (max_member < 1L) {
+        return(infer_feature_evidence())
+      }
+      nboot <- if (is.null(R)) 500L else as.integer(R)
+      boot <- multivarious::bootstrap_pca(
+        x,
+        nboot = nboot,
+        k = max_member,
+        seed = seed,
+        ...
+      )
+      V <- V_all[, seq_len(max_member), drop = FALSE]
+      reps <- lapply(seq_len(boot$nboot), function(b) {
+        list(aligned_loadings = list(X = V %*% boot$Ab_array[, , b]))
+      })
+      artifact <- structure(
+        list(
+          reps = reps,
+          R = boot$nboot,
+          method_align = "subspace",
+          domains = "X",
+          seed = seed
+        ),
+        class = "multifer_bootstrap_artifact"
+      )
+      adapter_stub <- structure(
+        list(loadings = function(fit, domain = NULL, ...) stats::coef(fit)),
+        class = "multifer_adapter"
+      )
+      out <- feature_evidence_from_bootstrap(
+        artifact = artifact,
+        units = units,
+        original_fit = x,
+        adapter = adapter_stub,
+        statistic = statistic,
+        scope = "unit",
+        k = "all",
+        orientation = orientation,
+        normalize = "none"
+      )
+      out$method <- "conditional_subspace_bootstrap"
+      out$validity_level <- "conditional"
+      out$calibration <- "bootstrap"
+      out$p_value <- NA_real_
+      out$p_adjusted <- NA_real_
+      out
+    },
+
     validity_level       = "conditional",
     declared_assumptions = c("rows_exchangeable"),
     checked_assumptions  = .oneblock_baser_checks()
@@ -98,17 +180,12 @@ adapter_multivarious_pca <- function(adapter_id = "multivarious_pca",
 }
 
 
-#' Register the multivarious::pca adapter when multivarious is installed
+#' Register the multivarious::pca adapter
 #'
-#' Called from the package \code{.onLoad} hook. Skips registration silently
-#' if \code{multivarious} is not installed, so users on a minimal R install
-#' never see a failure.
+#' Called from the package \code{.onLoad} hook.
 #'
 #' @keywords internal
 register_multivarious_pca_adapter <- function() {
-  if (!requireNamespace("multivarious", quietly = TRUE)) {
-    return(invisible(NULL))
-  }
   register_infer_adapter(
     adapter_id = "multivarious_pca",
     adapter    = adapter_multivarious_pca(),

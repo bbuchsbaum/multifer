@@ -49,8 +49,9 @@ using an adapter's design-valid \code{null_action}. This is not a
 bootstrap procedure.
 }
 \details{
-This sidecar API uses the adapter's \code{domains()}, \code{loadings()},
-\code{null_action()}, and \code{refit()} hooks. When a geometry's null
-payload is not already shaped like the adapter's \code{refit()} input, the
-adapter can provide a \code{refit_data()} hook to translate it.
+This sidecar API uses the adapter's \code{domains()},
+\code{loadings()}, \code{null_action()}, and \code{refit()} hooks. When
+a geometry's null payload is not already shaped like the adapter's
+\code{refit()} input, the adapter can provide a \code{refit_data()} hook
+to translate it.
 }

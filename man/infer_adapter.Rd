@@ -24,8 +24,8 @@ the registry key.}
 \item{adapter_version}{Character scalar, e.g. \code{"0.0.1"}.}
 
 \item{shape_kinds}{Character vector.  Subset of
-\code{c("oneblock", "cross", "multiblock", "geneig")}.  Declares which
-geometry families this adapter handles.}
+\code{c("oneblock", "cross", "multiblock", "geneig", "adapter")}.
+Declares which geometry families this adapter handles.}
 
 \item{capabilities}{A \code{multifer_capability_matrix} (see
 \code{\link[=capability_matrix]{capability_matrix()}}).  Every \verb{(geometry, relation, target)} triple
@@ -44,13 +44,37 @@ Each element should be a list with fields \code{name} (character),
 
 \item{component_execution}{Character scalar. Set to \code{"adapter"} to
 route component-significance through adapter-owned \code{component_stat},
-\code{null_action}, and \code{residualize} hooks for geometries that otherwise
-have a built-in reference engine.}
+\code{null_action}, and \code{residualize} hooks for geometries that otherwise have
+a built-in reference engine.}
 
 \item{geneig_deflation}{Character scalar. For adapters claiming
 \verb{(geneig, generalized_eigen, component_significance)}, declare whether
 the \code{residualize} hook performs \code{"b_metric"} deflation itself or
-\code{"delegated"} deflation through the geneig engine.}
+\code{"delegated"} deflation through the geneig engine.
+
+\strong{Capability gate rules} (Part 5 section 36, point 1):
+\itemize{
+\item \code{component_significance} requires \code{null_action}, \code{component_stat}, AND
+\code{residualize}. For \verb{(geneig, generalized_eigen)},
+\code{geneig_deflation} must be \code{"b_metric"} or \code{"delegated"}. For
+\verb{(cross, predictive)}, the adapter must also provide \code{refit},
+\code{predict_response}, and a split-aware \code{component_stat(..., split = NULL)}.
+For \verb{(adapter, predictive)}, the adapter must provide \code{refit} and
+a split-aware \code{component_stat(..., split = NULL)}; prediction lives
+inside the adapter-owned statistic for opaque payloads.
+\item \code{variable_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}} AND
+(\code{variable_stat} OR \code{loadings}).
+\item \code{score_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}}, \code{loadings}, AND
+(\code{scores} OR \code{project_scores}). For \code{geometry = "adapter"},
+\code{project_scores} is required because multifer cannot infer scores from
+opaque adapter-owned payloads.
+\item \code{subspace_stability} requires at least one of
+\verb{\{refit, bootstrap_action, core+update_core\}} AND \code{loadings}.
+\item \code{variable_significance} is excluded from v1 (Part 5 section 38) and
+always errors.
+}}
 }
 \value{
 An object of class \code{multifer_adapter}.
@@ -90,7 +114,7 @@ perturbation hook returning a replicate fit or replicate data.
 \item \code{core(x, data)} -- optional fast-path core representation.
 \item \code{update_core(core_obj, ...)} -- optional fast-path core update.
 \item \code{align(...)} -- optional adapter-owned bootstrap alignment for loadings
-and scores using the named alignment signature.
+and scores.
 \item \code{null_action(x, data)} -- generate one null resample.
 \item \code{component_stat(x, data, k, split = NULL)} -- per-component test statistic.
 \item \code{predict_response(x, new_data, k = NULL)} -- fitted responses for
@@ -98,25 +122,6 @@ predictive cross-family adapters.
 \item \code{variable_stat(x, data, domain, k)} -- non-negative variable-level
 feature-importance statistic.
 \item \code{score_stat(x, data, domain, k)} -- score-level statistic.
-}
-
-\strong{Capability gate rules} (Part 5 section 36, point 1):
-\itemize{
-\item \code{component_significance} requires \code{null_action}, \code{component_stat}, AND
-\code{residualize}. For \verb{(geneig, generalized_eigen)},
-\code{geneig_deflation} must be \code{"b_metric"} or \code{"delegated"}. For
-\verb{(cross, predictive)}, the adapter must also provide \code{refit},
-\code{predict_response}, and a split-aware \code{component_stat(..., split = NULL)}.
-\item \code{variable_stability} requires at least one of
-\verb{\{refit, bootstrap_action, core+update_core\}} AND
-(\code{variable_stat} OR \code{loadings}).
-\item \code{score_stability} requires at least one of
-\verb{\{refit, bootstrap_action, core+update_core\}}, \code{loadings}, AND
-(\code{scores} OR \code{project_scores}).
-\item \code{subspace_stability} requires at least one of
-\verb{\{refit, bootstrap_action, core+update_core\}} AND \code{loadings}.
-\item \code{variable_significance} is excluded from v1 (Part 5 section 38) and
-always errors.
 }
 }
 \section{Registration-time gate (Part 5 section 36, point 1)}{

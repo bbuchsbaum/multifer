@@ -105,3 +105,43 @@ test_that("residualize removes the top component", {
   s_res  <- svd(resid)$d[1]
   expect_true(s_res < s_orig)
 })
+
+test_that("native PCA feature evidence action returns conditional bootstrap ratios", {
+  skip_if_not_installed("multivarious")
+  set.seed(108)
+  X <- matrix(rnorm(160), 20, 8)
+  a <- adapter_multivarious_pca(ncomp = 4L)
+  fit <- a$refit(NULL, X)
+  units <- form_units(a$roots(fit))
+
+  out <- feature_evidence_from_adapter(
+    adapter = a,
+    fit = fit,
+    data = X,
+    units = units,
+    statistic = "loading",
+    orientation = "auto",
+    R = 3L,
+    seed = 108L
+  )
+
+  expect_s3_class(out, "multifer_feature_evidence")
+  expect_true(nrow(out) > 0L)
+  expect_equal(unique(out$method), "conditional_subspace_bootstrap")
+  expect_equal(unique(out$calibration), "bootstrap")
+  expect_true(all(is.na(out$p_value)))
+  expect_true(all(out$validity_level == "conditional"))
+
+  units_extra <- form_units(c(a$roots(fit), 0))
+  out_extra <- feature_evidence_from_adapter(
+    adapter = a,
+    fit = fit,
+    data = X,
+    units = units_extra,
+    statistic = "loading",
+    orientation = "auto",
+    R = 3L,
+    seed = 109L
+  )
+  expect_false("u5" %in% out_extra$unit_id)
+})

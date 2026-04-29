@@ -9,10 +9,32 @@ test_that("match_components: known permutation is recovered", {
   set.seed(2)
   V <- qr.Q(qr(matrix(stats::rnorm(12), 4, 3)))
   Vb <- V[, c(2, 1, 3)]
-  p <- match_components(V, Vb)
+  p <- match_components(V, Vb, diagnostics = TRUE)
   # Vb[, p] should match V, so p must map back: col 1 of Vb is V col 2,
   # col 2 is V col 1, col 3 is V col 3 -> p = c(2, 1, 3)
-  expect_equal(p, c(2L, 1L, 3L))
+  expect_equal(as.integer(p), c(2L, 1L, 3L))
+  expect_false(is.null(attr(p, "match_score")))
+  expect_true(attr(p, "match_method") %in% c("hungarian", "exhaustive", "greedy"))
+})
+
+test_that("match_components can use exact assignment and report ambiguity", {
+  Vref <- diag(2)
+  Vb <- matrix(c(1, 1, 1, 1), nrow = 2) / sqrt(2)
+  p <- match_components(Vref, Vb, method = "auto", diagnostics = TRUE)
+
+  expect_equal(sort(p), 1:2)
+  expect_true(isTRUE(attr(p, "ambiguous_match")))
+  expect_equal(attr(p, "match_margin"), 0)
+})
+
+test_that("match_components supports cosine metric", {
+  Vref <- diag(2)
+  Vb <- Vref[, c(2, 1)] %*% diag(c(10, 0.5))
+  p <- match_components(Vref, Vb, method = "auto", metric = "cosine",
+                        diagnostics = TRUE)
+
+  expect_equal(as.integer(p), c(2L, 1L))
+  expect_true(attr(p, "match_score") <= 2 + 1e-12)
 })
 
 test_that("match_components: sign flips do not confuse matching", {

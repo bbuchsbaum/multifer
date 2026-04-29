@@ -59,7 +59,7 @@ checked capability target.
 \description{
 \code{check_infer_adapter()} is a smoke-test harness for adapter authors and
 for \code{multifer}'s own engine refactors. It walks the adapter's declared
-\code{(geometry, relation, target)} capability rows, compiles each requested
+\verb{(geometry, relation, target)} capability rows, compiles each requested
 target as a recipe, runs the adapter's executable validity checks, and
 optionally runs a small \code{infer()} call for that target.
 }

@@ -2,13 +2,11 @@
 % Please edit documentation in R/adapter_multivarious_pca.R
 \name{register_multivarious_pca_adapter}
 \alias{register_multivarious_pca_adapter}
-\title{Register the multivarious::pca adapter when multivarious is installed}
+\title{Register the multivarious::pca adapter}
 \usage{
 register_multivarious_pca_adapter()
 }
 \description{
-Called from the package \code{.onLoad} hook. Skips registration silently
-if \code{multivarious} is not installed, so users on a minimal R install
-never see a failure.
+Called from the package \code{.onLoad} hook.
 }
 \keyword{internal}

@@ -63,6 +63,14 @@
 #' - `variable_stat(x, data, domain, k)` -- non-negative variable-level
 #'   feature-importance statistic.
 #' - `score_stat(x, data, domain, k)` -- score-level statistic.
+#' - `feature_stat_spec(x, data, ...)` -- optional declaration of
+#'   adapter-owned feature evidence statistics.
+#' - `feature_stat(x, data, domain, unit_id, members, statistic, orientation,
+#'   scope, ...)` -- optional adapter-owned feature evidence statistic.
+#' - `feature_evidence_action(x, data, units, design, statistic, orientation,
+#'   R, seed, ...)` -- optional native feature evidence producer.
+#' - `feature_null_action(x, data, units, statistic, B, seed, ...)` --
+#'   optional native null feature-statistic producer.
 #'
 #' @param component_execution Character scalar. Set to `"adapter"` to
 #'   route component-significance through adapter-owned `component_stat`,
@@ -185,7 +193,9 @@ infer_adapter <- function(adapter_id,
                    "truncate", "residualize", "refit", "refit_data",
                    "bootstrap_action", "core", "update_core", "align",
                    "null_action", "component_stat", "predict_response",
-                   "variable_stat", "score_stat")
+                   "variable_stat", "score_stat", "feature_stat_spec",
+                   "feature_stat", "feature_evidence_action",
+                   "feature_null_action")
   bad_hooks <- setdiff(names(hooks_raw), valid_hooks)
   if (length(bad_hooks) > 0L) {
     stop(sprintf(

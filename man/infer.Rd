@@ -24,7 +24,8 @@ infer(
   parallel = c("sequential", "mirai", "auto"),
   fast_path = c("auto", "off"),
   auto_subspace = TRUE,
-  tie_threshold = 0.01
+  tie_threshold = 0.01,
+  return_bundle = FALSE
 )
 }
 \arguments{
@@ -35,7 +36,8 @@ id registered with \code{\link{register_infer_adapter}()}.}
 elements \code{X} and \code{Y}. For multiblock, a list of aligned
 numeric matrix blocks. For geneig, a data payload accepted by the
 adapter's operator constructor (currently the LDA wrapper uses a
-list with \code{X} and \code{y}).}
+list with \code{X} and \code{y}). For adapter-owned geometry, any
+payload accepted by the adapter hooks.}
 
 \item{...}{Reserved for future use.}
 
@@ -93,6 +95,10 @@ roots are automatically bundled into a subspace unit via
 
 \item{tie_threshold}{Positive numeric. Relative-gap threshold used
 when \code{auto_subspace = TRUE}. Default \code{0.01}.}
+
+\item{return_bundle}{Logical. When \code{TRUE}, return an \code{infer_bundle}
+containing the frozen \code{infer_result} plus reusable artifacts such as the
+bootstrap artifact. Default \code{FALSE}.}
 }
 \value{
 An \code{\link{infer_result}}.
@@ -104,11 +110,7 @@ Given an adapter and data, runs the full pipeline:
 \item resolve / build a \code{\link{typed_shape}};
 \item compile a recipe via \code{\link{infer_recipe}()} with
 strict dispatch by default;
-\item dispatch on geometry to \code{\link{run_oneblock_ladder}()}
-or \code{\link{run_cross_ladder}()} or
-\code{\link{run_predictive_ladder}()} or
-\code{\link{run_multiblock_ladder}()} or
-\code{\link{run_geneig_ladder}()};
+\item compile an executable plan and run its engine callback;
 \item fit (or use the supplied) original fit, then run
 \code{\link{bootstrap_fits}()} to produce a perturbation
 artifact;

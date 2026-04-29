@@ -66,6 +66,9 @@
 #'   `print.infer_result()` to lead with principal-angle stability.
 #' @param tie_threshold Positive numeric. Relative-gap threshold used
 #'   when `auto_subspace = TRUE`. Default `0.01`.
+#' @param return_bundle Logical. When `TRUE`, return an `infer_bundle`
+#'   containing the frozen `infer_result` plus reusable artifacts such as the
+#'   bootstrap artifact. Default `FALSE`.
 #'
 #' @return An \code{\link{infer_result}}.
 #' @export
@@ -88,7 +91,8 @@ infer <- function(adapter,
                   parallel      = c("sequential", "mirai", "auto"),
                   fast_path     = c("auto", "off"),
                   auto_subspace = TRUE,
-                  tie_threshold = 0.01) {
+                  tie_threshold = 0.01,
+                  return_bundle = FALSE) {
 
   call <- match.call()
   parallel  <- match.arg(parallel)
@@ -224,6 +228,8 @@ infer <- function(adapter,
   variable_stab <- infer_variable_stability()
   score_stab    <- infer_score_stability()
   subspace_stab <- infer_subspace_stability()
+  artifact <- NULL
+  original_fit_for_bundle <- NULL
 
   t_boot_start  <- proc.time()[["elapsed"]]
   t_boot_end    <- t_boot_start
@@ -234,6 +240,7 @@ infer <- function(adapter,
     }
 
     original_fit <- execution_plan$original_fit(engine_out)
+    original_fit_for_bundle <- original_fit
 
     artifact <- bootstrap_fits(
       recipe       = recipe,
@@ -339,7 +346,7 @@ infer <- function(adapter,
     call = call
   )
 
-  infer_result(
+  result <- infer_result(
     units              = units,
     component_tests    = component_tests,
     variable_stability = variable_stab,
@@ -349,6 +356,45 @@ infer <- function(adapter,
     mc                 = mc_block,
     cost               = cost_block,
     provenance         = provenance
+  )
+
+  if (isTRUE(return_bundle)) {
+    return(infer_bundle_result(
+      result = result,
+      artifacts = list(
+        bootstrap = artifact,
+        original_fit = original_fit_for_bundle,
+        engine = engine_out,
+        recipe = recipe,
+        adapter = adapter_obj
+      )
+    ))
+  }
+
+  result
+}
+
+#' Return inference results with reusable artifacts
+#'
+#' `infer_bundle()` is a convenience wrapper around [infer()] that keeps the
+#' frozen `infer_result` unchanged while exposing artifacts useful to sidecar
+#' consumers such as [feature_evidence_from_bootstrap()].
+#'
+#' @param ... Passed to [infer()].
+#'
+#' @return A list with `result` and `artifacts`, class `multifer_infer_bundle`.
+#' @export
+infer_bundle <- function(...) {
+  infer(..., return_bundle = TRUE)
+}
+
+infer_bundle_result <- function(result, artifacts) {
+  if (!inherits(result, "infer_result")) {
+    stop("`result` must be an infer_result.", call. = FALSE)
+  }
+  structure(
+    list(result = result, artifacts = artifacts),
+    class = c("multifer_infer_bundle", "list")
   )
 }
 

@@ -4,10 +4,10 @@
 # notes, wrappers, and evidence all agree on -- starts drifting.
 # Concretely it asserts that DESCRIPTION dependencies, the README
 # adapter table, the live adapter registry, and the infer wrapper
-# defaults all describe the same package.  Adding a new mature
-# adapter, demoting an adapter to narrow, or moving multivarious out
-# of Suggests should all fail here until every downstream artifact
-# is updated in the same commit.
+# defaults all describe the same package. Adding a new mature adapter,
+# demoting an adapter to narrow, or moving multivarious out of Imports
+# should all fail here until every downstream artifact is updated in
+# the same commit.
 
 pkg_root <- function() {
   # testthat::test_path() is relative to tests/testthat/, so going
@@ -50,14 +50,14 @@ parse_readme_adapter_table <- function(readme_path) {
   do.call(rbind, lapply(rows, as.data.frame, stringsAsFactors = FALSE))
 }
 
-test_that("DESCRIPTION declares multivarious in Suggests, not Imports", {
+test_that("DESCRIPTION declares multivarious as a hard dependency", {
   desc_path <- file.path(pkg_root(), "DESCRIPTION")
   skip_if_not(file.exists(desc_path), "DESCRIPTION not found from test cwd")
   desc <- read.dcf(desc_path)
   imports <- if ("Imports" %in% colnames(desc)) desc[1L, "Imports"] else ""
   suggests <- if ("Suggests" %in% colnames(desc)) desc[1L, "Suggests"] else ""
-  expect_false(grepl("multivarious", imports, fixed = TRUE))
-  expect_true(grepl("multivarious", suggests, fixed = TRUE))
+  expect_true(grepl("multivarious", imports, fixed = TRUE))
+  expect_false(grepl("multivarious", suggests, fixed = TRUE))
 })
 
 test_that("README adapter table is consistent with the live registry", {
@@ -133,41 +133,42 @@ test_that("README adapter table uses only canonical maturity labels", {
   expect_true(all(readme$maturity %in% multifer_maturity_levels()))
 })
 
-test_that("infer_pca default adapter resolves through the documented fall-back", {
+test_that("infer_pca default adapter is explicit and multivarious-backed", {
   ensure_default_adapters()
 
-  all_registered <- list_infer_adapters()
-  if ("multivarious_pca" %in% all_registered) {
-    # Preferred path: multivarious_pca wins.
-    set.seed(9001)
-    X <- matrix(rnorm(120), 30, 4)
-    res <- infer_pca(X, B = 29L, R = 4L, seed = 5L)
-    expect_true(res$provenance$adapter_id %in%
-                  c("multivarious_pca", "prcomp_oneblock", "svd_oneblock"))
-  }
-
-  # Fall-back path: clear the registry and only leave base-R
-  # adapters -- infer_pca must still work and must pick a base
-  # adapter.
-  clear_adapter_registry()
-  register_infer_adapter("prcomp_oneblock", adapter_prcomp(), overwrite = TRUE)
-  register_infer_adapter("svd_oneblock", adapter_svd(), overwrite = TRUE)
-  set.seed(9002)
+  set.seed(9001)
   X <- matrix(rnorm(120), 30, 4)
-  res <- infer_pca(X, B = 29L, R = 4L, seed = 6L)
-  expect_equal(res$provenance$adapter_id, "prcomp_oneblock")
+  res <- infer_pca(X, B = 29L, R = 4L, seed = 5L)
+  expect_equal(res$provenance$adapter_id, "multivarious_pca")
+
+  explicit <- infer_pca(
+    X,
+    adapter = "prcomp_oneblock",
+    B = 29L,
+    R = 4L,
+    seed = 6L
+  )
+  expect_equal(explicit$provenance$adapter_id, "prcomp_oneblock")
 })
 
-test_that("infer_plsc default adapter resolves through the documented fall-back", {
+test_that("infer_plsc default adapter is explicit and multivarious-backed", {
   ensure_default_adapters()
 
-  clear_adapter_registry()
-  register_infer_adapter("cross_svd", adapter_cross_svd(), overwrite = TRUE)
   set.seed(9003)
   X <- matrix(rnorm(200), 40, 5)
   Y <- matrix(rnorm(160), 40, 4)
   res <- infer_plsc(X, Y, B = 29L, R = 4L, seed = 7L)
-  expect_equal(res$provenance$adapter_id, "cross_svd")
+  expect_equal(res$provenance$adapter_id, "multivarious_plsc")
+
+  explicit <- infer_plsc(
+    X,
+    Y,
+    adapter = "cross_svd",
+    B = 29L,
+    R = 4L,
+    seed = 9L
+  )
+  expect_equal(explicit$provenance$adapter_id, "cross_svd")
 })
 
 test_that("infer_cca still defaults to cancor_cross", {

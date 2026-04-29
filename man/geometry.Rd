@@ -7,7 +7,8 @@
 geometry(kind, A = NULL, B = NULL, metric = NULL)
 }
 \arguments{
-\item{kind}{One of \code{"oneblock"}, \code{"cross"}, \code{"multiblock"}, \code{"geneig"}.}
+\item{kind}{One of \code{"oneblock"}, \code{"cross"}, \code{"multiblock"}, \code{"geneig"},
+or \code{"adapter"}.}
 
 \item{A}{Optional for \code{kind = "geneig"}: the left operator in the
 generalized eigenvalue problem \verb{A v = lambda B v}. When supplied,
@@ -38,5 +39,7 @@ independent of the experimental design.
 e.g. JIVE, AJIVE, multiblock projectors.
 \item \code{geneig} — generalized-eigen / contrastive / metric-weighted fits,
 e.g. cPCA++, discriminant analysis.
+\item \code{adapter} — opaque adapter-owned data geometry for methods whose data
+payload is not one of the built-in matrix/list shapes.
 }
 }

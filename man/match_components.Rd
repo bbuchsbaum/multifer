@@ -4,13 +4,30 @@
 \alias{match_components}
 \title{Match subspace components by maximum absolute inner product}
 \usage{
-match_components(Vref, Vb)
+match_components(
+  Vref,
+  Vb,
+  method = c("auto", "greedy", "hungarian"),
+  metric = c("abs_inner_product", "cosine"),
+  ambiguity_tol = 1e-08,
+  diagnostics = FALSE
+)
 }
 \arguments{
 \item{Vref}{Numeric matrix. Reference loading matrix, n x k.}
 
 \item{Vb}{Numeric matrix. Bootstrap/replicate loading matrix, n x k.
 Must have the same dimensions as \code{Vref}.}
+
+\item{method}{Character scalar. One of \code{"auto"}, \code{"greedy"}, or
+\code{"hungarian"}.}
+
+\item{metric}{Character scalar. Currently \code{"abs_inner_product"}.}
+
+\item{ambiguity_tol}{Numeric tolerance for declaring an ambiguous match.}
+
+\item{diagnostics}{Logical; when \code{TRUE}, attach matching diagnostics as
+attributes to the returned permutation.}
 }
 \value{
 An integer vector of length \code{ncol(Vref)} giving the
@@ -21,11 +38,10 @@ Finds an integer permutation \code{p} such that \code{Vb[, p]} is the
 best match to \code{Vref} in terms of summed absolute inner products.
 }
 \details{
-Implementation note: the Hungarian algorithm (optimal assignment) is not
-available in base R. This function uses a greedy fallback: for each column
-of \code{Vref} in order, the unused column of \code{Vb} with the largest
-absolute inner product is assigned. The greedy solution is suboptimal in
-pathological cases (e.g. two nearly equal scores) but is acceptable for
-v1 where components are assumed to be reasonably well separated. A future
-version may add optional Hungarian via \pkg{clue} or \pkg{RcppHungarian}.
+\code{method = "auto"} uses \pkg{clue}'s Hungarian implementation when
+installed. Without \pkg{clue}, it uses an exact exhaustive assignment for
+small component counts and falls back to the historical greedy matcher for
+larger problems. When \code{diagnostics = TRUE}, the return value carries
+\code{match_score}, \code{match_margin}, \code{ambiguous_match}, and
+\code{match_method} attributes.
 }
