@@ -205,8 +205,9 @@ common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
 within-block exchangeability, plus `blocked_rows(groups)`. The
 `multivarious_cca` adapter is available for explicit use and now has
 component-test parity pinned against `cancor_cross`, but it is still not the
-default because adapter-owned loadings, score stability, and regularized-fit
-semantics need their own maturity evidence.
+default because adapter-owned loading estimates, score estimates, score
+intervals, subspace stability, and regularized-fit semantics remain
+normalization-specific.
 
 ## Built-in adapters and maturity
 
@@ -251,8 +252,9 @@ For CCA specifically, `infer_cca()` still defaults to `cancor_cross`.
 The `multivarious_cca` adapter is available as an explicit alternate
 backend. Component-test parity with the shipped path is pinned in
 `tests/testthat/test-cca-parity.R`; the remaining default-backend question is
-about adapter-owned loadings, scores, stability summaries, and regularization
-defaults.
+about whether adapter-owned loadings, scores, stability summaries, and
+regularization defaults should be normalized to a common public contract or
+documented as backend-specific summaries.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data

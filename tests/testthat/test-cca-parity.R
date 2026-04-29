@@ -129,6 +129,30 @@ expect_rank_deficient_boundary <- function(adapter) {
   )
 }
 
+run_cca_stability_backend <- function(adapter, data, R = 8L, seed = 42L) {
+  infer(
+    adapter = adapter,
+    data = list(X = data$X, Y = data$Y),
+    geometry = "cross",
+    relation = "correlation",
+    design = paired_rows(),
+    B = 29L,
+    R = R,
+    seed = seed,
+    max_steps = 3L
+  )
+}
+
+merge_backend_stability_table <- function(ref, alt, keys, value) {
+  merged <- merge(
+    ref[, c(keys, value), drop = FALSE],
+    alt[, c(keys, value), drop = FALSE],
+    by = keys,
+    suffixes = c(".ref", ".alt")
+  )
+  merged
+}
+
 stress_fixtures_for_parity <- function() {
   fx <- cca_stress_fixtures()
   fx
@@ -250,4 +274,63 @@ test_that("CCA parity: rank-deficient data fail at the shared validity gate", {
   for (adapter in c("cancor_cross", "cross_svd", "multivarious_cca")) {
     expect_rank_deficient_boundary(adapter)
   }
+})
+
+test_that("CCA parity: multivarious_cca loading and score stability boundary is pinned", {
+  skip_if_not_installed("multivarious")
+  ensure_default_adapters()
+  dat <- make_exact_canonical_correlation_support(
+    n = 48,
+    canonical_corrs = c(0.92, 0.75, 0.40),
+    scale_x = c(4, 2, 1),
+    scale_y = c(3, 2, 1)
+  )
+
+  ref <- run_cca_stability_backend("cancor_cross", dat)
+  alt <- run_cca_stability_backend("multivarious_cca", dat)
+
+  expect_equal(
+    ref$variable_stability[, c("unit_id", "domain", "variable")],
+    alt$variable_stability[, c("unit_id", "domain", "variable")]
+  )
+  expect_equal(
+    ref$score_stability[, c("unit_id", "domain", "observation")],
+    alt$score_stability[, c("unit_id", "domain", "observation")]
+  )
+
+  expect_equal(
+    ref$variable_stability$stability,
+    alt$variable_stability$stability,
+    tolerance = 1e-3
+  )
+
+  var_merged <- merge_backend_stability_table(
+    ref$variable_stability,
+    alt$variable_stability,
+    keys = c("unit_id", "domain"),
+    value = "estimate"
+  )
+  score_merged <- merge_backend_stability_table(
+    ref$score_stability,
+    alt$score_stability,
+    keys = c("unit_id", "domain"),
+    value = "estimate"
+  )
+
+  expect_true(
+    max(abs(var_merged$estimate.ref - var_merged$estimate.alt)) > 1,
+    info = "loading estimates are scale-equivalent, not raw-equal"
+  )
+  expect_true(
+    max(abs(score_merged$estimate.ref - score_merged$estimate.alt)) > 1,
+    info = "score estimates are scale-equivalent, not raw-equal"
+  )
+  expect_false(
+    isTRUE(all.equal(
+      ref$subspace_stability$principal_angle_mean,
+      alt$subspace_stability$principal_angle_mean,
+      tolerance = 1e-8
+    )),
+    info = "subspace stability remains adapter-sensitive"
+  )
 })

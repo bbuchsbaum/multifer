@@ -64,7 +64,16 @@ The current evidence supports this statement:
 > `multivarious_cca` is scaffold-parity compatible with the mature CCA path for
 > component-significance inference on the shipped support matrix.
 
+The adapter-owned stability evidence is narrower. On a paired-row CCA fixture,
+`multivarious_cca` and `cancor_cross` produce the same stability table keys and
+closely matching variable-stability scores after sign alignment. They do not
+produce raw-equal loading estimates, score estimates, score intervals, or
+subspace principal-angle summaries. Those quantities are tied to each backend's
+normalization of canonical coefficients and scores, so they are currently
+adapter-specific outputs rather than cross-backend parity targets.
+
 It does not yet imply that `multivarious_cca` should become the default CCA
 wrapper backend or be relabeled as a mature adapter. Default-backend maturity
-still needs direct evidence around adapter-owned loadings, score stability,
-regularization defaults, and any future feature-evidence statistics.
+still needs a deliberate normalization contract for adapter-owned loadings,
+scores, score intervals, subspace stability, regularization defaults, and any
+future feature-evidence statistics.
