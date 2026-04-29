@@ -141,8 +141,11 @@ contract level, required for \verb{(cross, predictive, component_significance)}.
 responses on \code{new_data} using the first \code{k} components (or all
 available components when \code{k = NULL}).}
 
-\item{\code{variable_stat(x, data, domain, k)}}{Optional alternative
-to \code{loadings} for \code{variable_stability}.}
+\item{\code{variable_stat(x, data, domain, k)}}{Optional family-specific
+feature-importance statistic. Return a finite non-negative numeric
+vector, one value per variable in \code{domain}, for component or subspace
+member index \code{k}. This can back \code{variable_stability} and observed
+\code{feature_importance_from_fit(statistic = "adapter")}.}
 
 \item{\code{score_stat(x, data, domain, k)}}{Optional alternative to
 \code{scores} for \code{score_stability}.}

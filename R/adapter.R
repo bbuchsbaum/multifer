@@ -60,7 +60,8 @@
 #' - `component_stat(x, data, k, split = NULL)` -- per-component test statistic.
 #' - `predict_response(x, new_data, k = NULL)` -- fitted responses for
 #'   predictive cross-family adapters.
-#' - `variable_stat(x, data, domain, k)` -- variable-level statistic.
+#' - `variable_stat(x, data, domain, k)` -- non-negative variable-level
+#'   feature-importance statistic.
 #' - `score_stat(x, data, domain, k)` -- score-level statistic.
 #'
 #' @param component_execution Character scalar. Set to `"adapter"` to

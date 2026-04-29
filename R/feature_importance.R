@@ -147,6 +147,120 @@ feature_importance_from_bootstrap <- function(artifact,
   structure(out, class = c("multifer_feature_importance", "data.frame"))
 }
 
+#' Feature importance from an adapter fit
+#'
+#' Compute observed feature-level importance from a single fitted adapter.
+#' The default statistic is the same squared-loading statistic used by
+#' \code{\link{feature_importance_from_bootstrap}()}. Adapters can instead
+#' provide a family-specific \code{variable_stat()} hook and request
+#' \code{statistic = "adapter"}.
+#'
+#' @param fit Fitted adapter object.
+#' @param adapter A \code{multifer_adapter}.
+#' @param units A \code{multifer_units} table.
+#' @param data Original data passed to \code{adapter$variable_stat()} when
+#'   \code{statistic = "adapter"}. The loading-based statistic does not use
+#'   this argument.
+#' @param k Unit selection. One of \code{"selected"}, \code{"all"}, a
+#'   character vector of unit ids, or an integer vector of unit rows.
+#' @param weights One of \code{"equal"}, \code{"root"}, \code{"root2"},
+#'   or a numeric vector matching either all units or the selected units.
+#' @param roots Optional numeric vector of component roots used for
+#'   \code{"root"} and \code{"root2"} weights. If omitted and
+#'   \code{adapter$roots()} is available, roots are read from \code{fit}.
+#' @param normalize One of \code{"block"}, \code{"global"}, or
+#'   \code{"none"}.
+#' @param scope One of \code{"aggregate"}, \code{"unit"}, or \code{"both"}.
+#' @param statistic One of \code{"loadings"} or \code{"adapter"}.
+#'
+#' @return A \code{multifer_feature_importance} data frame.
+#' @export
+feature_importance_from_fit <- function(fit,
+                                        adapter,
+                                        units,
+                                        data = NULL,
+                                        k = c("selected", "all"),
+                                        weights = c("equal", "root", "root2"),
+                                        roots = NULL,
+                                        normalize = c("block", "global", "none"),
+                                        scope = c("aggregate", "unit", "both"),
+                                        statistic = c("loadings", "adapter")) {
+  if (!inherits(adapter, "multifer_adapter")) {
+    stop("`adapter` must be a multifer_adapter.", call. = FALSE)
+  }
+  if (!inherits(units, "multifer_units")) {
+    stop("`units` must be a multifer_units table.", call. = FALSE)
+  }
+
+  normalize <- match.arg(normalize)
+  scope <- match.arg(scope)
+  statistic <- match.arg(statistic)
+  unit_idx <- .fi_resolve_units(units, k)
+  if (length(unit_idx) == 0L) {
+    return(.fi_empty())
+  }
+
+  if (is.null(roots) && is.function(adapter$roots)) {
+    roots <- adapter$roots(fit)
+  }
+  alpha <- .fi_unit_weights(weights, units, unit_idx, roots)
+  domains <- .fi_fit_domains(adapter, fit, data)
+
+  if (identical(statistic, "loadings")) {
+    if (!is.function(adapter$loadings)) {
+      stop("`statistic = \"loadings\"` requires an adapter `loadings` hook.",
+           call. = FALSE)
+    }
+    loadings <- stats::setNames(
+      lapply(domains, function(d) adapter$loadings(fit, d)),
+      domains
+    )
+    template <- .fi_template(loadings, units, unit_idx, scope)
+    if (nrow(template) == 0L) {
+      return(.fi_empty())
+    }
+    values <- .fi_values(
+      loadings,
+      template = template,
+      units = units,
+      unit_idx = unit_idx,
+      alpha = alpha,
+      normalize = normalize
+    )
+    return(.fi_observed_output(
+      template = template,
+      values = values,
+      weights = weights,
+      normalize = normalize,
+      method = "fit_loadings"
+    ))
+  }
+
+  if (!is.function(adapter$variable_stat)) {
+    stop("`statistic = \"adapter\"` requires an adapter `variable_stat` hook.",
+         call. = FALSE)
+  }
+  statistics <- .fi_adapter_stat_matrices(adapter, fit, data, domains, units, unit_idx)
+  template <- .fi_template(statistics, units, unit_idx, scope)
+  if (nrow(template) == 0L) {
+    return(.fi_empty())
+  }
+  values <- .fi_stat_values(
+    statistics = statistics,
+    template = template,
+    unit_idx = unit_idx,
+    alpha = alpha,
+    normalize = normalize
+  )
+  .fi_observed_output(
+    template = template,
+    values = values,
+    weights = weights,
+    normalize = normalize,
+    method = "fit_adapter_variable_stat"
+  )
+}
+
 #' Null-calibrated p-values for feature importance
 #'
 #' Compute Monte Carlo p-values for unsigned aggregate feature importance
@@ -349,6 +463,98 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
     ), call. = FALSE)
   }
   invisible(adapter)
+}
+
+.fi_fit_domains <- function(adapter, fit, data) {
+  geom_kind <- "adapter"
+  shape_kinds <- adapter$shape_kinds
+  if (is.character(shape_kinds) && length(shape_kinds) > 0L) {
+    geom_kind <- shape_kinds[[1L]]
+  }
+  .adapter_domains(adapter, fit = fit, data = data, geom_kind = geom_kind)
+}
+
+.fi_observed_output <- function(template, values, weights, normalize, method) {
+  ranks <- .fi_ranks(values, template)
+  out <- data.frame(
+    scope = template$scope,
+    domain = template$domain,
+    variable = template$variable,
+    unit_id = template$unit_id,
+    estimate = as.numeric(values),
+    lower = NA_real_,
+    upper = NA_real_,
+    std_error = NA_real_,
+    stability = NA_real_,
+    rank_mean = as.numeric(ranks),
+    rank_lower = as.numeric(ranks),
+    rank_upper = as.numeric(ranks),
+    top_m_frequency = NA_real_,
+    weighting = .fi_weight_label(weights),
+    normalization = normalize,
+    method = method,
+    stringsAsFactors = FALSE
+  )
+  structure(out, class = c("multifer_feature_importance", "data.frame"))
+}
+
+.fi_adapter_stat_matrices <- function(adapter, fit, data, domains, units, unit_idx) {
+  members <- attr(units, "members")
+  stats::setNames(lapply(domains, function(d) {
+    q <- NULL
+    vars <- NULL
+    for (u in seq_along(unit_idx)) {
+      unit_row <- unit_idx[[u]]
+      k <- as.integer(members[[unit_row]])
+      if (length(k) == 0L) {
+        stop("Selected units must contain at least one component member.",
+             call. = FALSE)
+      }
+      stat <- adapter$variable_stat(fit, data, domain = d, k = k)
+      if (!is.numeric(stat) || is.matrix(stat) || length(stat) == 0L ||
+          any(!is.finite(stat)) || any(stat < 0)) {
+        stop(
+          "Adapter `variable_stat` must return a non-empty finite non-negative numeric vector.",
+          call. = FALSE
+        )
+      }
+      stat_vars <- names(stat)
+      if (is.null(stat_vars)) {
+        stat_vars <- as.character(seq_along(stat))
+      }
+      if (is.null(q)) {
+        vars <- stat_vars
+        q <- matrix(NA_real_, nrow = length(stat), ncol = length(unit_idx))
+        rownames(q) <- vars
+      } else if (length(stat) != nrow(q) || !identical(stat_vars, vars)) {
+        stop(
+          "Adapter `variable_stat` must return the same named variables for every selected unit within a domain.",
+          call. = FALSE
+        )
+      }
+      q[, u] <- as.numeric(stat)
+    }
+    q
+  }), domains)
+}
+
+.fi_stat_values <- function(statistics, template, unit_idx, alpha, normalize) {
+  out <- numeric(nrow(template))
+  for (d in names(statistics)) {
+    q <- statistics[[d]]
+    vars <- .fi_vars(q)
+    agg <- as.numeric(q %*% alpha / sum(alpha))
+    idx <- template$domain == d & template$scope == "aggregate"
+    out[idx] <- agg
+    idx_unit <- which(template$domain == d & template$scope == "unit")
+    if (length(idx_unit) > 0L) {
+      for (row in idx_unit) {
+        u <- match(template$unit_index[row], unit_idx)
+        out[row] <- q[template$variable[row] == vars, u]
+      }
+    }
+  }
+  .fi_normalize(out, template, normalize)
 }
 
 compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL) {

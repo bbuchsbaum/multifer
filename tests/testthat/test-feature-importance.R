@@ -234,6 +234,112 @@ test_that("feature importance handles empty selected set and validates weights",
   )
 })
 
+test_that("feature_importance_from_fit computes observed squared-loading importance", {
+  L <- matrix(c(1, 2, 3, 4), nrow = 2)
+  rownames(L) <- c("a", "b")
+  fit <- list(L = L)
+  adapter <- structure(
+    list(loadings = function(x, domain = NULL, ...) x$L),
+    class = "multifer_adapter"
+  )
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = TRUE
+  )
+
+  out <- feature_importance_from_fit(
+    fit = fit,
+    adapter = adapter,
+    units = units,
+    normalize = "none"
+  )
+
+  expect_s3_class(out, "multifer_feature_importance")
+  expect_equal(out$variable, c("a", "b"))
+  expect_equal(out$estimate, c(1, 4))
+  expect_equal(out$rank_mean, c(2, 1))
+  expect_equal(unique(out$method), "fit_loadings")
+})
+
+test_that("feature_importance_from_fit uses adapter variable_stat without squaring", {
+  calls <- new.env(parent = emptyenv())
+  calls$data <- NULL
+  adapter <- structure(
+    list(
+      variable_stat = function(x, data, domain, k, ...) {
+        calls$data <- data
+        if (identical(as.integer(k), 1L)) {
+          c(a = 2, b = 8)
+        } else {
+          c(a = 4, b = 2)
+        }
+      }
+    ),
+    class = "multifer_adapter"
+  )
+  units <- infer_units(
+    unit_id = c("u1", "u2"),
+    unit_type = c("component", "component"),
+    members = list(1L, 2L),
+    identifiable = c(TRUE, TRUE),
+    selected = c(TRUE, TRUE)
+  )
+  data <- matrix(0, 3, 2)
+
+  out <- feature_importance_from_fit(
+    fit = list(),
+    adapter = adapter,
+    data = data,
+    units = units,
+    weights = "root",
+    roots = c(3, 1),
+    normalize = "none",
+    scope = "both",
+    statistic = "adapter"
+  )
+
+  expect_identical(calls$data, data)
+  expect_equal(out$estimate[out$scope == "aggregate"], c(2.5, 6.5))
+  expect_equal(out$estimate[out$scope == "unit"], c(2, 8, 4, 2))
+  expect_equal(unique(out$method), "fit_adapter_variable_stat")
+})
+
+test_that("feature_importance_from_fit validates adapter variable statistics", {
+  adapter <- structure(
+    list(variable_stat = function(x, data, domain, k, ...) c(a = -1, b = 2)),
+    class = "multifer_adapter"
+  )
+  units <- infer_units(
+    unit_id = "u1",
+    unit_type = "component",
+    members = list(1L),
+    identifiable = TRUE,
+    selected = TRUE
+  )
+
+  expect_error(
+    feature_importance_from_fit(
+      fit = list(),
+      adapter = adapter,
+      units = units,
+      statistic = "adapter"
+    ),
+    "non-negative"
+  )
+  expect_error(
+    feature_importance_from_fit(
+      fit = list(),
+      adapter = structure(list(), class = "multifer_adapter"),
+      units = units,
+      statistic = "adapter"
+    ),
+    "variable_stat"
+  )
+})
+
 test_that("feature_importance_pvalues uses null_action without a bootstrap artifact", {
   clear_adapter_registry()
 

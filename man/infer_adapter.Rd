@@ -95,7 +95,8 @@ and scores using the named alignment signature.
 \item \code{component_stat(x, data, k, split = NULL)} -- per-component test statistic.
 \item \code{predict_response(x, new_data, k = NULL)} -- fitted responses for
 predictive cross-family adapters.
-\item \code{variable_stat(x, data, domain, k)} -- variable-level statistic.
+\item \code{variable_stat(x, data, domain, k)} -- non-negative variable-level
+feature-importance statistic.
 \item \code{score_stat(x, data, domain, k)} -- score-level statistic.
 }
 

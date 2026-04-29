@@ -145,8 +145,11 @@
 #'     responses on `new_data` using the first `k` components (or all
 #'     available components when `k = NULL`).}
 #'
-#'   \item{`variable_stat(x, data, domain, k)`}{Optional alternative
-#'     to `loadings` for `variable_stability`.}
+#'   \item{`variable_stat(x, data, domain, k)`}{Optional family-specific
+#'     feature-importance statistic. Return a finite non-negative numeric
+#'     vector, one value per variable in `domain`, for component or subspace
+#'     member index `k`. This can back `variable_stability` and observed
+#'     `feature_importance_from_fit(statistic = "adapter")`.}
 #'
 #'   \item{`score_stat(x, data, domain, k)`}{Optional alternative to
 #'     `scores` for `score_stability`.}
