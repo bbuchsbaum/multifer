@@ -1,5 +1,5 @@
-test_that("geometry accepts the three scalar valid kinds", {
-  for (kind in c("oneblock", "cross", "multiblock")) {
+test_that("geometry accepts the scalar valid kinds", {
+  for (kind in c("oneblock", "cross", "multiblock", "adapter")) {
     g <- geometry(kind)
     expect_true(is_geometry(g))
     expect_equal(g$kind, kind)

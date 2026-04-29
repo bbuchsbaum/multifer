@@ -534,6 +534,33 @@ test_that("geneig geometry defaults to exchangeable_rows and compiles", {
   expect_equal(r$shape$relation$kind, "generalized_eigen")
 })
 
+test_that("adapter-owned geometry compiles with exchangeable_rows default", {
+  a <- infer_adapter(
+    adapter_id = "opaque_recipe_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "score_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) list(fit = x),
+    project_scores = function(x, data, domain = NULL) matrix(0, 2, 1),
+    validity_level = "conditional"
+  )
+
+  rec <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    adapter = a,
+    targets = "score_stability"
+  )
+
+  expect_true(is_infer_recipe(rec))
+  expect_equal(rec$shape$geometry$kind, "adapter")
+  expect_equal(rec$shape$design$kind, "exchangeable_rows")
+})
+
 test_that("infer_recipe refuses geneig with any non-generalized_eigen relation", {
   clear_adapter_registry()
   register_infer_adapter("stub_geneig", .make_geneig_stub())

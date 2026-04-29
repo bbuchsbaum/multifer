@@ -20,8 +20,8 @@
 #'   the registry key.
 #' @param adapter_version Character scalar, e.g. `"0.0.1"`.
 #' @param shape_kinds Character vector.  Subset of
-#'   `c("oneblock", "cross", "multiblock", "geneig")`.  Declares which
-#'   geometry families this adapter handles.
+#'   `c("oneblock", "cross", "multiblock", "geneig", "adapter")`.
+#'   Declares which geometry families this adapter handles.
 #' @param capabilities A `multifer_capability_matrix` (see
 #'   [capability_matrix()]).  Every `(geometry, relation, target)` triple
 #'   this adapter claims to support.
@@ -111,7 +111,7 @@ infer_adapter <- function(adapter_id,
   }
 
   # -- shape_kinds ------------------------------------------------------------
-  valid_geom <- c("oneblock", "cross", "multiblock", "geneig")
+  valid_geom <- c("oneblock", "cross", "multiblock", "geneig", "adapter")
   if (!is.character(shape_kinds) || length(shape_kinds) == 0L) {
     stop("`shape_kinds` must be a non-empty character vector.", call. = FALSE)
   }

@@ -133,6 +133,8 @@ bootstrap_fits <- function(recipe,
 
   geom_kind <- recipe$shape$geometry$kind
   rel_kind  <- recipe$shape$relation$kind
+  has_custom_bootstrap <- !is.null(adapter$bootstrap_action)
+  has_project_scores <- !is.null(adapter$project_scores)
 
   if (geom_kind == "oneblock") {
     if (!is.matrix(data)) {
@@ -165,10 +167,20 @@ bootstrap_fits <- function(recipe,
     domains <- .adapter_domains(adapter, fit = original_fit, data = data,
                                 geom_kind = geom_kind)
     n       <- nrow(data[[1L]])
+  } else if (geom_kind == "adapter") {
+    if (!has_custom_bootstrap) {
+      stop(
+        "bootstrap_fits requires `adapter$bootstrap_action` for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
+    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
+                                geom_kind = geom_kind)
+    n       <- NA_integer_
   } else {
     stop(
       sprintf(
-        "bootstrap_fits only supports 'oneblock', 'cross', and 'multiblock' geometries. Got: '%s'.",
+        "bootstrap_fits only supports 'oneblock', 'cross', 'multiblock', and 'adapter' geometries. Got: '%s'.",
         geom_kind
       ),
       call. = FALSE
@@ -191,9 +203,6 @@ bootstrap_fits <- function(recipe,
   #   correlation : B^{-1/2}-whitened inner SVD (multifer-9u9.1.3).
   # Correlation-mode fast path requires the core to carry the full
   # block column rank; .truncate_core() leaves correlation cores alone.
-  has_custom_bootstrap <- !is.null(adapter$bootstrap_action)
-  has_project_scores <- !is.null(adapter$project_scores)
-
   has_fast_path <- fast_path == "auto" &&
                    !has_custom_bootstrap &&
                    !is.null(adapter$core) &&

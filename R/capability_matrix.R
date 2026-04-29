@@ -59,7 +59,7 @@ valid_capability_targets <- function() {
 capability_matrix <- function(...) {
   entries <- list(...)
 
-  valid_geom <- c("oneblock", "cross", "multiblock", "geneig")
+  valid_geom <- c("oneblock", "cross", "multiblock", "geneig", "adapter")
   valid_rel  <- c("variance", "covariance", "correlation",
                   "generalized_eigen", "predictive")
   valid_tgt  <- valid_capability_targets()

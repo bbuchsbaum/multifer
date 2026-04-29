@@ -77,6 +77,26 @@ test_that("valid PCA stub adapter constructs without error", {
   expect_equal(nrow(a$capabilities), 4L)
 })
 
+test_that("adapter-owned geometry is accepted", {
+  a <- infer_adapter(
+    adapter_id = "opaque_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 1),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) 1,
+    residualize = function(x, k, data) data,
+    validity_level = "conditional"
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_equal(a$shape_kinds, "adapter")
+})
+
 test_that("PCA stub adapter has all expected hook fields", {
   a <- .make_pca_adapter()
   for (hook in c("roots", "scores", "loadings", "truncate", "residualize",

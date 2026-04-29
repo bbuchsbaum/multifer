@@ -29,7 +29,8 @@
 #'   elements \code{X} and \code{Y}. For multiblock, a list of aligned
 #'   numeric matrix blocks. For geneig, a data payload accepted by the
 #'   adapter's operator constructor (currently the LDA wrapper uses a
-#'   list with \code{X} and \code{y}).
+#'   list with \code{X} and \code{y}). For adapter-owned geometry, any
+#'   payload accepted by the adapter hooks.
 #' @param ... Reserved for future use.
 #' @param recipe Optional pre-compiled
 #'   \code{multifer_infer_recipe}; if supplied, \code{geometry},
@@ -147,9 +148,48 @@ infer <- function(adapter,
 
   t_engine_start <- proc.time()[["elapsed"]]
 
+  needs_component <- "component_significance" %in% resolved_targets
   engine_original_fit <- NULL
 
-  if (geom_kind == "oneblock") {
+  if (!needs_component) {
+    engine_original_fit <- .infer_original_fit(
+      adapter_obj = adapter_obj,
+      data = data,
+      geom_kind = geom_kind,
+      rel_kind = rel_kind,
+      model = model
+    )
+    roots_observed <- adapter_obj$roots(engine_original_fit)
+    if (!is.numeric(roots_observed) || length(roots_observed) == 0L ||
+        any(!is.finite(roots_observed))) {
+      stop("`adapter$roots()` must return a non-empty finite numeric vector.",
+           call. = FALSE)
+    }
+    units <- form_units(
+      roots_observed,
+      selected = rep(FALSE, length(roots_observed)),
+      group_near_ties = isTRUE(auto_subspace),
+      tie_threshold = tie_threshold
+    )
+    engine_out <- list(
+      units = units,
+      component_tests = data.frame(),
+      roots_observed = roots_observed,
+      ladder_result = list(
+        step_results = list(),
+        rejected_through = 0L,
+        total_draws_used = 0L,
+        batch_schedule = integer(0L),
+        stopping_boundary = "not_run"
+      ),
+      labels = list(
+        statistic = NA_character_,
+        null = NA_character_,
+        estimand = "adapter latent roots"
+      ),
+      original_fit = engine_original_fit
+    )
+  } else if (geom_kind == "oneblock") {
     .validate_oneblock_data(data)
     if (identical(adapter_obj$component_engine, "adapter")) {
       engine_original_fit <- model %||% adapter_obj$refit(NULL, data)
@@ -228,8 +268,29 @@ infer <- function(adapter,
       tie_threshold = tie_threshold,
       original_fit = model
     )
+  } else if (geom_kind == "adapter") {
+    engine_original_fit <- .infer_original_fit(
+      adapter_obj = adapter_obj,
+      data = data,
+      geom_kind = geom_kind,
+      rel_kind = rel_kind,
+      model = model
+    )
+    engine_out <- run_adapter_ladder(
+      recipe = recipe,
+      adapter = adapter_obj,
+      data = data,
+      B = B,
+      B_total = B_total,
+      batch_size = mc_batch_size,
+      alpha = alpha,
+      seed = seed,
+      auto_subspace = auto_subspace,
+      tie_threshold = tie_threshold,
+      original_fit = engine_original_fit
+    )
   } else {
-    stop(sprintf("infer() supports only 'oneblock', 'cross', 'multiblock', and 'geneig'; got '%s'.",
+    stop(sprintf("infer() supports only 'oneblock', 'cross', 'multiblock', 'geneig', and 'adapter'; got '%s'.",
                  geom_kind), call. = FALSE)
   }
 
@@ -312,15 +373,13 @@ infer <- function(adapter,
     }
 
     if (is.null(model)) {
-      original_fit <- if (!is.null(engine_original_fit)) {
-        engine_original_fit
-      } else if (geom_kind == "oneblock") {
-        adapter_obj$refit(NULL, data)
-      } else if (geom_kind == "cross") {
-        adapter_obj$refit(NULL, list(X = data$X, Y = data$Y, relation = rel_kind))
-      } else {
-        adapter_obj$refit(NULL, data)
-      }
+      original_fit <- .infer_original_fit(
+        adapter_obj = adapter_obj,
+        data = data,
+        geom_kind = geom_kind,
+        rel_kind = rel_kind,
+        model = engine_original_fit
+      )
     } else {
       original_fit <- model
     }
@@ -440,4 +499,15 @@ infer <- function(adapter,
     cost               = cost_block,
     provenance         = provenance
   )
+}
+
+.infer_original_fit <- function(adapter_obj, data, geom_kind, rel_kind, model = NULL) {
+  if (!is.null(model)) {
+    return(model)
+  }
+  if (identical(geom_kind, "cross")) {
+    adapter_obj$refit(NULL, list(X = data$X, Y = data$Y, relation = rel_kind))
+  } else {
+    adapter_obj$refit(NULL, data)
+  }
 }

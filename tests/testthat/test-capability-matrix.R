@@ -63,6 +63,14 @@ test_that("capability_matrix accepts predictive for cross and rejects it elsewhe
     ),
     "cross-only in v1"
   )
+
+  expect_error(
+    capability_matrix(
+      list(geometry = "adapter", relation = "predictive",
+           targets = "component_significance")
+    ),
+    "cross-only in v1"
+  )
 })
 
 test_that("capability_matrix rejects malformed entries", {

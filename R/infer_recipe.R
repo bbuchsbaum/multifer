@@ -19,7 +19,7 @@
 #'   supplied, the individual `geometry`, `relation`, and `design`
 #'   arguments are ignored.
 #' @param geometry Character scalar -- one of `"oneblock"`, `"cross"`,
-#'   `"multiblock"`, `"geneig"`.  Used when `shape` is `NULL`.
+#'   `"multiblock"`, `"geneig"`, `"adapter"`.  Used when `shape` is `NULL`.
 #' @param relation Character scalar -- one of `"variance"`,
 #'   `"covariance"`, `"correlation"`, `"generalized_eigen"`,
 #'   `"predictive"`.  Used when `shape` is `NULL`.  May be `NULL` if the
@@ -93,7 +93,7 @@ infer_recipe <- function(shape    = NULL,
     if (!is.character(geometry) || length(geometry) != 1L || is.na(geometry)) {
       stop("`geometry` must be a single non-NA string.", call. = FALSE)
     }
-    valid_geom <- c("oneblock", "cross", "multiblock", "geneig")
+    valid_geom <- c("oneblock", "cross", "multiblock", "geneig", "adapter")
     if (!(geometry %in% valid_geom)) {
       stop(sprintf("`geometry` must be one of: %s.",
                    paste(valid_geom, collapse = ", ")),

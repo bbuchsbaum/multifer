@@ -5,7 +5,8 @@
 #' (variance / covariance / correlation / generalized eigenvalue) and
 #' independent of the experimental design.
 #'
-#' @param kind One of `"oneblock"`, `"cross"`, `"multiblock"`, `"geneig"`.
+#' @param kind One of `"oneblock"`, `"cross"`, `"multiblock"`, `"geneig"`,
+#'   or `"adapter"`.
 #' @param A Optional for `kind = "geneig"`: the left operator in the
 #'   generalized eigenvalue problem `A v = lambda B v`. When supplied,
 #'   must be a symmetric square matrix.
@@ -25,10 +26,12 @@
 #'   e.g. JIVE, AJIVE, multiblock projectors.
 #' - `geneig` — generalized-eigen / contrastive / metric-weighted fits,
 #'   e.g. cPCA++, discriminant analysis.
+#' - `adapter` — opaque adapter-owned data geometry for methods whose data
+#'   payload is not one of the built-in matrix/list shapes.
 #'
 #' @export
 geometry <- function(kind, A = NULL, B = NULL, metric = NULL) {
-  valid <- c("oneblock", "cross", "multiblock", "geneig")
+  valid <- c("oneblock", "cross", "multiblock", "geneig", "adapter")
   if (!is.character(kind) || length(kind) != 1L || is.na(kind)) {
     stop("`kind` must be a single non-NA character string.", call. = FALSE)
   }

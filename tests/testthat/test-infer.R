@@ -63,6 +63,97 @@ test_that("infer() can use an adapter-owned oneblock component ladder", {
   expect_match(res$mc$statistic_label, "adapter component_stat on oneblock data")
 })
 
+test_that("infer() supports stability-only adapter-owned geometry", {
+  payload <- list(
+    reference = matrix(seq_len(12), 4, 3),
+    blocks = list(a = matrix(seq_len(10), 5, 2)),
+    map = list(a = c(1L, 1L, 2L, 3L, 4L))
+  )
+  fit <- list(
+    values = c(4, 1),
+    loadings = matrix(c(1, 0, 0, 1), 2, 2)
+  )
+  calls <- new.env(parent = emptyenv())
+  calls$component_stat <- 0L
+  adapter <- infer_adapter(
+    adapter_id = "opaque_stability_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = c("score_stability", "subspace_stability"))
+    ),
+    roots = function(x) x$values,
+    domains = function(x, data = NULL) "block",
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) fit,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, resample_indices = replicate)
+    },
+    project_scores = function(x, data, domain = NULL) {
+      matrix(1, nrow = nrow(data$reference), ncol = ncol(x$loadings))
+    },
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) {
+      calls$component_stat <- calls$component_stat + 1L
+      1
+    },
+    residualize = function(x, k, data) data,
+    validity_level = "conditional"
+  )
+
+  res <- infer(
+    adapter = adapter,
+    data = payload,
+    geometry = "adapter",
+    relation = "variance",
+    targets = c("score_stability", "subspace_stability"),
+    B = 3L,
+    R = 2L,
+    seed = 4L
+  )
+
+  expect_true(is_infer_result(res))
+  expect_equal(nrow(res$component_tests), 0L)
+  expect_equal(calls$component_stat, 0L)
+  expect_equal(nrow(res$score_stability), nrow(res$units) * nrow(payload$reference))
+  expect_equal(nrow(res$subspace_stability), nrow(res$units))
+  expect_equal(res$provenance$capabilities,
+               "adapter/variance:score_stability+subspace_stability")
+})
+
+test_that("infer() supports component-significance adapter-owned geometry", {
+  payload <- list(reference = matrix(seq_len(12), 4, 3))
+  adapter <- infer_adapter(
+    adapter_id = "opaque_component_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 2),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) 0.75,
+    residualize = function(x, k, data) data,
+    validity_level = "conditional"
+  )
+
+  res <- infer(
+    adapter = adapter,
+    data = payload,
+    geometry = "adapter",
+    relation = "variance",
+    targets = "component_significance",
+    B = 3L,
+    R = 0L,
+    seed = 5L
+  )
+
+  expect_true(is_infer_result(res))
+  expect_equal(res$component_tests$statistic, 0.75)
+  expect_match(res$mc$statistic_label, "adapter component_stat on adapter data")
+})
+
 test_that("infer() cross end-to-end with explicit covariance", {
   ensure_default_adapters()
   set.seed(702)
