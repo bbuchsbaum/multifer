@@ -34,6 +34,12 @@ significance: variable, score, subspace, and feature-importance summaries are
 bootstrap reliability outputs, while component tests are permutation or Monte
 Carlo significance outputs.
 
+`check_infer_adapter()` provides a public adapter contract harness for
+downstream packages. It compiles declared capability rows, runs executable
+validity checks, and can smoke-run `infer()` target-by-target with small
+budgets so adapter authors can test that every advertised capability is
+actually executable.
+
 ## Executable registration gates
 
 Adapter registration and dispatch are guarded by executable checks rather than

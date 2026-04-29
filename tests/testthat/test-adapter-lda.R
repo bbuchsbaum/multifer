@@ -20,17 +20,14 @@ make_lda_null_fixture <- function(n_per_class = 24L, seed = 1L) {
   list(X = X, y = y)
 }
 
-test_that("adapter_lda_refit constructs and exposes the geneig capability quartet", {
+test_that("adapter_lda_refit constructs and exposes only shipped geneig significance", {
   skip_if_not_installed("MASS")
   a <- adapter_lda_refit()
 
   expect_true(is_infer_adapter(a))
   expect_equal(a$adapter_id, "lda_refit")
   expect_equal(a$shape_kinds, "geneig")
-  expect_true(all(
-    c("component_significance", "variable_stability",
-      "score_stability", "subspace_stability") %in% a$capabilities$target
-  ))
+  expect_equal(unique(a$capabilities$target), "component_significance")
   expect_true(isTRUE(attr(a$residualize, "b_metric")))
 })
 

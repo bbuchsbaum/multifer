@@ -392,24 +392,28 @@ optimization.
 
 ## Testing your adapter
 
-A minimum integration test calls [infer()] with your adapter and
-verifies the result object looks right:
+A minimum contract test calls [check_infer_adapter()] with your adapter
+and a small fixture. This is the same harness `multifer` uses while
+refactoring its own engine internals: it compiles every declared
+capability row, runs executable validity checks, and smoke-runs
+`infer()` for each checked target.
 
 ```{r test-stub, eval = FALSE}
-test_that("my_adapter runs end to end", {
+test_that("my_adapter satisfies its declared contract", {
   X <- matrix(rnorm(40 * 6), 40, 6)
-  res <- infer(
-    adapter  = adapter_minimal_svd(),
-    data     = X,
-    geometry = "oneblock",
-    relation = "variance",
+  report <- check_infer_adapter(
+    adapter_minimal_svd(),
+    fixture = X,
     B = 49L, R = 6L, seed = 1L
   )
-  expect_true(is_infer_result(res))
-  expect_true(nrow(res$component_tests) >= 1L)
-  expect_true(nrow(res$variable_stability) >= 1L)
+  expect_true(all(report$passed), info = paste(report$detail, collapse = "; "))
 })
 ```
+
+For CI, set `fail_on_error = TRUE` so a non-executable capability row
+fails the test immediately. If one adapter needs different data fixtures
+for different capability pairs, pass a named fixture list with entries
+such as `"oneblock"`, `"cross/correlation"`, or `"default"`.
 
 For correctness, compare your adapter's fast path to its `refit`
 path across a scenario grid (see `tests/testthat/test-core-update-*.R`

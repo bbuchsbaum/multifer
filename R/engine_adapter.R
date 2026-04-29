@@ -46,14 +46,19 @@ run_adapter_ladder <- function(recipe,
     stop("`validate_data` must be NULL or a function.", call. = FALSE)
   }
 
-  if (!is.null(validate_data)) {
-    validate_data(data)
-  }
+  plan <- compile_infer_plan(
+    recipe = recipe,
+    adapter = adapter,
+    validate_data = validate_data,
+    labels = labels
+  )
+
+  plan$validate_data(data)
 
   if (is.null(original_fit)) {
-    original_fit <- adapter$refit(NULL, data)
+    original_fit <- plan$fit(NULL, data)
   }
-  roots_observed <- adapter$roots(original_fit)
+  roots_observed <- plan$roots(original_fit)
   if (!is.numeric(roots_observed) || length(roots_observed) == 0L ||
       any(!is.finite(roots_observed))) {
     stop("`adapter$roots()` must return a non-empty finite numeric vector.",
@@ -65,7 +70,6 @@ run_adapter_ladder <- function(recipe,
   }
   max_steps <- as.integer(max(1L, max_steps))
 
-  rel_kind <- recipe$shape$relation$kind
   current_step <- NA_integer_
   current_fit <- NULL
   get_fit <- function(step, rung_data) {
@@ -73,7 +77,7 @@ run_adapter_ladder <- function(recipe,
       current_fit <<- if (identical(step, 1L)) {
         original_fit
       } else {
-        adapter$refit(original_fit, rung_data)
+        plan$fit(original_fit, rung_data)
       }
       current_step <<- as.integer(step)
     }
@@ -86,34 +90,20 @@ run_adapter_ladder <- function(recipe,
 
   observed_stat_fn <- function(step, rung_data) {
     fit <- get_fit(step, rung_data)
-    stat <- if (identical(rel_kind, "predictive")) {
-      adapter$component_stat(fit, rung_data, 1L, split = NULL)
-    } else {
-      adapter$component_stat(fit, rung_data, 1L)
-    }
-    .multifer_scalar_stat(stat)
+    .multifer_scalar_stat(plan$component_stat(fit, rung_data, 1L))
   }
 
   null_stat_fn <- function(step, rung_data) {
     fit <- get_fit(step, rung_data)
-    null_data <- adapter$null_action(fit, rung_data)
-    if (!is.null(validate_data)) {
-      validate_data(null_data)
-    }
-    stat <- if (identical(rel_kind, "predictive")) {
-      adapter$component_stat(fit, null_data, 1L, split = NULL)
-    } else {
-      adapter$component_stat(fit, null_data, 1L)
-    }
-    .multifer_scalar_stat(stat)
+    null_data <- plan$null_action(fit, rung_data)
+    plan$validate_data(null_data)
+    .multifer_scalar_stat(plan$component_stat(fit, null_data, 1L))
   }
 
   deflate_fn <- function(step, rung_data) {
     fit <- get_fit(step, rung_data)
-    out <- adapter$residualize(fit, 1L, rung_data)
-    if (!is.null(validate_data)) {
-      validate_data(out)
-    }
+    out <- plan$residualize(fit, 1L, rung_data)
+    plan$validate_data(out)
     reset_fit()
     out
   }
@@ -156,30 +146,12 @@ run_adapter_ladder <- function(recipe,
     stringsAsFactors = FALSE
   )
 
-  geom_kind <- recipe$shape$geometry$kind
-  default_statistic <- if (identical(rel_kind, "predictive")) {
-    sprintf("adapter predictive component_stat on %s data", geom_kind)
-  } else {
-    sprintf("adapter component_stat on %s data", geom_kind)
-  }
-  default_estimand <- if (identical(rel_kind, "predictive")) {
-    "adapter predictive gain"
-  } else {
-    "adapter latent roots"
-  }
-  labels <- labels %||% list()
   list(
     units           = units,
     component_tests = component_tests,
     roots_observed  = roots_observed,
     ladder_result   = ladder_result,
-    labels          = list(
-      statistic = labels$statistic %||%
-        default_statistic,
-      null      = labels$null %||%
-        sprintf("adapter null_action on %s data", geom_kind),
-      estimand  = labels$estimand %||% default_estimand
-    ),
+    labels          = plan$labels,
     original_fit = original_fit
   )
 }

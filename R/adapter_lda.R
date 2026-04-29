@@ -52,12 +52,7 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
       list(
         geometry = "geneig",
         relation = "generalized_eigen",
-        targets  = c(
-          "component_significance",
-          "variable_stability",
-          "score_stability",
-          "subspace_stability"
-        )
+        targets  = "component_significance"
       )
     ),
 
