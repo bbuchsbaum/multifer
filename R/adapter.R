@@ -47,10 +47,6 @@
 #' - `truncate(x, k)` -- truncated fit.
 #' - `residualize(x, k, data)` -- deflated residual after removing k components.
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
-#' - `component_engine` -- optional character scalar. Set to `"adapter"` to
-#'   route component-significance through adapter-owned `component_stat`,
-#'   `null_action`, and `residualize` hooks for geometries that otherwise have
-#'   a built-in reference engine.
 #' - `bootstrap_action(x, data, design, replicate)` -- optional adapter-owned
 #'   perturbation hook returning a replicate fit or replicate data.
 #' - `core(x, data)` -- optional fast-path core representation.
@@ -64,13 +60,20 @@
 #' - `variable_stat(x, data, domain, k)` -- variable-level statistic.
 #' - `score_stat(x, data, domain, k)` -- score-level statistic.
 #'
+#' @param component_execution Character scalar. Set to `"adapter"` to
+#'   route component-significance through adapter-owned `component_stat`,
+#'   `null_action`, and `residualize` hooks for geometries that otherwise have
+#'   a built-in reference engine.
+#' @param geneig_deflation Character scalar. For adapters claiming
+#'   `(geneig, generalized_eigen, component_significance)`, declare whether
+#'   the `residualize` hook performs `"b_metric"` deflation itself or
+#'   `"delegated"` deflation through the geneig engine.
+#'
 #' **Capability gate rules** (Part 5 section 36, point 1):
 #'
 #' - `component_significance` requires `null_action`, `component_stat`, AND
-#'   `residualize`. For `(geneig, generalized_eigen)`, the `residualize`
-#'   hook must explicitly declare B-metric deflation via
-#'   `attr(residualize, "b_metric") <- TRUE` or
-#'   `attr(residualize, "delegates_geneig_deflation") <- TRUE`. For
+#'   `residualize`. For `(geneig, generalized_eigen)`,
+#'   `geneig_deflation` must be `"b_metric"` or `"delegated"`. For
 #'   `(cross, predictive)`, the adapter must also provide `refit`,
 #'   `predict_response`, and a split-aware `component_stat(..., split = NULL)`.
 #'   For `(adapter, predictive)`, the adapter must provide `refit` and
@@ -99,7 +102,9 @@ infer_adapter <- function(adapter_id,
                           ...,
                           validity_level,
                           declared_assumptions = character(0),
-                          checked_assumptions = list()) {
+                          checked_assumptions = list(),
+                          component_execution = "default",
+                          geneig_deflation = "euclidean") {
 
   .has_formal_arg <- function(fn, arg) {
     is.function(fn) && arg %in% names(formals(fn))
@@ -157,8 +162,23 @@ infer_adapter <- function(adapter_id,
 
   # -- collect hooks ----------------------------------------------------------
   hooks_raw <- list(...)
+  valid_component_execution <- c("default", "adapter")
+  if (!is.character(component_execution) || length(component_execution) != 1L ||
+      is.na(component_execution) ||
+      !(component_execution %in% valid_component_execution)) {
+    stop("`component_execution` must be either \"default\" or \"adapter\".",
+         call. = FALSE)
+  }
+  valid_geneig_deflation <- c("euclidean", "b_metric", "delegated")
+  if (!is.character(geneig_deflation) || length(geneig_deflation) != 1L ||
+      is.na(geneig_deflation) ||
+      !(geneig_deflation %in% valid_geneig_deflation)) {
+    stop("`geneig_deflation` must be one of \"euclidean\", \"b_metric\", or \"delegated\".",
+         call. = FALSE)
+  }
+
   valid_hooks <- c("roots", "scores", "loadings", "domains", "project_scores",
-                   "truncate", "residualize", "refit", "component_engine",
+                   "truncate", "residualize", "refit",
                    "bootstrap_action", "core", "update_core", "align",
                    "null_action", "component_stat", "predict_response",
                    "variable_stat", "score_stat")
@@ -175,16 +195,6 @@ infer_adapter <- function(adapter_id,
     lapply(valid_hooks, function(h) hooks_raw[[h]]),
     valid_hooks
   )
-
-  if (!is.null(hooks[["component_engine"]])) {
-    if (!is.character(hooks[["component_engine"]]) ||
-        length(hooks[["component_engine"]]) != 1L ||
-        is.na(hooks[["component_engine"]]) ||
-        !(hooks[["component_engine"]] %in% c("default", "adapter"))) {
-      stop("`component_engine` must be either \"default\" or \"adapter\".",
-           call. = FALSE)
-    }
-  }
 
   # -- variable_significance excluded from v1 (Part 5 section 38) ------------
   if (any(capabilities$target == "variable_significance")) {
@@ -224,15 +234,12 @@ infer_adapter <- function(adapter_id,
       capabilities$target == "component_significance"
   )
   if (geneig_component_claim) {
-    residualize_hook <- hooks[["residualize"]]
-    has_b_metric_marker <- isTRUE(attr(residualize_hook, "b_metric")) ||
-      isTRUE(attr(residualize_hook, "delegates_geneig_deflation"))
-    if (!has_b_metric_marker) {
+    if (!(geneig_deflation %in% c("b_metric", "delegated"))) {
       stop(
         paste0(
           "Claiming (geneig, generalized_eigen, component_significance) requires ",
-          "a residualize hook marked with `b_metric = TRUE` or ",
-          "`delegates_geneig_deflation = TRUE`. ",
+          "`geneig_deflation = \"b_metric\"` or ",
+          "`geneig_deflation = \"delegated\"`. ",
           "B-metric deflation required - see notes/engine_geneig_spec.md."
         ),
         call. = FALSE
@@ -390,7 +397,9 @@ infer_adapter <- function(adapter_id,
         capabilities         = capabilities,
         validity_level       = validity_level,
         declared_assumptions = declared_assumptions,
-        checked_assumptions  = checked_assumptions
+        checked_assumptions  = checked_assumptions,
+        component_execution  = component_execution,
+        geneig_deflation     = geneig_deflation
       ),
       hooks
     ),

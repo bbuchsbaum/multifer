@@ -9,7 +9,7 @@
 #
 # Spec references:
 #   notes/engine_predictive_spec.md §5 -- predictive cross-fit gate
-#   notes/engine_geneig_spec.md §5     -- b_metric residualize gate
+#   notes/engine_geneig_spec.md §5     -- geneig_deflation gate
 #                                      -- SPD Cholesky gate
 
 make_predictive_caps <- function() {
@@ -95,9 +95,8 @@ test_that("predictive gate refuses a missing predict_response hook", {
   )
 })
 
-test_that("geneig gate refuses an adapter with a non-b_metric residualize", {
+test_that("geneig gate refuses an adapter without explicit B-metric deflation", {
   bad_residualize <- function(x, k, data) data
-  # deliberately do NOT set attr(bad_residualize, "b_metric") <- TRUE
 
   expect_error(
     infer_adapter(
@@ -112,7 +111,7 @@ test_that("geneig gate refuses an adapter with a non-b_metric residualize", {
       component_stat  = function(x, data, k) 1.0,
       validity_level  = "conditional"
     ),
-    regexp = "b_metric"
+    regexp = "geneig_deflation"
   )
 })
 
@@ -138,9 +137,8 @@ test_that("geneig gate refusal points at engine_geneig_spec.md", {
                fixed = TRUE)
 })
 
-test_that("geneig gate accepts a residualize with b_metric = TRUE", {
+test_that("geneig gate accepts explicit b_metric deflation", {
   good_residualize <- function(x, k, data) data
-  attr(good_residualize, "b_metric") <- TRUE
 
   a <- infer_adapter(
     adapter_id      = "good_geneig",
@@ -152,14 +150,14 @@ test_that("geneig gate accepts a residualize with b_metric = TRUE", {
     null_action     = function(x, data) data,
     residualize     = good_residualize,
     component_stat  = function(x, data, k) 1.0,
-    validity_level  = "conditional"
+    validity_level  = "conditional",
+    geneig_deflation = "b_metric"
   )
   expect_true(is_infer_adapter(a))
 })
 
-test_that("geneig gate accepts a residualize with delegates_geneig_deflation", {
+test_that("geneig gate accepts delegated geneig deflation", {
   delegating <- function(x, k, data) data
-  attr(delegating, "delegates_geneig_deflation") <- TRUE
 
   a <- infer_adapter(
     adapter_id      = "good_geneig_delegating",
@@ -171,7 +169,8 @@ test_that("geneig gate accepts a residualize with delegates_geneig_deflation", {
     null_action     = function(x, data) data,
     residualize     = delegating,
     component_stat  = function(x, data, k) 1.0,
-    validity_level  = "conditional"
+    validity_level  = "conditional",
+    geneig_deflation = "delegated"
   )
   expect_true(is_infer_adapter(a))
 })

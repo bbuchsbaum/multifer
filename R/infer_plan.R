@@ -173,7 +173,7 @@ is_infer_execution_plan <- function(x) inherits(x, "multifer_execution_plan")
   }
 
   if (identical(geom_kind, "oneblock")) {
-    if (identical(adapter$component_engine, "adapter")) {
+    if (identical(adapter$component_execution, "adapter")) {
       return(function(B,
                       B_total,
                       batch_size,

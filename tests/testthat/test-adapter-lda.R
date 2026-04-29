@@ -28,7 +28,7 @@ test_that("adapter_lda_refit constructs and exposes only shipped geneig signific
   expect_equal(a$adapter_id, "lda_refit")
   expect_equal(a$shape_kinds, "geneig")
   expect_equal(unique(a$capabilities$target), "component_significance")
-  expect_true(isTRUE(attr(a$residualize, "b_metric")))
+  expect_equal(a$geneig_deflation, "b_metric")
 })
 
 test_that("lda_refit null_action permutes labels rather than rows", {

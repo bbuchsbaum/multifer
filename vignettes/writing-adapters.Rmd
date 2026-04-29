@@ -212,14 +212,12 @@ are:
   `R/engine_geneig.R`, `R/linear_operator.R`, and
   `tests/testthat/test-engine-geneig.R`; the design rationale is in
   `notes/engine_geneig_spec.md`.
-- **Geneig residualize gate**: adapters claiming
-  `(geneig, generalized_eigen, component_significance)` must either mark
-  their `residualize` hook as B-metric aware with
-  `attr(residualize, "b_metric") <- TRUE` or declare that the geneig
-  engine owns deflation with
-  `attr(residualize, "delegates_geneig_deflation") <- TRUE`. The
-  registration check is in `R/adapter.R`, with the mathematical
-  contract in `notes/engine_geneig_spec.md`.
+- **Geneig deflation gate**: adapters claiming
+  `(geneig, generalized_eigen, component_significance)` must set
+  `geneig_deflation = "b_metric"` when their `residualize` hook performs
+  B-metric deflation, or `geneig_deflation = "delegated"` when the geneig
+  engine owns deflation. The registration check is in `R/adapter.R`, with
+  the mathematical contract in `notes/engine_geneig_spec.md`.
 
 ## The realistic wrapper pattern
 

@@ -12,7 +12,9 @@ infer_adapter(
   ...,
   validity_level,
   declared_assumptions = character(0),
-  checked_assumptions = list()
+  checked_assumptions = list(),
+  component_execution = "default",
+  geneig_deflation = "euclidean"
 )
 }
 \arguments{
@@ -39,6 +41,16 @@ this adapter claims to support.}
 \item{checked_assumptions}{Named list of runtime-testable assumption checks.
 Each element should be a list with fields \code{name} (character),
 \code{check} (function(x, data) returning logical), and \code{detail} (character).}
+
+\item{component_execution}{Character scalar. Set to \code{"adapter"} to
+route component-significance through adapter-owned \code{component_stat},
+\code{null_action}, and \code{residualize} hooks for geometries that otherwise
+have a built-in reference engine.}
+
+\item{geneig_deflation}{Character scalar. For adapters claiming
+\verb{(geneig, generalized_eigen, component_significance)}, declare whether
+the \code{residualize} hook performs \code{"b_metric"} deflation itself or
+\code{"delegated"} deflation through the geneig engine.}
 }
 \value{
 An object of class \code{multifer_adapter}.
@@ -74,7 +86,8 @@ original data through a bootstrap fit for score stability.
 perturbation hook returning a replicate fit or replicate data.
 \item \code{core(x, data)} -- optional fast-path core representation.
 \item \code{update_core(core_obj, ...)} -- optional fast-path core update.
-\item \code{align(xb, xref)} -- alignment (sign / legacy Procrustes / subspace).
+\item \code{align(...)} -- optional adapter-owned bootstrap alignment for loadings
+and scores using the named alignment signature.
 \item \code{null_action(x, data)} -- generate one null resample.
 \item \code{component_stat(x, data, k, split = NULL)} -- per-component test statistic.
 \item \code{predict_response(x, new_data, k = NULL)} -- fitted responses for
@@ -86,10 +99,8 @@ predictive cross-family adapters.
 \strong{Capability gate rules} (Part 5 section 36, point 1):
 \itemize{
 \item \code{component_significance} requires \code{null_action}, \code{component_stat}, AND
-\code{residualize}. For \verb{(geneig, generalized_eigen)}, the \code{residualize}
-hook must explicitly declare B-metric deflation via
-\code{attr(residualize, "b_metric") <- TRUE} or
-\code{attr(residualize, "delegates_geneig_deflation") <- TRUE}. For
+\code{residualize}. For \verb{(geneig, generalized_eigen)},
+\code{geneig_deflation} must be \code{"b_metric"} or \code{"delegated"}. For
 \verb{(cross, predictive)}, the adapter must also provide \code{refit},
 \code{predict_response}, and a split-aware \code{component_stat(..., split = NULL)}.
 \item \code{variable_stability} requires at least one of
@@ -110,4 +121,3 @@ The constructor enforces that every claimed capability is backed by the
 required hooks.  Claiming a capability without the hooks is a registration
 error that fires immediately, before any data is touched.
 }
-

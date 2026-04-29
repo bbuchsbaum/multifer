@@ -107,9 +107,12 @@ the same bootstrap). The engine prefers \code{update_core} over
 \code{refit} whenever both are present; this is how the
 exact-core-space bootstrap lands.}
 
-\item{\code{align(xb, xref)}}{Optional. Custom alignment between a
-bootstrap fit and the reference fit. Default is sign-flip
-alignment on matched loadings.}
+\item{\code{align(...)}}{Optional. Custom bootstrap alignment between a
+replicate fit and the reference fit. New adapters should accept named
+arguments \code{reference_loadings}, \code{replicate_loadings},
+\code{replicate_scores}, \code{reference_fit}, \code{replicate_fit},
+\code{domain}, and \code{method}, and return a list with \code{loadings}
+and optionally \code{scores}.}
 
 \item{\code{null_action(x, data)}}{Required by
 \code{component_significance}. Return one null resample of \code{data}
@@ -173,12 +176,12 @@ cannot back up its claims.
 
 Geneig adapters carry one extra registration-time rule. If an
 adapter claims \verb{(geneig, generalized_eigen, component_significance)},
-its \code{residualize} hook must explicitly declare that it performs
-B-metric deflation by carrying \code{attr(residualize, "b_metric") <- TRUE},
-or must declare \code{attr(residualize, "delegates_geneig_deflation") <- TRUE}
-to signal that \code{run_geneig_ladder()} owns the deflation. Euclidean
-residualization is not admissible for the geneig family; the gate
-fails immediately with a pointer to \code{notes/engine_geneig_spec.md}.
+its constructor must set \code{geneig_deflation = "b_metric"} when the
+\code{residualize} hook performs B-metric deflation itself, or
+\code{geneig_deflation = "delegated"} when \code{run_geneig_ladder()} owns
+the deflation. Euclidean residualization is not admissible for the geneig
+family; the gate fails immediately with a pointer to
+\code{notes/engine_geneig_spec.md}.
 }
 
 \section{Executable validity contracts}{

@@ -110,7 +110,6 @@ clear_adapter_registry()
 
 .make_geneig_stub <- function(id = "stub_geneig") {
   residualize_geneig <- function(x, k, data) data
-  attr(residualize_geneig, "b_metric") <- TRUE
 
   infer_adapter(
     adapter_id      = id,
@@ -124,7 +123,8 @@ clear_adapter_registry()
     component_stat = function(x, data, k) 1.0,
     residualize    = residualize_geneig,
     refit          = function(x, new_data) x,
-    validity_level = "conditional"
+    validity_level = "conditional",
+    geneig_deflation = "b_metric"
   )
 }
 

@@ -61,7 +61,6 @@ make_exact_geneig_fixture <- function(lambda, B_metric, seed = 1L) {
 
 make_geneig_zero_null_adapter <- function(id = "stub_geneig_zero_null") {
   residualize_geneig <- function(x, k, data) data
-  attr(residualize_geneig, "b_metric") <- TRUE
 
   infer_adapter(
     adapter_id      = id,
@@ -85,7 +84,8 @@ make_geneig_zero_null_adapter <- function(id = "stub_geneig_zero_null") {
     component_stat = function(x, data, k) 1,
     residualize    = residualize_geneig,
     refit          = function(x, new_data) x,
-    validity_level = "exact"
+    validity_level = "exact",
+    geneig_deflation = "b_metric"
   )
 }
 
@@ -107,7 +107,6 @@ euclidean_deflate_geneig_state <- function(data) {
 
 make_geneig_oneblock_bridge_adapter <- function(id = "stub_geneig_oneblock_bridge") {
   residualize_geneig <- function(x, k, data) data
-  attr(residualize_geneig, "b_metric") <- TRUE
 
   infer_adapter(
     adapter_id      = id,
@@ -133,7 +132,8 @@ make_geneig_oneblock_bridge_adapter <- function(id = "stub_geneig_oneblock_bridg
     component_stat = function(x, data, k) 1,
     residualize    = residualize_geneig,
     refit          = function(x, new_data) x,
-    validity_level = "exact"
+    validity_level = "exact",
+    geneig_deflation = "b_metric"
   )
 }
 

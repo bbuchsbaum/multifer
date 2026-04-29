@@ -47,8 +47,10 @@ stub_hook_variable_stat <- function(x, data, domain, k, ...) 0
 # Returns scalar 0 as a placeholder score-level statistic.
 stub_hook_score_stat <- function(x, data, domain, k, ...) 0
 
-# Returns xb unchanged (alignment no-op).
-stub_hook_align <- function(xb, xref, ...) xb
+# Returns replicate loadings unchanged (alignment no-op).
+stub_hook_align <- function(reference_loadings, replicate_loadings, ...) {
+  replicate_loadings
+}
 
 # ---------------------------------------------------------------------------
 # Factory: oneblock stub adapter (PCA-like)

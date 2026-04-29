@@ -41,9 +41,9 @@ test_that("infer() can use an adapter-owned oneblock component ladder", {
       0.5
     },
     residualize = function(x, k, data) data * 0,
-    component_engine = "adapter",
     validity_level = "conditional",
-    checked_assumptions = .oneblock_baser_checks()
+    checked_assumptions = .oneblock_baser_checks(),
+    component_execution = "adapter"
   )
 
   res <- infer(

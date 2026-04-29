@@ -32,7 +32,9 @@ clear_adapter_registry()
     truncate       = function(x, k) x,
     residualize    = function(x, k, data) data,
     refit          = function(x, new_data) x,
-    align          = function(xb, xref) xb,
+    align          = function(reference_loadings,
+                              replicate_loadings,
+                              ...) replicate_loadings,
     null_action    = function(x, data) data,
     component_stat = function(x, data, k) 1.0,
     variable_stat  = function(x, data, domain, k) rep(1.0, 3L),
@@ -41,16 +43,7 @@ clear_adapter_registry()
   )
 }
 
-.make_geneig_residualize <- function(mode = c("b_metric", "euclidean", "delegate")) {
-  mode <- match.arg(mode)
-  fn <- function(x, k, data) data
-  if (mode == "b_metric") {
-    attr(fn, "b_metric") <- TRUE
-  } else if (mode == "delegate") {
-    attr(fn, "delegates_geneig_deflation") <- TRUE
-  }
-  fn
-}
+.make_geneig_residualize <- function() function(x, k, data) data
 
 .predictive_caps <- function() {
   capability_matrix(
@@ -174,9 +167,9 @@ test_that("optional perturbation/projection hooks are accepted", {
   expect_true(is.function(a$project_scores))
 })
 
-test_that("adapter-owned component engine flag is accepted", {
+test_that("adapter-owned component execution field is accepted", {
   a <- infer_adapter(
-    adapter_id      = "adapter_component_engine",
+    adapter_id      = "adapter_component_execution",
     adapter_version = "0.0.1",
     shape_kinds     = "oneblock",
     capabilities    = capability_matrix(
@@ -188,18 +181,18 @@ test_that("adapter-owned component engine flag is accepted", {
     null_action = function(x, data) data,
     component_stat = function(x, data, k) 1,
     residualize = function(x, k, data) data,
-    component_engine = "adapter",
-    validity_level = "conditional"
+    validity_level = "conditional",
+    component_execution = "adapter"
   )
 
   expect_true(is_infer_adapter(a))
-  expect_equal(a$component_engine, "adapter")
+  expect_equal(a$component_execution, "adapter")
 })
 
-test_that("invalid component engine flag errors", {
+test_that("invalid component execution field errors", {
   expect_error(
     infer_adapter(
-      adapter_id      = "bad_component_engine",
+      adapter_id      = "bad_component_execution",
       adapter_version = "0.0.1",
       shape_kinds     = "oneblock",
       capabilities    = capability_matrix(
@@ -211,10 +204,10 @@ test_that("invalid component engine flag errors", {
       null_action = function(x, data) data,
       component_stat = function(x, data, k) 1,
       residualize = function(x, k, data) data,
-      component_engine = "custom",
-      validity_level = "conditional"
+      validity_level = "conditional",
+      component_execution = "custom"
     ),
-    "component_engine"
+    "component_execution"
   )
 })
 
@@ -317,7 +310,7 @@ test_that("geneig component_significance refuses unmarked Euclidean residualize 
       ),
       null_action    = function(x, data) data,
       component_stat = function(x, data, k) 1,
-      residualize    = .make_geneig_residualize("euclidean"),
+      residualize    = .make_geneig_residualize(),
       refit          = function(x, new_data) x,
       validity_level = "conditional"
     ),
@@ -339,9 +332,10 @@ test_that("geneig component_significance accepts a marked B-metric residualize h
       ),
       null_action    = function(x, data) data,
       component_stat = function(x, data, k) 1,
-      residualize    = .make_geneig_residualize("b_metric"),
+      residualize    = .make_geneig_residualize(),
       refit          = function(x, new_data) x,
-      validity_level = "conditional"
+      validity_level = "conditional",
+      geneig_deflation = "b_metric"
     )
   )
 })
@@ -360,9 +354,10 @@ test_that("geneig component_significance accepts delegation to engine deflation"
       ),
       null_action    = function(x, data) data,
       component_stat = function(x, data, k) 1,
-      residualize    = .make_geneig_residualize("delegate"),
+      residualize    = .make_geneig_residualize(),
       refit          = function(x, new_data) x,
-      validity_level = "conditional"
+      validity_level = "conditional",
+      geneig_deflation = "delegated"
     )
   )
 })

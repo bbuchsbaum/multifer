@@ -572,25 +572,16 @@ compile_bootstrap_plan <- function(recipe,
                                 store_scores,
                                 domain,
                                 method_align) {
-  fml <- names(formals(align))
-  has_dots <- "..." %in% fml
-  if (has_dots || any(c("reference_loadings", "replicate_loadings") %in% fml)) {
-    return(align(
-      reference_loadings = reference_loadings,
-      replicate_loadings = replicate_loadings,
-      replicate_scores = replicate_scores,
-      reference_fit = reference_fit,
-      replicate_fit = replicate_fit,
-      store_scores = store_scores,
-      domain = domain,
-      method = method_align
-    ))
-  }
-
-  if (all(c("xb", "xref") %in% fml)) {
-    return(align(xb = replicate_loadings, xref = reference_loadings))
-  }
-  align(replicate_loadings, reference_loadings)
+  align(
+    reference_loadings = reference_loadings,
+    replicate_loadings = replicate_loadings,
+    replicate_scores = replicate_scores,
+    reference_fit = reference_fit,
+    replicate_fit = replicate_fit,
+    store_scores = store_scores,
+    domain = domain,
+    method = method_align
+  )
 }
 
 .normalize_adapter_alignment <- function(out, store_scores) {

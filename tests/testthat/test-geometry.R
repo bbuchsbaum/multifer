@@ -165,7 +165,6 @@ test_that("typed_shape(geneig, generalized_eigen, exchangeable_rows) composes", 
 
 test_that("infer_recipe accepts a mock geneig adapter and refuses other relations", {
   residualize_geneig <- function(x, k, data, ...) data
-  attr(residualize_geneig, "b_metric") <- TRUE
 
   mock <- infer_adapter(
     adapter_id = "mock_geneig_093_2",
@@ -181,7 +180,8 @@ test_that("infer_recipe accepts a mock geneig adapter and refuses other relation
     residualize = residualize_geneig,
     validity_level = "conditional",
     declared_assumptions = character(0),
-    checked_assumptions = list()
+    checked_assumptions = list(),
+    geneig_deflation = "b_metric"
   )
 
   rec <- infer_recipe(

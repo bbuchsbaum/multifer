@@ -165,15 +165,14 @@ errors if any other relation is requested.
 **Gate rule (`multifer-093.4`):** an adapter declaring
 `(geneig, generalized_eigen, component_significance)` must either:
 
-- provide a `residualize` hook annotated `b_metric = TRUE` via a new
-  attribute on the function, **or**
-- declare `residualize = NULL` and delegate to the engine's own
-  B-metric deflation (the common case for refit-only adapters).
+- set `geneig_deflation = "b_metric"` when its `residualize` hook owns
+  B-metric deflation, **or**
+- set `geneig_deflation = "delegated"` when the engine's own B-metric
+  deflation owns the step.
 
-The gate refuses any adapter whose `residualize` is present, not
-annotated `b_metric`, **and** claims `(geneig, generalized_eigen,
-component_significance)`. The error message points at this spec note
-by filename.
+The gate refuses any adapter claiming `(geneig, generalized_eigen,
+component_significance)` without one of those explicit declarations. The
+error message points at this spec note by filename.
 
 This is a registration-time check, not a runtime check. The point is
 to make it structurally impossible for a downstream package to

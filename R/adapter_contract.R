@@ -77,13 +77,11 @@
 #'     to [infer()] (matrix for oneblock, list with `X` and `Y` for
 #'     cross). Return shape: the same class as `x`.}
 #'
-#'   \item{`component_engine`}{Optional character scalar. Set to `"adapter"`
-#'     to route component-significance through adapter-owned `component_stat`,
-#'     `null_action`, and `residualize` hooks for a geometry that otherwise has
-#'     a built-in reference engine. This is for methods whose latent-root
-#'     statistic, null, or deflation lives in an adapter-defined geometry such
-#'     as a weighted, kernel, smoothed, sparse, or otherwise non-Euclidean
-#'     space. The default is `"default"`.}
+#'   \item{`component_execution`}{Constructor field, not a hook. Set to
+#'     `"adapter"` to route component-significance through adapter-owned
+#'     `component_stat`, `null_action`, and `residualize` callbacks for a
+#'     geometry that otherwise has a built-in reference engine. The default
+#'     is `"default"`.}
 #'
 #'   \item{`bootstrap_action(x, data, design, replicate = NULL)`}{Optional.
 #'     Adapter-owned perturbation hook for stability targets. Return a list
@@ -182,12 +180,12 @@
 #'
 #' Geneig adapters carry one extra registration-time rule. If an
 #' adapter claims `(geneig, generalized_eigen, component_significance)`,
-#' its `residualize` hook must explicitly declare that it performs
-#' B-metric deflation by carrying `attr(residualize, "b_metric") <- TRUE`,
-#' or must declare `attr(residualize, "delegates_geneig_deflation") <- TRUE`
-#' to signal that `run_geneig_ladder()` owns the deflation. Euclidean
-#' residualization is not admissible for the geneig family; the gate
-#' fails immediately with a pointer to `notes/engine_geneig_spec.md`.
+#' its constructor must set `geneig_deflation = "b_metric"` when the
+#' `residualize` hook performs B-metric deflation itself, or
+#' `geneig_deflation = "delegated"` when `run_geneig_ladder()` owns the
+#' deflation. Euclidean residualization is not admissible for the geneig
+#' family; the gate fails immediately with a pointer to
+#' `notes/engine_geneig_spec.md`.
 #'
 #' @section Executable validity contracts:
 #'

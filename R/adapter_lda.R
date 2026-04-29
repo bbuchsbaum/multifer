@@ -42,7 +42,6 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
     }
     list(A = out$A, B = out$B, metric = out$metric, state = out$state)
   }
-  attr(residualize_geneig, "b_metric") <- TRUE
 
   infer_adapter(
     adapter_id      = adapter_id,
@@ -109,7 +108,8 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
 
     validity_level       = "conditional",
     declared_assumptions = c("labels_exchangeable"),
-    checked_assumptions  = .lda_checks()
+    checked_assumptions  = .lda_checks(),
+    geneig_deflation     = "b_metric"
   )
 }
 
