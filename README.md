@@ -14,15 +14,18 @@ design-matched null actions, rank-matched residual randomization, and
 variable / score / subspace stability summaries in a shared result
 schema.
 
-Current support is grouped into three maturity levels:
+Current support has three public maturity levels, plus an adapter-ready
+extension surface:
 
 - **mature**: PCA-family one-block variance inference, PLSC-family
   two-block covariance inference, and the shipped CCA path on supported
   paired and nuisance-adjusted designs,
 - **narrow**: `infer_lda()` for generalized-eigen discriminant models and
   `infer_plsr()` for predictive-gain models,
-- **planned**: multiblock inference and broader generalized-eigen /
-  predictive-cross families.
+- **adapter-ready**: multiblock inference through the generic
+  adapter-driven ladder; no bundled multiblock method wrapper is shipped yet,
+- **planned**: bundled multiblock method families, broader generalized-eigen
+  families beyond LDA, and broader predictive-cross families beyond PLSR.
 
 At its core, `multifer` is built around three ideas:
 
@@ -75,8 +78,9 @@ Current limitations are deliberate:
 - bootstrap stability defaults to sign alignment; Procrustes alignment is
   retained only for backward compatibility and is not an endorsed inferential
   target,
-- `multiblock` is part of the architecture but not yet shipped as a complete
-  inference engine,
+- `multiblock` has an adapter-driven inference engine, bootstrap resampling,
+  and result assembly, but no bundled public method wrapper such as
+  `infer_multiblock()` yet,
 - variable significance is deferred; current variable-level output is stability,
   not p-values.
 
@@ -226,8 +230,9 @@ meaning each:
   discriminant-root significance for `(geneig, generalized_eigen)`,
   and `plsr_refit` exposes only held-out predictive gain for
   `(cross, predictive)`.
-- **planned**: architecturally allocated but not shipped in v1 —
-  currently `multiblock`.
+- **planned**: architecturally allocated but not shipped in v1 as a public
+  method family — currently bundled multiblock adapters / wrappers beyond the
+  downstream adapter path.
 
 Call `list_infer_adapters(details = TRUE)` to read the same table
 directly from the registry; the drift-guard test asserts it stays in
@@ -337,7 +342,7 @@ Deferred or later-phase work:
 
 - richer structured / hierarchical valid multi-root CCA
 - broader `geneig` families beyond LDA
-- `multiblock` engine
+- bundled multiblock method adapters / wrappers
 - variable significance
 - vignettes, package website, and broader user-facing docs
 
