@@ -1,54 +1,36 @@
 # multifer
 
-**A typed perturbation inference platform for latent multivariate models, with mature support for one-block variance and two-block latent-root families, narrower but shipped surfaces for generalized-eigen and predictive-gain inference, and an extensible adapter / typed-shape architecture that brings new ordered-latent families into the same shared scaffold without modifying it.**
+**Inference for fitted multivariate latent-variable models.**
 
-`multifer` is not a fitting framework: you fit your model with
-[multivarious](https://github.com/bbuchsbaum/multivarious) (or any
-compatible package that provides the required accessors via a thin
-adapter) and `multifer` provides the inference layer on top — the exact
-collapsed Vitale P3 ladder under sequential deflation, rank-matched
-residual randomization, the paired-bootstrap stability consumers
-(variable / score / subspace), and the unit-centered result schema.
+`multifer` adds component tests and bootstrap stability summaries to
+models you have already fit. The usual path is to fit with
+[multivarious](https://github.com/bbuchsbaum/multivarious) and pass the
+projector to `multifer`; other fitted-model classes can be used through a
+thin adapter.
 
-The package uses exactly three maturity labels — **mature**, **narrow**,
-**planned** — and uses them identically in its adapter table, its
-wrapper documentation, and its registry output. Today the **mature**
-tier covers PCA-family one-block variance inference, covariance-mode
-two-block methods (PLSC-family), and the shipped CCA path on its
-supported paired and nuisance-adjusted designs. The **narrow** public
-surfaces add the
-[generalized-eigen engine](vignettes/lda-inference.Rmd) through
-`infer_lda()` and the [predictive relation](vignettes/plsr-inference.Rmd)
-through `infer_plsr()`. `multiblock` remains **planned** rather than
-shipped.
+The package focuses on ordered latent structures such as PCA, PLSC, CCA,
+LDA, and PLSR. It provides the inference layer: sequential deflation,
+design-matched null actions, rank-matched residual randomization, and
+variable / score / subspace stability summaries in a shared result
+schema.
 
-The package is **extensible by design**. A new inferential family is
-added by writing an `infer_adapter()` that implements the accessor
-contract over a fitted model: how to read its loadings, its scores,
-its latent roots, and how to refit it on a perturbed data matrix.
-The ladder driver, the null-action machinery, the bootstrap loop, and
-the stability consumers all apply uniformly to whatever fitted-model
-class an adapter declares. The goal is to stay extensible
-*within* the ordered-latent-root paradigm without pretending every
-multivariate method reduces to the same root test. Methods whose
-inferential target is not an association root (for example supervised
-stagewise predictive methods) belong to a different inferential family
-with their own validity story.
+Current support is grouped into three maturity levels:
 
-The base-R reference adapters (`svd_oneblock`, `prcomp_oneblock`,
-`cross_svd`, `cancor_cross`) are kept as working examples of the
-adapter contract — a concrete place to point to when explaining
-"here is what it takes to plug a fitted-model class into `multifer`."
-They are not the recommended fitting path: the recommended path is
-to fit with `multivarious` and pass the projector via `model = `.
+- **mature**: PCA-family one-block variance inference, PLSC-family
+  two-block covariance inference, and the shipped CCA path on supported
+  paired and nuisance-adjusted designs,
+- **narrow**: `infer_lda()` for generalized-eigen discriminant models and
+  `infer_plsr()` for predictive-gain models,
+- **planned**: multiblock inference and broader generalized-eigen /
+  predictive-cross families.
 
-The package is built around three ideas:
+At its core, `multifer` is built around three ideas:
 
 - sequential deflation rather than one-shot testing,
 - explicit null actions matched to the inferential target,
 - strict validity contracts rather than silent guessing.
 
-The package is unified at the level of its inferential scaffold:
+The shared scaffold is:
 
 - ordered latent objects,
 - sequential removal of previously claimed structure,
@@ -58,9 +40,9 @@ The package is unified at the level of its inferential scaffold:
 
 Direct latent-root methods such as PCA, PLSC, and CCA fit that scaffold
 directly today. Additional ordered-latent-root families can be brought
-into the same scaffold through new `infer_adapter()` objects without
-modifying the engine — that is what it means for `multifer` to be a
-platform rather than a fixed set of methods.
+into the same scaffold through new `infer_adapter()` objects: an adapter
+declares how to read loadings, scores, latent roots, and how to refit a
+compatible model on perturbed data.
 
 The default execution path is exact. Approximate screening hooks are opt-in only
 and are not part of the paper-faithful core.
