@@ -43,6 +43,9 @@ contrasts.
 The estimand is the number of discriminant roots that rise above
 noise. The ladder is therefore naturally short: with \code{K} classes,
 there are at most \code{K - 1} non-zero discriminant roots to test.
+The MASS-backed v1 adapter also requires full within-class column
+rank before fitting; p > n - K and collinear within-class designs are
+rejected as validity failures rather than stabilized silently.
 
 For the current engine doctrine and the B-metric deflation rule, see
 \code{notes/engine_geneig_spec.md}.

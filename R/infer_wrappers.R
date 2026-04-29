@@ -212,6 +212,9 @@ infer_cca <- function(X,
 #' The estimand is the number of discriminant roots that rise above
 #' noise. The ladder is therefore naturally short: with `K` classes,
 #' there are at most `K - 1` non-zero discriminant roots to test.
+#' The MASS-backed v1 adapter also requires full within-class column
+#' rank before fitting; p > n - K and collinear within-class designs are
+#' rejected as validity failures rather than stabilized silently.
 #'
 #' For the current engine doctrine and the B-metric deflation rule, see
 #' `notes/engine_geneig_spec.md`.

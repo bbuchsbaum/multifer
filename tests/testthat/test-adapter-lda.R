@@ -61,6 +61,38 @@ test_that("lda_refit component_stat returns the generalized-root tail ratio", {
   expect_equal(a$component_stat(fit, dat, 2L), expected_2, tolerance = 1e-12)
 })
 
+test_that("lda_refit fails early for unsupported within-class rank regimes", {
+  skip_if_not_installed("MASS")
+  a <- adapter_lda_refit()
+  y <- factor(rep(c("a", "b", "c"), each = 4L))
+
+  set.seed(31L)
+  high_dimensional <- list(
+    X = matrix(stats::rnorm(length(y) * 20L), nrow = length(y)),
+    y = y
+  )
+  high_dim_checks <- run_adapter_checks(a, high_dimensional, strict = FALSE)
+  expect_false(high_dim_checks$lda_within_class_full_rank$passed)
+  expect_match(
+    high_dim_checks$lda_within_class_full_rank$detail,
+    "within-class centered rank"
+  )
+  expect_error(
+    infer_lda(high_dimensional$X, y, adapter = a, B = 9L, seed = 31L),
+    "lda_within_class_full_rank"
+  )
+
+  set.seed(32L)
+  collinear_x <- matrix(stats::rnorm(length(y) * 4L), nrow = length(y))
+  collinear_x[, 4L] <- collinear_x[, 1L]
+  collinear_checks <- run_adapter_checks(
+    a,
+    list(X = collinear_x, y = y),
+    strict = FALSE
+  )
+  expect_false(collinear_checks$lda_within_class_full_rank$passed)
+})
+
 test_that("lda_refit + geneig engine recovers rank bounded by K - 1", {
   skip_if_not_installed("MASS")
   dat <- make_lda_signal_fixture(seed = 4L)

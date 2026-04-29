@@ -69,11 +69,17 @@ The mathematical engine is described in `notes/engine_geneig_spec.md`.
 That note is the canonical reference for the whitening map, the
 B-metric deflation rule, and the admissibility constraints that make the
 geneig family valid.
+The narrower public-wrapper contract is recorded in
+`notes/lda_maturity_contract.md`.
 
 The public geneig surface is intentionally narrow in v1: `infer_lda()`
 ships discriminant-root significance for LDA, while broader
 metric-weighted / contrastive generalized-eigen families remain future
 extensions rather than hidden features of the current wrapper.
+The default `lda_refit` adapter is also a classical full-rank LDA path:
+because it delegates fitting to `MASS::lda()`, p > n - K and
+collinear within-class designs are rejected as validity failures rather
+than stabilized silently.
 
 ## What the null actually tests
 

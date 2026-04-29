@@ -74,7 +74,9 @@ Current limitations are deliberate:
   while broader metric-weighted / contrastive generalized-eigen models remain
   planned; `infer_lda()` defaults to `targets = "component_significance"`
   because broader geneig bootstrap / stability workflows are not yet part of
-  the wrapper-level public surface,
+  the wrapper-level public surface; the MASS-backed LDA adapter is also a
+  classical full-rank path, so p > n - K and singular within-class designs are
+  validity failures rather than silently regularized analyses,
 - the predictive-gain public surface is intentionally narrow: PLSR is shipped,
   while broader predictive-cross models remain planned,
 - bootstrap stability defaults to sign alignment; Procrustes alignment is
@@ -237,7 +239,8 @@ meaning each:
   intentionally scoped — for example `multivarious_cca` is
   scaffold-parity compatible for component tests but still needs
   adapter-owned loading/score stability evidence, `lda_refit` exposes
-  only discriminant-root significance for `(geneig, generalized_eigen)`,
+  only full-rank LDA discriminant-root significance for
+  `(geneig, generalized_eigen)`,
   and `plsr_refit` exposes only held-out predictive gain for
   `(cross, predictive)`.
 - **planned**: architecturally allocated but not shipped in v1 as a public
@@ -260,6 +263,8 @@ All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data
 before the engine starts and errors in strict mode (the default) if any
 check fails. Pass-through records land in `result$assumptions$checked`.
+The same mechanism also guards narrow adapters where the public contract is
+precise; `notes/lda_maturity_contract.md` records the LDA-specific boundary.
 
 You can inspect the registry with:
 

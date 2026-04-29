@@ -20,5 +20,8 @@ using \code{MASS::lda()} as the fitting backend. The adapter stores the
 fitted \code{lda} object together with the corresponding generalized-eigen
 operator pair \verb{(A, B)} where \code{A} is the between-class scatter and \code{B}
 is the within-class scatter. Null resampling permutes class labels
-only; rows are left in place.
+only; rows are left in place. Because the fitting backend is
+\code{MASS::lda()}, the public adapter requires full within-class column
+rank before fitting; p > n - K and collinear within-class designs are
+outside the current wrapper contract.
 }

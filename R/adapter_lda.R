@@ -5,7 +5,10 @@
 #' fitted `lda` object together with the corresponding generalized-eigen
 #' operator pair `(A, B)` where `A` is the between-class scatter and `B`
 #' is the within-class scatter. Null resampling permutes class labels
-#' only; rows are left in place.
+#' only; rows are left in place. Because the fitting backend is
+#' `MASS::lda()`, the public adapter requires full within-class column
+#' rank before fitting; p > n - K and collinear within-class designs are
+#' outside the current wrapper contract.
 #'
 #' @param adapter_id Character, default `"lda_refit"`.
 #' @param adapter_version Character, default `"0.0.1"`.
@@ -218,6 +221,19 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
        call. = FALSE)
 }
 
+.lda_within_class_rank <- function(X, y, tol = NULL) {
+  y <- if (is.factor(y)) y else factor(y)
+  classes <- levels(y)
+  centered <- do.call(rbind, lapply(classes, function(cls) {
+    Xg <- X[y == cls, , drop = FALSE]
+    sweep(Xg, 2L, colMeans(Xg), "-")
+  }))
+  if (is.null(tol)) {
+    tol <- max(1, max(abs(centered))) * sqrt(.Machine$double.eps)
+  }
+  qr(centered, tol = tol)$rank
+}
+
 .lda_checks <- function() {
   list(
     list(
@@ -271,6 +287,42 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
         }
         tab <- table(y)
         all(tab >= 2L)
+      }
+    ),
+    list(
+      name = "lda_within_class_full_rank",
+      detail = paste(
+        "MASS-backed LDA requires full within-class column rank;",
+        "p must not exceed n - K and variables must not be collinear within classes."
+      ),
+      check = function(data, ...) {
+        if (!is.list(data) || is.null(data$X) || is.null(data$y) ||
+            !is.matrix(data$X) || !is.numeric(data$X) ||
+            any(!is.finite(data$X))) {
+          return(TRUE)
+        }
+        y <- if (is.factor(data$y)) data$y else factor(data$y)
+        if (length(y) != nrow(data$X) || anyNA(y) || nlevels(y) < 2L) {
+          return(TRUE)
+        }
+        if (any(table(y) < 2L)) {
+          return(TRUE)
+        }
+
+        p <- ncol(data$X)
+        n_minus_k <- nrow(data$X) - nlevels(y)
+        rank <- .lda_within_class_rank(data$X, y)
+        list(
+          passed = identical(rank, p),
+          detail = sprintf(
+            paste(
+              "within-class centered rank = %d; p = %d;",
+              "residual df n - K = %d. MASS-backed LDA requires full",
+              "within-class column rank."
+            ),
+            rank, p, n_minus_k
+          )
+        )
       }
     )
   )
