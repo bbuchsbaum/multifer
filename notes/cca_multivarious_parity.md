@@ -65,6 +65,6 @@ The current evidence supports this statement:
 > component-significance inference on the shipped support matrix.
 
 It does not yet imply that `multivarious_cca` should become the default CCA
-wrapper backend. Default-backend maturity still needs documentation and
-calibration review, especially around adapter-owned loadings, score stability,
+wrapper backend or be relabeled as a mature adapter. Default-backend maturity
+still needs direct evidence around adapter-owned loadings, score stability,
 regularization defaults, and any future feature-evidence statistics.

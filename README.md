@@ -104,8 +104,9 @@ Engine dependencies:
 - `multivarious` is a required dependency and supplies the default
   public engines for `infer_pca()` and `infer_plsc()` through the
   `multivarious_pca` and `multivarious_plsc` adapters. The
-  `multivarious_cca` adapter is registered as an explicit alternate
-  CCA backend, though `infer_cca()` still defaults to `cancor_cross`.
+  `multivarious_cca` adapter is registered as an explicit CCA backend
+  with component-inference parity pinned against the mature CCA path,
+  though `infer_cca()` still defaults to `cancor_cross`.
   Base-R reference adapters such as `prcomp_oneblock` and `cross_svd`
   remain available, but callers must request them explicitly with
   `adapter = `.
@@ -201,8 +202,11 @@ res$component_tests
 the public CCA path single-relation and unambiguous. For correlation-mode
 cross problems, the strongest current paths are the plain paired-row design,
 common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
-within-block exchangeability. Richer structured designs still require more
-work on the exchangeability side.
+within-block exchangeability, plus `blocked_rows(groups)`. The
+`multivarious_cca` adapter is available for explicit use and now has
+component-test parity pinned against `cancor_cross`, but it is still not the
+default because adapter-owned loadings, score stability, and regularized-fit
+semantics need their own maturity evidence.
 
 ## Built-in adapters and maturity
 
@@ -229,8 +233,10 @@ meaning each:
   with within-block exchangeability, and `blocked_rows(groups)`.
 - **narrow**: shipped today with a deliberately limited public
   surface. The engine works end-to-end but the family coverage is
-  intentionally scoped — for example `lda_refit` exposes only
-  discriminant-root significance for `(geneig, generalized_eigen)`,
+  intentionally scoped — for example `multivarious_cca` is
+  scaffold-parity compatible for component tests but still needs
+  adapter-owned loading/score stability evidence, `lda_refit` exposes
+  only discriminant-root significance for `(geneig, generalized_eigen)`,
   and `plsr_refit` exposes only held-out predictive gain for
   `(cross, predictive)`.
 - **planned**: architecturally allocated but not shipped in v1 as a public
@@ -243,8 +249,10 @@ sync with this README.
 
 For CCA specifically, `infer_cca()` still defaults to `cancor_cross`.
 The `multivarious_cca` adapter is available as an explicit alternate
-backend, but it is not the public default until parity with the shipped
-path is pinned more broadly.
+backend. Component-test parity with the shipped path is pinned in
+`tests/testthat/test-cca-parity.R`; the remaining default-backend question is
+about adapter-owned loadings, scores, stability summaries, and regularization
+defaults.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data

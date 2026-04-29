@@ -13,11 +13,18 @@ this and still be honest.
 - default public wrapper: `infer_cca()`
 - default adapter: `cancor_cross`
 - engine family: `(cross, correlation)`
+- explicit alternate backend: `multivarious_cca`
 
 The package supports **multi-root** CCA inference for a specific set of designs
 where the whitening map, deflation rule, and null action stay aligned. Outside
 that set, the package deliberately falls back to **first-root-only** inference
 rather than making a stepwise claim it cannot yet defend.
+
+`multivarious_cca` is now parity-pinned for scaffold-level component
+inference on this support matrix, but it is not the default `infer_cca()`
+backend. Its `multivarious::cca()` fit surface brings adapter-owned loading and
+score semantics, plus regularization defaults, that need their own evidence
+before the adapter itself should be labeled mature.
 
 ## Supported multi-root designs
 
@@ -108,6 +115,15 @@ adds a direct support-matrix regression: the four shipped designs must permit
 multi-root recovery on the same planted canonical-rank fixture, while an
 unsupported design must cap the ladder to a single tested root.
 
+[tests/testthat/test-cca-parity.R](../tests/testthat/test-cca-parity.R) extends
+that adapter-agreement evidence. `cancor_cross` is the reference backend, and
+both `cross_svd` and `multivarious_cca` must match its component statistics,
+Monte Carlo p-values, unit formation, selected-unit decisions, and stopping rows
+on paired rows, blocked rows, nuisance-adjusted designs, grouped
+nuisance-adjusted designs, exchangeable-row first-root capping, aspect-ratio
+stress fixtures, and rank-deficient validity failures. The tolerance contract is
+recorded in [notes/cca_multivarious_parity.md](cca_multivarious_parity.md).
+
 ### Fast-path parity
 
 [tests/testthat/test-core-update-cross.R](../tests/testthat/test-core-update-cross.R)
@@ -128,8 +144,11 @@ This note does **not** claim:
 
 - that every conceivable structured CCA design has multi-root validity,
 - that variable-level significance exists for CCA loadings,
-- that the package already has a `multivarious` CCA fitter surface,
+- that `multivarious_cca` is already the public default CCA backend,
+- that `multivarious_cca` adapter-owned loadings, scores, or regularized fits
+  have the same maturity status as the scaffold-level component test,
 - that Paper 1 needs to treat CCA as part of its theorem-bearing center.
 
-The next step for CCA is evidence hardening and support-matrix clarity, not a
-new adapter name.
+The next step for CCA maturity is not another backend name. It is a targeted
+stability/parity pass for adapter-owned CCA loadings and scores, including the
+regularization defaults exposed by `multivarious::cca()`.

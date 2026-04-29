@@ -135,6 +135,51 @@ stopifnot(
 )
 ```
 
+## Using the `multivarious_cca` backend
+
+`multivarious_cca` wraps `multivarious::cca()` and is available as an
+explicit backend. Its component-test scaffold is parity-pinned against
+`cancor_cross` on the shipped CCA support matrix, including paired rows,
+blocked rows, nuisance-adjusted designs, grouped nuisance-adjusted
+designs, first-root capping outside the multi-root boundary, and
+rank-deficient validity failures.
+
+It is still not the `infer_cca()` default. The remaining maturity work
+is adapter-owned: loadings, scores, stability summaries, regularization
+defaults, and future feature-evidence statistics.
+
+```{r infer-multivarious-cca}
+mv_res <- infer(
+  adapter  = "multivarious_cca",
+  data     = list(X = X, Y = Y),
+  geometry = "cross",
+  relation = "correlation",
+  design   = paired_rows(),
+  B        = 99,
+  R        = 0,
+  alpha    = 0.05,
+  seed     = 2
+)
+mv_res$component_tests
+```
+
+```{r check-multivarious-cca, include = FALSE}
+stopifnot(
+  is_infer_result(mv_res),
+  identical(mv_res$provenance$adapter_id, "multivarious_cca"),
+  isTRUE(all.equal(
+    mv_res$component_tests$statistic,
+    res$component_tests$statistic,
+    tolerance = 1e-10
+  )),
+  isTRUE(all.equal(
+    mv_res$component_tests$p_value,
+    res$component_tests$p_value,
+    tolerance = 1e-8
+  ))
+)
+```
+
 ## What this vignette tests
 
 ```{r cca-labels, echo=FALSE, results='asis'}
