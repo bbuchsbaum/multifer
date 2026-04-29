@@ -28,6 +28,72 @@
   )
 }
 
+test_that("compile_bootstrap_plan resolves default cross callbacks once", {
+  clear_adapter_registry()
+
+  set.seed(101)
+  X <- matrix(stats::rnorm(60), 12, 5)
+  Y <- matrix(stats::rnorm(48), 12, 4)
+  recipe <- .make_cross_recipe()
+  adapter <- recipe$adapter
+  original_fit <- adapter$refit(NULL, list(X = X, Y = Y, relation = "covariance"))
+
+  plan <- compile_bootstrap_plan(
+    recipe = recipe,
+    adapter = adapter,
+    data = list(X = X, Y = Y),
+    original_fit = original_fit
+  )
+  idx <- c(2L, 1L, 2L, seq.int(4L, 12L))
+  rep_data <- plan$resample_data(idx)
+
+  expect_s3_class(plan, "multifer_bootstrap_plan")
+  expect_equal(plan$domains, c("X", "Y"))
+  expect_true(plan$fast_path_supported)
+  expect_false(plan$rank_deficient_fallback)
+  expect_equal(rep_data$X, X[idx, , drop = FALSE])
+  expect_equal(rep_data$Y, Y[idx, , drop = FALSE])
+  expect_equal(rep_data$relation, "covariance")
+})
+
+test_that("compile_bootstrap_plan normalizes adapter-owned bootstrap callbacks", {
+  clear_adapter_registry()
+
+  payload <- list(reference = matrix(seq_len(12), 4, 3))
+  fit <- list(values = 1, loadings = matrix(1, 3, 1))
+  adapter <- infer_adapter(
+    adapter_id = "bootstrap_plan_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "score_stability")
+    ),
+    roots = function(x) x$values,
+    domains = function(x, data = NULL) "payload",
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) fit,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, resample_indices = as.integer(replicate))
+    },
+    project_scores = function(x, data, domain = NULL) matrix(1, 4, 1),
+    validity_level = "conditional"
+  )
+  recipe <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    targets = "score_stability",
+    adapter = adapter
+  )
+
+  plan <- compile_bootstrap_plan(recipe, adapter, payload, fit)
+  action <- plan$bootstrap_action(fit, payload, recipe$shape$design, 3L)
+
+  expect_s3_class(plan, "multifer_bootstrap_plan")
+  expect_true(plan$has_custom_bootstrap)
+  expect_equal(action$fit, fit)
+  expect_equal(action$resample_indices, 3L)
+})
+
 # ---------------------------------------------------------------------------
 # Test 1: Oneblock bootstrap -- structural test
 # ---------------------------------------------------------------------------

@@ -129,69 +129,18 @@ bootstrap_fits <- function(recipe,
     seed <- as.integer(seed)
   }
 
-  ## --- determine geometry and domains -----------------------------------------
+  ## --- compile bootstrap callbacks -------------------------------------------
 
-  geom_kind <- recipe$shape$geometry$kind
-  rel_kind  <- recipe$shape$relation$kind
-  has_custom_bootstrap <- !is.null(adapter$bootstrap_action)
-  has_project_scores <- !is.null(adapter$project_scores)
-
-  if (geom_kind == "oneblock") {
-    if (!is.matrix(data)) {
-      stop(
-        "For oneblock geometry, `data` must be a numeric matrix.",
-        call. = FALSE
-      )
-    }
-    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
-                                geom_kind = geom_kind)
-    n       <- nrow(data)
-  } else if (geom_kind == "cross") {
-    if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
-      stop(
-        "For cross geometry, `data` must be a list with elements `X` and `Y`.",
-        call. = FALSE
-      )
-    }
-    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
-                                geom_kind = geom_kind)
-    n       <- nrow(data$X)
-    if (nrow(data$Y) != n) {
-      stop(
-        "For cross geometry, `data$X` and `data$Y` must have the same number of rows.",
-        call. = FALSE
-      )
-    }
-  } else if (geom_kind == "multiblock") {
-    .validate_multiblock_data(data)
-    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
-                                geom_kind = geom_kind)
-    n       <- nrow(data[[1L]])
-  } else if (geom_kind == "adapter") {
-    if (!has_custom_bootstrap) {
-      stop(
-        "bootstrap_fits requires `adapter$bootstrap_action` for adapter-owned geometry.",
-        call. = FALSE
-      )
-    }
-    if (isTRUE(store_aligned_scores) && !has_project_scores) {
-      stop(
-        "bootstrap_fits requires `adapter$project_scores` to store aligned scores for adapter-owned geometry.",
-        call. = FALSE
-      )
-    }
-    domains <- .adapter_domains(adapter, fit = original_fit, data = data,
-                                geom_kind = geom_kind)
-    n       <- NA_integer_
-  } else {
-    stop(
-      sprintf(
-        "bootstrap_fits only supports 'oneblock', 'cross', 'multiblock', and 'adapter' geometries. Got: '%s'.",
-        geom_kind
-      ),
-      call. = FALSE
-    )
-  }
+  bootstrap_plan <- compile_bootstrap_plan(
+    recipe = recipe,
+    adapter = adapter,
+    data = data,
+    original_fit = original_fit,
+    store_aligned_scores = store_aligned_scores
+  )
+  has_custom_bootstrap <- bootstrap_plan$has_custom_bootstrap
+  has_project_scores <- bootstrap_plan$has_project_scores
+  domains <- bootstrap_plan$domains
 
   ## --- extract original loadings per domain for alignment reference -----------
 
@@ -213,9 +162,7 @@ bootstrap_fits <- function(recipe,
                    !has_custom_bootstrap &&
                    !is.null(adapter$core) &&
                    !is.null(adapter$update_core) &&
-                   (geom_kind == "oneblock" ||
-                    (geom_kind == "cross" &&
-                     rel_kind %in% c("covariance", "correlation")))
+                   isTRUE(bootstrap_plan$fast_path_supported)
 
   core_obj <- if (has_fast_path) {
     co <- adapter$core(original_fit, data)
@@ -267,12 +214,13 @@ bootstrap_fits <- function(recipe,
   # attached to their search path cannot resolve bare-name references.
   .fn_match_components   <- match_components
   .fn_truncate_fit_to_core <- .truncate_fit_to_core
-  .fn_bootstrap_resample_indices <- .bootstrap_resample_indices
-  .fn_default_bootstrap_data <- .default_bootstrap_data
-  .fn_normalize_bootstrap_action <- .normalize_bootstrap_action
+  .fn_bootstrap_action <- bootstrap_plan$bootstrap_action
+  .fn_resample_indices <- bootstrap_plan$resample_indices
+  .fn_resample_data <- bootstrap_plan$resample_data
   .fn_project_scores_for_bootstrap <- .project_scores_for_bootstrap
   .fn_align_bootstrap_domain <- .align_bootstrap_domain
   .k_trunc_local <- if (has_fast_path) .core_effective_rank(core_obj) else NA_integer_
+  .rank_deficient_fallback <- isTRUE(bootstrap_plan$rank_deficient_fallback)
   design_local <- recipe$shape$design
 
   rep_fn <- function(b) {
@@ -280,14 +228,7 @@ bootstrap_fits <- function(recipe,
     action_info <- NULL
 
     if (has_custom_bootstrap) {
-      action <- .fn_normalize_bootstrap_action(
-        adapter$bootstrap_action(
-          original_fit,
-          data,
-          design = design_local,
-          replicate = b
-        )
-      )
+      action <- .fn_bootstrap_action(original_fit, data, design_local, b)
       rep_data <- action$data
       rep_fit <- if (!is.null(action$fit)) {
         action$fit
@@ -301,10 +242,10 @@ bootstrap_fits <- function(recipe,
       indices <- action$resample_indices
       action_info <- action$info
     } else {
-      indices <- .fn_bootstrap_resample_indices(n, design_local)
-      rep_data <- .fn_default_bootstrap_data(data, indices, geom_kind, rel_kind)
+      indices <- .fn_resample_indices(design_local)
+      rep_data <- .fn_resample_data(indices)
 
-      rep_fit <- if (has_fast_path && rel_kind == "correlation") {
+      rep_fit <- if (has_fast_path && .rank_deficient_fallback) {
         tryCatch(
           adapter$update_core(core_obj, indices = indices),
           multifer_core_rank_deficient = function(e) {
@@ -434,18 +375,121 @@ bootstrap_fits <- function(recipe,
   )
 }
 
-.default_bootstrap_data <- function(data, indices, geom_kind, rel_kind) {
-  if (geom_kind == "oneblock") {
-    data[indices, , drop = FALSE]
-  } else if (geom_kind == "cross") {
-    list(
-      X        = data$X[indices, , drop = FALSE],
-      Y        = data$Y[indices, , drop = FALSE],
-      relation = rel_kind
-    )
-  } else {
-    .resample_multiblock_data(data, indices)
+compile_bootstrap_plan <- function(recipe,
+                                   adapter,
+                                   data,
+                                   original_fit,
+                                   store_aligned_scores = TRUE) {
+  if (!inherits(recipe, "multifer_infer_recipe")) {
+    stop("`recipe` must be a multifer_infer_recipe.", call. = FALSE)
   }
+  if (!inherits(adapter, "multifer_adapter")) {
+    stop("`adapter` must be a multifer_adapter.", call. = FALSE)
+  }
+  geom_kind <- recipe$shape$geometry$kind
+  rel_kind <- recipe$shape$relation$kind
+  has_custom_bootstrap <- !is.null(adapter$bootstrap_action)
+  has_project_scores <- !is.null(adapter$project_scores)
+
+  bootstrap_action <- if (has_custom_bootstrap) {
+    function(original_fit, data, design, replicate) {
+      .normalize_bootstrap_action(
+        adapter$bootstrap_action(
+          original_fit,
+          data,
+          design = design,
+          replicate = replicate
+        )
+      )
+    }
+  } else {
+    NULL
+  }
+
+  if (identical(geom_kind, "oneblock")) {
+    if (!is.matrix(data)) {
+      stop(
+        "For oneblock geometry, `data` must be a numeric matrix.",
+        call. = FALSE
+      )
+    }
+    n <- nrow(data)
+    resample_data <- function(indices) data[indices, , drop = FALSE]
+  } else if (identical(geom_kind, "cross")) {
+    if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
+      stop(
+        "For cross geometry, `data` must be a list with elements `X` and `Y`.",
+        call. = FALSE
+      )
+    }
+    n <- nrow(data$X)
+    if (nrow(data$Y) != n) {
+      stop(
+        "For cross geometry, `data$X` and `data$Y` must have the same number of rows.",
+        call. = FALSE
+      )
+    }
+    resample_data <- function(indices) {
+      list(
+        X = data$X[indices, , drop = FALSE],
+        Y = data$Y[indices, , drop = FALSE],
+        relation = rel_kind
+      )
+    }
+  } else if (identical(geom_kind, "multiblock")) {
+    .validate_multiblock_data(data)
+    n <- nrow(data[[1L]])
+    resample_data <- function(indices) .resample_multiblock_data(data, indices)
+  } else if (identical(geom_kind, "adapter")) {
+    if (!has_custom_bootstrap) {
+      stop(
+        "bootstrap_fits requires `adapter$bootstrap_action` for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
+    if (isTRUE(store_aligned_scores) && !has_project_scores) {
+      stop(
+        "bootstrap_fits requires `adapter$project_scores` to store aligned scores for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
+    n <- NA_integer_
+    resample_data <- function(indices) {
+      stop("Adapter-owned geometry must provide `adapter$bootstrap_action`.",
+           call. = FALSE)
+    }
+  } else {
+    stop(
+      sprintf(
+        "bootstrap_fits only supports 'oneblock', 'cross', 'multiblock', and 'adapter' geometries. Got: '%s'.",
+        geom_kind
+      ),
+      call. = FALSE
+    )
+  }
+
+  domains <- .adapter_domains(adapter, fit = original_fit, data = data,
+                              geom_kind = geom_kind)
+  fast_path_supported <- identical(geom_kind, "oneblock") ||
+    (identical(geom_kind, "cross") &&
+     rel_kind %in% c("covariance", "correlation"))
+
+  structure(
+    list(
+      geom_kind = geom_kind,
+      rel_kind = rel_kind,
+      has_custom_bootstrap = has_custom_bootstrap,
+      has_project_scores = has_project_scores,
+      fast_path_supported = fast_path_supported,
+      rank_deficient_fallback = identical(geom_kind, "cross") &&
+        identical(rel_kind, "correlation"),
+      domains = domains,
+      resample_indices = function(design) .bootstrap_resample_indices(n, design),
+      resample_data = resample_data,
+      bootstrap_action = bootstrap_action
+    ),
+    class = "multifer_bootstrap_plan"
+  )
 }
 
 .normalize_bootstrap_action <- function(x) {
