@@ -185,34 +185,59 @@ res$assumptions$checked
 
 `variable_stability` is a *stability* measure. To ask whether a
 variable's loading magnitude is detectable above the column-permutation
-null, use `feature_importance_pvalues()`:
+null, use `feature_importance_pvalues()`. The statistic below is an
+**aggregate** squared-loading statistic over the selected latent units.
+With `form_units(adapter$roots(fit))`, every SVD component is selected,
+so the question is "does this variable matter across the fitted
+component set?" For a component-specific question, pass a single unit id
+with `k = "u1"`, `k = "u2"`, and so on.
+
+The setup objects are the same pieces used internally by `infer()`:
+`adapter` defines how to fit and read the SVD model, `recipe` defines the
+inferential shape, `fit` is the observed SVD fit, and `units` is the
+standard table of latent components/subspaces whose loadings are tested.
+The `NULL` in `adapter$refit(NULL, X)` is the adapter contract's
+`previous_fit` slot; for a fresh fit there is no previous fit.
 
 ```{r importance-pvalues}
+adapter <- adapter_svd()
 recipe <- infer_recipe(
   geometry = "oneblock", relation = "variance",
-  adapter  = adapter_svd()
+  adapter  = adapter
 )
-fit   <- adapter_svd()$refit(NULL, X)
-units <- form_units(adapter_svd()$roots(fit))
+fit   <- adapter$refit(NULL, X)
+units <- form_units(adapter$roots(fit))
 fi <- feature_importance_pvalues(
-  recipe, adapter_svd(),
+  recipe, adapter,
   data = X, units = units, original_fit = fit,
-  B = 99, adjust = "BH", seed = 11
+  B = 99,  # column-permutation null draws; use more for real analysis
+  adjust = "BH", seed = 11
 )
 head(fi[, c("variable", "statistic", "p_value", "p_adjusted")], 8)
 ```
 
-```{r importance-plot, echo = FALSE, fig.cap = "Aggregate squared-loading importance with BH-adjusted p-values. Bars below the dashed 0.05 line are significant after adjustment."}
-ord <- order(fi$p_adjusted)
+```{r check-importance-pvalues, include = FALSE}
+stopifnot(
+  nrow(fi) == ncol(X),
+  all(is.finite(fi$statistic)),
+  all(fi$p_value >= 0 & fi$p_value <= 1),
+  all(fi$p_adjusted >= 0 & fi$p_adjusted <= 1)
+)
+```
+
+```{r importance-plot, echo = FALSE, fig.cap = "Evidence for aggregate squared-loading importance. Bar height is -log10(BH-adjusted p-value), so taller bars mean stronger evidence against the column-permutation null; the dashed line marks adjusted p = 0.05."}
+fi$evidence <- -log10(pmax(fi$p_adjusted, .Machine$double.xmin))
+ord <- order(fi$evidence, decreasing = TRUE)
 fi_o <- fi[ord, ]
 col  <- ifelse(fi_o$p_adjusted <= 0.05, "#2ca02c", "#d62728")
 bp <- barplot(
-  fi_o$p_adjusted, names.arg = fi_o$variable, col = col,
-  border = NA, ylim = c(0, 1.0),
-  ylab = "BH-adjusted p-value", xlab = "variable",
-  main = "feature_importance_pvalues, X domain"
+  fi_o$evidence, names.arg = fi_o$variable, col = col,
+  border = NA,
+  ylab = expression(-log[10]("BH-adjusted p-value")),
+  xlab = "variable",
+  main = "aggregate feature-importance evidence, X domain"
 )
-abline(h = 0.05, lty = 2, col = "gray30")
+abline(h = -log10(0.05), lty = 2, col = "gray30")
 ```
 
 The schema separates significance (per-unit p-values) from importance
