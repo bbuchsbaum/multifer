@@ -212,12 +212,9 @@ feature_importance_pvalues <- function(recipe,
     set.seed(as.integer(seed))
   }
 
-  geom_kind <- recipe$shape$geometry$kind
-  rel_kind <- recipe$shape$relation$kind
-  domains <- .fi_domains_from_recipe(recipe)
-  refit_data <- .fi_refit_data(data, geom_kind, rel_kind)
+  plan <- compile_variable_importance_plan(recipe, adapter, data, model = original_fit)
   if (is.null(original_fit)) {
-    original_fit <- adapter$refit(NULL, refit_data)
+    original_fit <- plan$original_fit()
   }
   if (is.null(roots) && !is.null(adapter$roots)) {
     roots <- adapter$roots(original_fit)
@@ -227,6 +224,7 @@ feature_importance_pvalues <- function(recipe,
   if (length(unit_idx) == 0L) {
     return(.fi_empty_pvalues())
   }
+  domains <- plan$domains(original_fit)
   alpha <- .fi_unit_weights(weights, units, unit_idx, roots)
   original_loadings <- stats::setNames(
     lapply(domains, function(d) adapter$loadings(original_fit, d)),
@@ -244,8 +242,8 @@ feature_importance_pvalues <- function(recipe,
 
   null_mat <- matrix(NA_real_, nrow = length(observed), ncol = B)
   for (b in seq_len(B)) {
-    null_data <- adapter$null_action(original_fit, data)
-    null_fit <- adapter$refit(original_fit, .fi_refit_data(null_data, geom_kind, rel_kind))
+    payload <- plan$null_payload(original_fit)
+    null_fit <- plan$refit_null(original_fit, payload)
     null_loadings <- stats::setNames(
       lapply(domains, function(d) adapter$loadings(null_fit, d)),
       domains
@@ -270,7 +268,7 @@ feature_importance_pvalues <- function(recipe,
     none = p
   )
   mc_se <- sqrt(p * (1 - p) / B)
-  null_label <- if (geom_kind == "cross") "adapter_null_action_cross" else "adapter_null_action"
+  null_label <- plan$null_label
 
   out <- data.frame(
     domain = template$domain,
@@ -335,16 +333,52 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
   )
 }
 
-.fi_domains_from_recipe <- function(recipe) {
-  if (recipe$shape$geometry$kind == "oneblock") "X" else c("X", "Y")
+.default_refit_data <- function(null_payload, geom_kind, rel_kind) {
+  if (identical(geom_kind, "oneblock")) {
+    if (is.list(null_payload) && !is.null(null_payload$X)) {
+      null_payload$X
+    } else {
+      null_payload
+    }
+  } else if (identical(geom_kind, "cross")) {
+    list(X = null_payload$X, Y = null_payload$Y, relation = rel_kind)
+  } else if (identical(geom_kind, "multiblock")) {
+    null_payload
+  } else {
+    stop(sprintf(
+      "feature_importance_pvalues: geometry '%s' requires the adapter to provide a `refit_data` hook to translate null payloads back to refit input.",
+      geom_kind
+    ), call. = FALSE)
+  }
 }
 
-.fi_refit_data <- function(data, geom_kind, rel_kind) {
-  if (geom_kind == "oneblock") {
-    if (is.list(data) && !is.null(data$X)) data$X else data
-  } else {
-    list(X = data$X, Y = data$Y, relation = rel_kind)
-  }
+compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL) {
+  geom_kind <- recipe$shape$geometry$kind
+  rel_kind  <- recipe$shape$relation$kind
+  list(
+    geom_kind    = geom_kind,
+    rel_kind     = rel_kind,
+    domains      = function(fit) {
+      .adapter_domains(adapter, fit = fit, data = data, geom_kind = geom_kind)
+    },
+    original_fit = function() {
+      .infer_original_fit(adapter, data, geom_kind, rel_kind, model)
+    },
+    null_payload = function(fit) adapter$null_action(fit, data),
+    refit_null   = function(fit, null_payload) {
+      refit_input <- if (!is.null(adapter$refit_data)) {
+        adapter$refit_data(fit, null_payload, data)
+      } else {
+        .default_refit_data(null_payload, geom_kind, rel_kind)
+      }
+      adapter$refit(fit, refit_input)
+    },
+    null_label = if (identical(geom_kind, "cross")) {
+      "adapter_null_action_cross"
+    } else {
+      "adapter_null_action"
+    }
+  )
 }
 
 .fi_resolve_units <- function(units, k) {

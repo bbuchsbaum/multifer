@@ -133,6 +133,8 @@ run_multiblock_ladder <- function(recipe,
     out <- c("X", "Y")
   } else if (identical(geom_kind, "multiblock")) {
     out <- .multiblock_domain_names(data)
+  } else if (identical(geom_kind, "geneig")) {
+    out <- "X"
   } else if (identical(geom_kind, "adapter")) {
     out <- "X"
   }

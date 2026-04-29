@@ -47,6 +47,9 @@
 #' - `truncate(x, k)` -- truncated fit.
 #' - `residualize(x, k, data)` -- deflated residual after removing k components.
 #' - `refit(x, new_data)` -- refit on perturbed data (slow-path fallback).
+#' - `refit_data(x, null_payload, original_data)` -- optional translator from
+#'   an adapter-owned `null_action()` payload to the `new_data` object expected
+#'   by `refit()` for null-calibrated feature-importance refits.
 #' - `bootstrap_action(x, data, design, replicate)` -- optional adapter-owned
 #'   perturbation hook returning a replicate fit or replicate data.
 #' - `core(x, data)` -- optional fast-path core representation.
@@ -178,7 +181,7 @@ infer_adapter <- function(adapter_id,
   }
 
   valid_hooks <- c("roots", "scores", "loadings", "domains", "project_scores",
-                   "truncate", "residualize", "refit",
+                   "truncate", "residualize", "refit", "refit_data",
                    "bootstrap_action", "core", "update_core", "align",
                    "null_action", "component_stat", "predict_response",
                    "variable_stat", "score_stat")

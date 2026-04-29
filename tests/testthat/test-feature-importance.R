@@ -316,3 +316,67 @@ test_that("feature_importance_pvalues calls null_action B times and uses maxT", 
   expect_equal(out$p_value, c(1 / 5, 1))
   expect_equal(out$p_adjusted, c(1, 1))
 })
+
+test_that("feature_importance_pvalues drives a geneig (LDA) adapter end-to-end", {
+  skip_if_not_installed("MASS")
+
+  adapter <- adapter_lda_refit()
+  data <- list(X = as.matrix(iris[, 1:4]), y = iris$Species)
+  recipe <- infer_recipe(
+    geometry = "geneig",
+    relation = "generalized_eigen",
+    adapter = adapter,
+    targets = "component_significance"
+  )
+  fit <- adapter$refit(NULL, data)
+  rank <- ncol(adapter$loadings(fit))
+  units <- form_units(adapter$roots(fit)[seq_len(rank)])
+
+  out <- feature_importance_pvalues(
+    recipe = recipe,
+    adapter = adapter,
+    data = data,
+    units = units,
+    original_fit = fit,
+    B = 25L,
+    adjust = "BH",
+    seed = 901L
+  )
+
+  expect_s3_class(out, "multifer_feature_importance_pvalues")
+  expect_equal(nrow(out), ncol(data$X))
+  expect_setequal(out$variable, colnames(data$X))
+  expect_equal(unique(out$domain), "X")
+  expect_true(all(out$p_value >= 1 / 26 & out$p_value <= 1))
+  expect_true(all(out$mc_uncertainty >= 0))
+})
+
+test_that("feature_importance_pvalues drives a multiblock adapter end-to-end", {
+  adapter <- make_stub_multiblock_adapter()
+  data <- make_stub_multiblock_data()
+  recipe <- infer_recipe(
+    geometry = "multiblock",
+    relation = "variance",
+    adapter = adapter,
+    targets = "component_significance"
+  )
+  fit <- adapter$refit(NULL, data)
+  units <- form_units(adapter$roots(fit))
+
+  out <- feature_importance_pvalues(
+    recipe = recipe,
+    adapter = adapter,
+    data = data,
+    units = units,
+    original_fit = fit,
+    B = 20L,
+    adjust = "none",
+    seed = 902L
+  )
+
+  expect_s3_class(out, "multifer_feature_importance_pvalues")
+  expect_setequal(unique(out$domain), names(data))
+  expected_rows <- sum(vapply(data, ncol, integer(1L)))
+  expect_equal(nrow(out), expected_rows)
+  expect_true(all(out$p_value >= 1 / 21 & out$p_value <= 1))
+})

@@ -83,6 +83,13 @@ Fit a new model of the same class on \code{new_data} (typically a bootstrap resa
 to \code{\link[=infer]{infer()}} (matrix for oneblock, list with \code{X} and \code{Y} for
 cross). Return shape: the same class as \code{x}.}
 
+\item{\code{refit_data(x, null_payload, original_data)}}{Optional translator
+used by \code{\link[=feature_importance_pvalues]{feature_importance_pvalues()}}. Convert the object returned by
+\code{null_action(x, original_data)} into the \code{new_data} payload expected by
+\code{refit(x, new_data)}. Built-in defaults cover oneblock, cross, and
+multiblock payloads; geneig and adapter-owned payloads should provide
+this hook when the null payload is not already a refit payload.}
+
 \item{\code{bootstrap_action(x, data, design, replicate = NULL)}}{Optional.
 Adapter-owned perturbation hook for stability targets. Return a list
 with \code{fit} (a replicate fit) or \code{data} (a replicate data object to pass

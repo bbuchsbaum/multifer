@@ -82,6 +82,9 @@ original data through a bootstrap fit for score stability.
 \item \code{truncate(x, k)} -- truncated fit.
 \item \code{residualize(x, k, data)} -- deflated residual after removing k components.
 \item \code{refit(x, new_data)} -- refit on perturbed data (slow-path fallback).
+\item \code{refit_data(x, null_payload, original_data)} -- optional translator from
+an adapter-owned \code{null_action()} payload to the \code{new_data} object expected
+by \code{refit()} for null-calibrated feature-importance refits.
 \item \code{bootstrap_action(x, data, design, replicate)} -- optional adapter-owned
 perturbation hook returning a replicate fit or replicate data.
 \item \code{core(x, data)} -- optional fast-path core representation.

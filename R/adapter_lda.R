@@ -79,6 +79,17 @@ adapter_lda_refit <- function(adapter_id = "lda_refit",
       .fit_lda_refit(payload$X, payload$y)
     },
 
+    refit_data = function(x, null_payload, original_data, ...) {
+      if (is.list(null_payload) && is.list(null_payload$state) &&
+          !is.null(null_payload$state$X) && !is.null(null_payload$state$y)) {
+        return(list(X = null_payload$state$X, y = null_payload$state$y))
+      }
+      stop(
+        "lda_refit refit_data expects a null payload with `state$X` and `state$y`.",
+        call. = FALSE
+      )
+    },
+
     null_action = function(x, data, ...) {
       payload <- .as_geneig_payload(data)
       if (is.null(payload$state$X) || is.null(payload$state$y)) {

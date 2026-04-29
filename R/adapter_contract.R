@@ -77,6 +77,13 @@
 #'     to [infer()] (matrix for oneblock, list with `X` and `Y` for
 #'     cross). Return shape: the same class as `x`.}
 #'
+#'   \item{`refit_data(x, null_payload, original_data)`}{Optional translator
+#'     used by [feature_importance_pvalues()]. Convert the object returned by
+#'     `null_action(x, original_data)` into the `new_data` payload expected by
+#'     `refit(x, new_data)`. Built-in defaults cover oneblock, cross, and
+#'     multiblock payloads; geneig and adapter-owned payloads should provide
+#'     this hook when the null payload is not already a refit payload.}
+#'
 #'   \item{`component_execution`}{Constructor field, not a hook. Set to
 #'     `"adapter"` to route component-significance through adapter-owned
 #'     `component_stat`, `null_action`, and `residualize` callbacks for a
