@@ -3,6 +3,9 @@
 This note defines what it would mean for `plsr_refit` to become mature,
 and why the current v1 label remains **narrow**.
 
+Executable evidence for the current narrow predictive boundary is
+recorded in [`plsr_evidence.md`](./plsr_evidence.md).
+
 ## Current Public Claim
 
 `infer_plsr()` ships one public predictive inference claim:

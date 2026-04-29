@@ -336,6 +336,69 @@ test_that("plsr_refit recovers planted predictive rank on a supervised fixture",
   expect_equal(res$provenance$adapter_id, "plsr_refit")
 })
 
+test_that("plsr_refit observed gain depends on the predictive split", {
+  skip_if_not_installed("pls")
+
+  adapter <- adapter_plsr_refit()
+  recipe <- infer_recipe(
+    geometry = "cross",
+    relation = "predictive",
+    adapter = adapter
+  )
+  dat <- make_plsr_predictive_fixture(seed = 1610L)
+  folds_a <- .fold_resolve_ids(n = nrow(dat$X), n_folds = 4L, seed = 10L)
+  folds_b <- .fold_resolve_ids(n = nrow(dat$X), n_folds = 4L, seed = 20L)
+
+  res_a <- run_predictive_ladder(
+    recipe,
+    dat$X,
+    dat$Y,
+    folds = folds_a,
+    B = 31L,
+    seed = 1L
+  )
+  res_b <- run_predictive_ladder(
+    recipe,
+    dat$X,
+    dat$Y,
+    folds = folds_b,
+    B = 31L,
+    seed = 1L
+  )
+
+  expect_true(all(is.finite(res_a$roots_observed)))
+  expect_true(all(is.finite(res_b$roots_observed)))
+  expect_false(isTRUE(all.equal(res_a$roots_observed, res_b$roots_observed)))
+  expect_true(res_a$component_tests$selected[1L])
+  expect_true(res_b$component_tests$selected[1L])
+})
+
+test_that("plsr_refit does not invent extra rank in noisy high-dimensional X", {
+  skip_if_not_installed("pls")
+  ensure_default_adapters()
+
+  dat <- make_plsr_predictive_fixture(seed = 1701L)
+  set.seed(1702L)
+  dat$X <- cbind(
+    dat$X,
+    matrix(stats::rnorm(nrow(dat$X) * 24L, sd = 1.2),
+           nrow = nrow(dat$X))
+  )
+
+  res <- infer_plsr(
+    dat$X,
+    dat$Y,
+    targets = "component_significance",
+    B = 31L,
+    seed = 1703L
+  )
+
+  expect_true(res$units$selected[1L])
+  expect_false(res$units$selected[2L])
+  expect_gt(res$component_tests$statistic[1L], 0)
+  expect_equal(res$component_tests$statistic[2L], 0)
+})
+
 test_that("plsr_refit rung-1 null calibration is within 2 SE at B = 1000", {
   skip_on_cran()
   skip_if_not_installed("pls")

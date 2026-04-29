@@ -69,6 +69,23 @@ test_that("adapter_plsr_refit refit and predictive hooks round-trip", {
   expect_gte(stat, 0)
 })
 
+test_that("adapter_plsr_refit honors explicit ncomp caps", {
+  skip_if_not_installed("pls")
+
+  a <- adapter_plsr_refit(ncomp = 1L)
+  dat <- make_plsr_fixture(seed = 18L)
+  fit <- a$refit(NULL, dat)
+
+  expect_equal(fit$ncomp, 1L)
+  expect_length(a$roots(fit), 1L)
+  expect_equal(ncol(a$scores(fit, "X")), 1L)
+  expect_equal(ncol(a$loadings(fit, "X")), 1L)
+
+  pred_1 <- a$predict_response(fit, dat, k = 1L)
+  pred_2 <- a$predict_response(fit, dat, k = 2L)
+  expect_equal(pred_2, pred_1)
+})
+
 test_that("plsr_refit null_action permutes Y relative to fixed X", {
   skip_if_not_installed("pls")
 
