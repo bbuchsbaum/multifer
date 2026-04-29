@@ -105,7 +105,7 @@ See `notes/pcr_consolidation_spec.md` for the falsifying test case (PCR — shou
 
 Every inferential family the package ships is labeled internally with one of three maturity levels. This taxonomy is the **internal scope-decision vocabulary**: it is what the authors use to decide what is in scope for Paper 1, what is shipping today, and what is explicitly on the "not yet" list.
 
-**Public framing intentionally differs.** The README and DESCRIPTION do not enumerate the planned tier by name; they describe extensibility in terms of the shipping `infer_adapter()` contract, so package copy never reads like a release promise. This note, `notes/paper1_rank_matched_residual_randomization.md`, and the paper outline are where the full taxonomy lives.
+**Public framing intentionally differs.** The README and DESCRIPTION name the shipped maturity tiers and the adapter-ready multiblock path, but they phrase planned work as scoped future family expansion rather than as a release promise. This note, `notes/paper1_rank_matched_residual_randomization.md`, and the paper outline are where the full taxonomy and paper/package distinction live.
 
 ### Mature — shipped, defended, and central to the package story
 

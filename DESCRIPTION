@@ -16,8 +16,9 @@ Description: One platform with two engine families: a latent-root
     The mature tier covers PCA-family one-block variance inference,
     covariance-mode two-block methods (PLSC-family), and shipped CCA
     paths on the supported paired and nuisance-adjusted designs. The
-    present tier adds generalized-eigen inference via LDA and
-    predictive-gain inference via PLSR; multiblock remains planned.
+    present tier adds generalized-eigen inference via LDA,
+    predictive-gain inference via PLSR, and adapter-driven multiblock
+    inference; bundled multiblock method wrappers remain planned.
     Built around typed shapes (geometry, relation, design), strict
     dispatch, machine-enforced validity contracts, latent-unit output
     schemas, and a clean separation between permutation-based
