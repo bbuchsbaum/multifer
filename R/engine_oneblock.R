@@ -67,111 +67,16 @@ run_oneblock_ladder <- function(recipe,
                                 auto_subspace = TRUE,
                                 tie_threshold = 0.01) {
 
-  ## --- validate recipe --------------------------------------------------------
-
-  if (!is_infer_recipe(recipe)) {
-    stop("`recipe` must be a compiled multifer_infer_recipe.", call. = FALSE)
-  }
-  if (recipe$shape$geometry$kind != "oneblock") {
-    stop(
-      paste0("`recipe` geometry must be \"oneblock\"; got \"",
-             recipe$shape$geometry$kind, "\"."),
-      call. = FALSE
-    )
-  }
-  if (recipe$shape$relation$kind != "variance") {
-    stop(
-      paste0("`recipe` relation must be \"variance\"; got \"",
-             recipe$shape$relation$kind, "\"."),
-      call. = FALSE
-    )
-  }
-
-  ## --- validate X -------------------------------------------------------------
-
-  if (!is.matrix(X) || !is.numeric(X)) {
-    stop("`X` must be a numeric matrix.", call. = FALSE)
-  }
-  if (any(!is.finite(X))) {
-    stop("`X` must not contain NA, NaN, or Inf.", call. = FALSE)
-  }
-  if (nrow(X) < 2L || ncol(X) < 2L) {
-    stop("`X` must have at least 2 rows and 2 columns.", call. = FALSE)
-  }
-
-  ## --- center X once ----------------------------------------------------------
-
-  center <- colMeans(X)
-  Xc     <- sweep(X, 2L, center, "-")
-
-  ## --- full observed roots (for form_units) -----------------------------------
-
-  roots_observed <- cached_svd(Xc)$d^2
-  zero_tol <- max(1, sum(Xc^2)) * .Machine$double.eps
-
-  ## --- max_steps default ------------------------------------------------------
-
-  if (is.null(max_steps)) {
-    max_steps <- min(min(dim(Xc)) - 1L, 50L)
-  }
-  max_steps <- as.integer(max(1L, max_steps))
-
-  ## --- callbacks --------------------------------------------------------------
-
-  # observed_stat_fn: top lambda of current residual / ||residual||_F^2.
-  # This IS the Part 1 section 1 simplification applied to the deflated
-  # residual E_a. The "first" singular value of E_a is lambda_a(X).
-  observed_stat_fn <- function(step, data) {
-    # Only the top-1 singular value is needed for the numerator; the
-    # Frobenius norm gives the full tail-sum cheaply.
-    s_top <- top_singular_values(data, 1L)[1L]
-    total <- sum(data * data)
-    if (total <= zero_tol) return(0)
-    (s_top * s_top) / total
-  }
-
-  # null_stat_fn: column-permute the residual, then apply the collapsed
-  # Vitale P3 null for rung `step`:
-  #   lambda_step(M_b) / sum_{q >= step} lambda_q(M_b)
-  # where M_b is the randomized residual. This is algebraically identical
-  # to the paper's projected-null statistic without forming the projected
-  # matrix or taking a second SVD.
-  #
-  # The denominator is `sum_{q >= step} s_q^2 = ||M_b||_F^2 - sum_{q < step} s_q^2`.
-  # Column permutation preserves column sums of squares, so ||M_b||_F^2
-  # equals ||data||_F^2 -- computed once per draw (O(np), negligible vs the
-  # SVD). Only the top `step` singular values are needed, which opens the
-  # door to a partial SVD (RSpectra::svds) on large problems.
-  null_stat_fn <- function(step, data) {
-    perm <- base::apply(data, 2L, base::sample)
-    s    <- top_singular_values(perm, step)
-    if (length(s) < step) return(0)
-    s2   <- s * s
-    total_F2 <- sum(data * data)
-    tail_total <- total_F2 - sum(s2[seq_len(step - 1L)])
-    if (tail_total <= zero_tol) return(0)
-    s2[step] / tail_total
-  }
-
-  # deflate_fn: remove the rank-1 approximation from the top component.
-  # Uses the top-1 partial SVD: data - d[1] * u[,1] %*% t(v[,1]).
-  deflate_fn <- function(step, data) {
-    sv <- top_svd(data, 1L)
-    resid <- data - sv$d[1L] * (sv$u[, 1L, drop = FALSE] %*% t(sv$v[, 1L, drop = FALSE]))
-    if (sum(resid^2) <= zero_tol) {
-      return(matrix(0, nrow = nrow(data), ncol = ncol(data)))
-    }
-    resid
-  }
+  plan <- compile_oneblock_ladder_plan(recipe, X, max_steps = max_steps)
 
   ## --- run the ladder ---------------------------------------------------------
 
   ladder_result <- ladder_driver(
-    observed_stat_fn = observed_stat_fn,
-    null_stat_fn     = null_stat_fn,
-    deflate_fn       = deflate_fn,
-    initial_data     = Xc,
-    max_steps        = max_steps,
+    observed_stat_fn = plan$observed_stat_fn,
+    null_stat_fn     = plan$null_stat_fn,
+    deflate_fn       = plan$deflate_fn,
+    initial_data     = plan$initial_data,
+    max_steps        = plan$max_steps,
     B                = B,
     B_total          = B_total,
     batch_size       = batch_size,
@@ -179,51 +84,10 @@ run_oneblock_ladder <- function(recipe,
     seed             = seed
   )
 
-  ## --- build selected vector --------------------------------------------------
-
-  rejected_through <- ladder_result$rejected_through
-  n_roots          <- length(roots_observed)
-
-  # Roots 1..rejected_through are selected; the rest are not.
-  selected <- logical(n_roots)
-  if (rejected_through >= 1L) {
-    selected[seq_len(rejected_through)] <- TRUE
-  }
-
-  ## --- form_units on the full observed roots ----------------------------------
-
-  units <- form_units(roots_observed,
-                      selected        = selected,
-                      group_near_ties = isTRUE(auto_subspace),
-                      tie_threshold   = tie_threshold)
-
-  ## --- component_tests data.frame ---------------------------------------------
-
-  sr <- ladder_result$step_results
-  n_tested <- length(sr)
-
-  component_tests <- data.frame(
-    step          = vapply(sr, function(x) x$step,          integer(1L)),
-    observed_stat = vapply(sr, function(x) x$observed_stat, double(1L)),
-    p_value       = vapply(sr, function(x) x$p_value,       double(1L)),
-    mc_se         = vapply(sr, function(x) x$mc_se,         double(1L)),
-    r             = vapply(sr, function(x) x$r,             integer(1L)),
-    B             = vapply(sr, function(x) x$B,             integer(1L)),
-    selected      = vapply(sr, function(x) x$selected,      logical(1L)),
-    stringsAsFactors = FALSE
-  )
-
-  ## --- return -----------------------------------------------------------------
-
-  list(
-    units           = units,
-    component_tests = component_tests,
-    roots_observed  = roots_observed,
-    ladder_result   = ladder_result,
-    labels          = list(
-      statistic = "Vitale P3 tail-ratio on latent variance roots",
-      null      = "column permutation of residual matrix",
-      estimand  = "latent variance roots"
-    )
+  .ladder_plan_result(
+    plan,
+    ladder_result,
+    auto_subspace = auto_subspace,
+    tie_threshold = tie_threshold
   )
 }

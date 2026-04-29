@@ -74,3 +74,53 @@ test_that("compile_infer_plan curries predictive component_stat signature", {
   expect_null(seen$split)
   expect_match(plan$labels$statistic, "predictive")
 })
+
+test_that("compile_oneblock_ladder_plan reproduces first-rung P3 statistic", {
+  set.seed(7201)
+  X <- matrix(rnorm(60), 12, 5)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter = "prcomp_oneblock"
+  )
+
+  plan <- compile_oneblock_ladder_plan(rec, X)
+  s2 <- svd(sweep(X, 2L, colMeans(X), "-"))$d^2
+
+  expect_true(is_ladder_plan(plan))
+  expect_equal(plan$roots_observed, s2, tolerance = 1e-12)
+  expect_equal(plan$observed_stat_fn(1L, plan$initial_data),
+               s2[1L] / sum(s2),
+               tolerance = 1e-12)
+  expect_equal(plan$labels$null, "column permutation of residual matrix")
+})
+
+test_that("run_oneblock_ladder delegates its callbacks through a ladder plan", {
+  set.seed(7202)
+  X <- matrix(rnorm(96), 16, 6)
+  ensure_default_adapters()
+  rec <- infer_recipe(
+    geometry = "oneblock",
+    relation = "variance",
+    adapter = "prcomp_oneblock"
+  )
+
+  plan <- compile_oneblock_ladder_plan(rec, X)
+  ladder <- ladder_driver(
+    observed_stat_fn = plan$observed_stat_fn,
+    null_stat_fn = plan$null_stat_fn,
+    deflate_fn = plan$deflate_fn,
+    initial_data = plan$initial_data,
+    max_steps = plan$max_steps,
+    B = 29L,
+    alpha = 0.05,
+    seed = 3L
+  )
+  expected <- .ladder_plan_result(plan, ladder)
+  observed <- run_oneblock_ladder(rec, X, B = 29L, alpha = 0.05, seed = 3L)
+
+  expect_equal(observed$component_tests, expected$component_tests)
+  expect_equal(observed$roots_observed, expected$roots_observed)
+  expect_equal(observed$labels, expected$labels)
+})
