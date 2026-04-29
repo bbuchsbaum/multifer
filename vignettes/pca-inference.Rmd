@@ -266,14 +266,16 @@ is still not a null-calibrated p-value.
 
 For aggregate p-values, use `feature_evidence_pvalues()`. The statistic
 below is an **aggregate** squared-loading statistic over the selected
-latent units. With `form_units(adapter$roots(fit))`, every SVD component
-is selected, so the question is "does this variable matter across the
-fitted component set?"
+latent units from `res$units`. This matters: aggregating squared
+loadings over a complete orthonormal PCA basis gives the same total
+`1 / p` for every variable. That is a mathematical identity, not a
+feature-importance result. Here we aggregate only over the components
+selected by the component test, with root-squared weights.
 
 The setup objects are the same pieces used internally by `infer()`:
 `adapter` defines how to fit and read the SVD model, `recipe` defines the
 inferential shape, `fit` is the observed SVD fit, and `units` is the
-standard table of latent components/subspaces whose loadings are tested.
+standard table of tested latent components/subspaces from `infer_pca()`.
 The `NULL` in `adapter$refit(NULL, X)` is the adapter contract's
 `previous_fit` slot; for a fresh fit there is no previous fit.
 
@@ -284,21 +286,29 @@ recipe <- infer_recipe(
   adapter  = adapter
 )
 fit   <- adapter$refit(NULL, X)
-units <- form_units(adapter$roots(fit))
+roots <- adapter$roots(fit)
+units <- res$units
 fi <- feature_evidence_pvalues(
   recipe, adapter,
   data = X, units = units, original_fit = fit,
   statistic = "squared_loading",
   scope = "aggregate",
+  k = "selected",
+  weights = "root2",
+  roots = roots,
   B = 99,  # column-permutation null draws; use more for real analysis
   adjust = "BH", seed = 11
 )
-head(fi[, c("feature", "statistic", "estimate", "p_value", "p_adjusted")], 8)
+fi_show <- fi[order(fi$p_adjusted, -fi$estimate), ]
+head(fi_show[, c("feature", "unit_set", "statistic", "estimate",
+                 "p_value", "p_adjusted")], 8)
 ```
 
 ```{r check-importance-pvalues, include = FALSE}
 stopifnot(
   nrow(fi) == ncol(X),
+  all(fi$unit_set == "selected"),
+  length(unique(round(fi$estimate, 10))) > 1L,
   all(is.finite(fi$estimate)),
   all(fi$p_value >= 0 & fi$p_value <= 1),
   all(fi$p_adjusted >= 0 & fi$p_adjusted <= 1)
