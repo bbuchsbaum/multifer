@@ -161,7 +161,7 @@ build the adapter if any claimed target is missing its required hook.
 ### What each hook does, concretely
 
 - `roots(x)` returns the ordered non-negative latent roots. These
-  feed [form_units()] and the subspace-detection logic.
+  feed `form_units()` and the subspace-detection logic.
 - `scores(x, domain)` and `loadings(x, domain)` return the
   per-observation and per-variable latent coordinates. `domain` is
   `"X"` for one-block or `"X"` / `"Y"` for cross-block fits.
@@ -179,6 +179,11 @@ build the adapter if any claimed target is missing its required hook.
   test statistic for rung `k` on `data`. The engine compares this to
   many draws of `component_stat(x, null_action(x, data), k)`. For
   predictive relations, `split` is the held-out fold contract.
+- `feature_stat_spec(x, data, ...)`, `feature_stat(...)`, and
+  `feature_evidence_action(...)` are optional sidecar hooks for
+  feature-level evidence. Use them when your method has a better
+  feature statistic than generic squared loadings, or when the fitted
+  package already provides a native uncertainty calculation.
 
 ## The predictive relation is stricter on purpose
 
@@ -305,22 +310,61 @@ refit_data = function(x, null_payload, original_data, ...) {
 }
 ```
 
-`feature_importance_pvalues()` is the one consumer that needs this:
-when a geometry's null payload differs from the refit input shape,
-the helper calls `adapter$refit_data()` (when present) before
-calling `adapter$refit()`. The shipped `lda_refit` adapter is the
-canonical example — its `null_action` returns a generalized-eigen
-operator with permuted-label state, and its `refit_data` peels the
-state back into `list(X, y)` so the standard refit path works.
+The null-calibrated feature helpers need this when a geometry's null
+payload differs from the refit input shape. `feature_importance_pvalues()`
+and `feature_evidence_pvalues()` both call `adapter$refit_data()` when
+present before calling `adapter$refit()`. The shipped `lda_refit` adapter
+is the canonical example — its `null_action` returns a generalized-eigen
+operator with permuted-label state, and its `refit_data` peels the state
+back into `list(X, y)` so the standard refit path works.
 
 Adapters that don't need translation can omit the hook entirely; the
 helper falls back to a default that keeps oneblock, cross, and
 multiblock geometries working out of the box.
 
+## Optional feature-evidence hooks
+
+`variable_stability` is deliberately descriptive. If your adapter wants
+to answer a feature-level evidence question, expose that as a sidecar
+instead of relabeling stability as significance.
+
+There are two supported patterns:
+
+1. Return a complete evidence table from `feature_evidence_action()`.
+   This is useful when the fitted-model package owns a native bootstrap
+   or interval calculation. The `multivarious_pca` adapter uses this
+   route for conditional subspace-bootstrap loading evidence.
+2. Declare one or more non-negative feature statistics with
+   `feature_stat_spec()` and compute them with `feature_stat()`. This
+   lets `feature_evidence_pvalues(statistic = "adapter")` calibrate the
+   adapter-owned statistic with the adapter's own null action.
+
+```{r feature-evidence-hooks, eval = FALSE}
+feature_stat_spec = function(x = NULL, data = NULL, ...) {
+  data.frame(
+    statistic = "vip",
+    orientation = "adapter_invariant",
+    scope = "unit",
+    domain = "X"
+  )
+}
+
+feature_stat = function(x, data, domain, unit_id, members, statistic,
+                        orientation, ...) {
+  # Return one non-negative value per feature in `domain`.
+  vip_scores_for_unit(x, members)
+}
+```
+
+Use `check_feature_evidence_adapter()` alongside
+`check_infer_adapter()` when you declare these optional hooks. It
+smoke-tests the declared statistics and verifies that the returned
+objects can be normalized to the `multifer_feature_evidence` schema.
+
 ## Registering the adapter
 
 Adapters are looked up by `adapter_id` through a per-session
-registry. Call [register_infer_adapter()] once, typically from your
+registry. Call `register_infer_adapter()` once, typically from your
 package's `.onLoad` hook:
 
 ```{r register, eval = FALSE}
@@ -358,7 +402,7 @@ infer(
 ## Validity contracts
 
 The `checked_assumptions` slot is the executable safety layer. Every
-entry is `list(name, check, detail)`. [infer()] runs each `check`
+entry is `list(name, check, detail)`. `infer()` runs each `check`
 against the raw data before the engine starts:
 
 ```{r validity, eval = FALSE}
@@ -429,7 +473,7 @@ optimization.
 
 ## Testing your adapter
 
-A minimum contract test calls [check_infer_adapter()] with your adapter
+A minimum contract test calls `check_infer_adapter()` with your adapter
 and a small fixture. This is the same harness `multifer` uses while
 refactoring its own engine internals: it compiles every declared
 capability row, runs executable validity checks, and smoke-runs

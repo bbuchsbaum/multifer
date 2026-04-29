@@ -309,12 +309,16 @@ for downstream inspection.
 detectable above noise?" That is a question about **roots**.
 
 A different question — "which variables drive the structure that
-ladder selected?" — is answered by `feature_importance_from_bootstrap()`
-(descriptive) and `feature_importance_pvalues()` (null-calibrated).
-For a worked example see `vignette("pca-inference")` and
-`vignette("plsr-inference")`. The schema deliberately separates
-significance (per-unit p-values) from importance (per-variable
-summaries) so neither is mistaken for the other.
+ladder selected?" — belongs in a sidecar feature-evidence table, not
+in `component_tests`. Use `feature_evidence_from_bootstrap()` for
+bootstrap ratios and intervals, and `feature_evidence_pvalues()` when
+you have chosen an invariant null-calibrated statistic. For aggregate
+squared-loading summaries, the `feature_importance_*()` helpers remain
+available as a compact descriptive / p-value pair. For worked examples
+see `vignette("pca-inference")` and `vignette("plsr-inference")`.
+The schema deliberately separates significance (per-unit p-values)
+from evidence or importance (per-variable summaries) so neither is
+mistaken for the other.
 
 ## Where to go next
 
