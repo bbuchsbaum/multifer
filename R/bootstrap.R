@@ -174,6 +174,12 @@ bootstrap_fits <- function(recipe,
         call. = FALSE
       )
     }
+    if (isTRUE(store_aligned_scores) && !has_project_scores) {
+      stop(
+        "bootstrap_fits requires `adapter$project_scores` to store aligned scores for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
     domains <- .adapter_domains(adapter, fit = original_fit, data = data,
                                 geom_kind = geom_kind)
     n       <- NA_integer_

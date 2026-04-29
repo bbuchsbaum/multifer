@@ -163,7 +163,9 @@
 #'   `bootstrap_action`, or both `core` and `update_core` — **and** one of
 #'   `variable_stat` or `loadings`.
 #' - `score_stability` requires a perturbation path, `loadings`, and
-#'   either `scores` or `project_scores`.
+#'   either `scores` or `project_scores`. For `geometry = "adapter"`,
+#'   `project_scores` is required because multifer cannot infer scores
+#'   from opaque adapter-owned payloads.
 #' - `subspace_stability` requires a perturbation path **and** `loadings`.
 #' - `variable_significance` is excluded from v1 and fails at
 #'   registration time with a reference to Part 5 §38.

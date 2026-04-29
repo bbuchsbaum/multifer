@@ -78,7 +78,9 @@
 #'   (`variable_stat` OR `loadings`).
 #' - `score_stability` requires at least one of
 #'   `{refit, bootstrap_action, core+update_core}`, `loadings`, AND
-#'   (`scores` OR `project_scores`).
+#'   (`scores` OR `project_scores`). For `geometry = "adapter"`,
+#'   `project_scores` is required because multifer cannot infer scores from
+#'   opaque adapter-owned payloads.
 #' - `subspace_stability` requires at least one of
 #'   `{refit, bootstrap_action, core+update_core}` AND `loadings`.
 #' - `variable_significance` is excluded from v1 (Part 5 section 38) and
@@ -299,6 +301,10 @@ infer_adapter <- function(adapter_id,
   }
 
   if ("score_stability" %in% claimed_targets) {
+    adapter_score_claim <- any(
+      capabilities$geometry == "adapter" &
+        capabilities$target == "score_stability"
+    )
     if (!has_perturbation_path) {
       stop(paste0(
         "Claiming `score_stability` requires at least one perturbation hook: ",
@@ -315,6 +321,13 @@ infer_adapter <- function(adapter_id,
       stop(paste0(
         "Claiming `score_stability` requires `scores` or `project_scores`. ",
         "Neither is provided."
+      ), call. = FALSE)
+    }
+    if (adapter_score_claim && is.null(hooks[["project_scores"]])) {
+      stop(paste0(
+        "Claiming `score_stability` for `geometry = \"adapter\"` requires ",
+        "`project_scores`. Opaque adapter geometry cannot use the scores-only ",
+        "fallback because multifer does not interpret adapter-owned payloads."
       ), call. = FALSE)
     }
   }

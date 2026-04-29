@@ -438,6 +438,25 @@ test_that("claiming score_stability without score extraction hook errors", {
   )
 })
 
+test_that("adapter-owned geometry score_stability requires project_scores", {
+  expect_error(
+    infer_adapter(
+      adapter_id      = "opaque_scores_only",
+      shape_kinds     = "adapter",
+      capabilities    = capability_matrix(
+        list(geometry = "adapter", relation = "variance",
+             targets = "score_stability")
+      ),
+      roots = function(x) x$values,
+      scores = function(x, domain = NULL) x$scores,
+      loadings = function(x, domain = NULL) x$loadings,
+      bootstrap_action = function(x, data, design, replicate = NULL) list(fit = x),
+      validity_level = "conditional"
+    ),
+    "project_scores"
+  )
+})
+
 test_that("claiming subspace_stability without loadings hook errors", {
   expect_error(
     infer_adapter(

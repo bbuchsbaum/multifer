@@ -489,6 +489,42 @@ test_that("bootstrap_fits delegates loading and score alignment to adapter", {
                matrix(6, nrow = nrow(X), ncol = 2))
 })
 
+test_that("bootstrap_fits rejects aligned scores for adapter geometry without project_scores", {
+  payload <- list(reference = matrix(seq_len(12), 4, 3))
+  fit <- list(values = c(2, 1), loadings = diag(2), scores = matrix(0, 4, 2))
+  adapter <- infer_adapter(
+    adapter_id = "opaque_boot_no_project",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "subspace_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    bootstrap_action = function(x, data, design, replicate = NULL) list(fit = x),
+    validity_level = "conditional"
+  )
+  rec <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    adapter = adapter,
+    targets = "subspace_stability"
+  )
+
+  expect_error(
+    bootstrap_fits(
+      recipe = rec,
+      adapter = adapter,
+      data = payload,
+      original_fit = fit,
+      units = form_units(adapter$roots(fit)),
+      R = 1L,
+      store_aligned_scores = TRUE
+    ),
+    "project_scores"
+  )
+})
+
 # ---------------------------------------------------------------------------
 # Test 6: Reproducibility under seed
 # ---------------------------------------------------------------------------
