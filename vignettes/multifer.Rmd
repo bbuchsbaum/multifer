@@ -22,19 +22,23 @@ vignette: |
 ---
 
 ```{r setup, include = FALSE}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment  = "#>",
-  message  = FALSE,
-  warning  = FALSE,
-  fig.width  = 6,
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
   fig.height = 4,
-  dpi = 72
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
 ```
 
-```{r albers-classes, echo=FALSE, results='asis'}
+```{r albers-classes, echo = FALSE, results = "asis"}
 cat(sprintf(
   paste0(
     '<script>document.addEventListener("DOMContentLoaded",function(){',
@@ -42,12 +46,11 @@ cat(sprintf(
     'document.body.classList.add("palette-%s","preset-%s");',
     '});</script>'
   ),
-  params$family,
-  params$preset
+  params$family, params$preset
 ))
 ```
 
-```{r load}
+```{r library}
 library(multifer)
 ```
 
@@ -75,11 +78,10 @@ deliberate: `multifer` should not be in the business of reinventing
 PCA / PLSC / CCA fitters, and `multivarious` already ships a tested
 projector hierarchy.
 
-## First win: fit once, then infer
+## First win: one line of inference
 
-The shortest workflow is "fit with `multivarious::pca()`, pass the
-fitted projector to `infer_pca()`." Here is a 40 × 8 matrix with three
-true signal components planted on top of Gaussian noise:
+Here is a 40 × 8 matrix with three true signal components planted on
+top of Gaussian noise:
 
 ```{r make-data}
 dat <- bench_oneblock_shadowing(
@@ -91,19 +93,13 @@ dim(dat$X)
 dat$meta$true_rank
 ```
 
-```{r fit-and-infer}
-if (requireNamespace("multivarious", quietly = TRUE)) {
-  fit <- multivarious::pca(dat$X)
-  res <- infer_pca(dat$X, model = fit, B = 99, R = 20, seed = 2)
-} else {
-  res <- infer_pca(
-    dat$X,
-    adapter = "prcomp_oneblock",
-    B = 99,
-    R = 20,
-    seed = 2
-  )
-}
+`infer_pca()` is the convenience wrapper. It picks the
+`multivarious_pca` adapter by default (falling back to
+`prcomp_oneblock` if `multivarious` isn't installed) and runs the
+full ladder + bootstrap stability sweep:
+
+```{r infer-pca}
+res <- infer_pca(dat$X, B = 99, R = 20, seed = 2)
 res
 ```
 
@@ -112,21 +108,19 @@ through rung 3, and froze 3 selected component units. That is the
 answer — three components are statistically detectable at the chosen
 α. Everything else is in the result object, ready for downstream use.
 
-### Or let the wrapper fit for you
+### Reusing a pre-fit projector
 
-If you do not need the fit object for anything else, `infer_pca()`
-will fit with the default adapter (`"multivarious_pca"`) under the
-hood, so the shortest valid call is one line:
+If you've already fit a projector and want to keep that exact fit
+(for prediction, projection, or other downstream work), pass it
+through `model = `:
 
-```{r infer-only, eval = FALSE}
-infer_pca(dat$X, B = 99, R = 20, seed = 2)
+```{r infer-with-model, eval = FALSE}
+fit <- multivarious::pca(dat$X)
+res <- infer_pca(dat$X, model = fit, B = 99, R = 20, seed = 2)
 ```
 
-This is exactly equivalent to fitting with `multivarious::pca()` and
-passing the result via `model = `. The point of the pre-fit path is
-that you can reuse the same fit for prediction, projection, bootstrap
-analysis via `multivarious::bootstrap_pca()`, and `multifer`-style
-ladder inference without ever refitting.
+This is equivalent to the wrapper-only call above; it just skips the
+internal refit on the original data.
 
 ## The mental model: typed shapes
 
@@ -207,17 +201,17 @@ The p-value sequence across rungs plus the α threshold makes the ladder's
 decision visible at a glance:
 
 ```{r ladder-plot, echo = FALSE, fig.cap = "Component p-values and the 0.05 threshold. Green bars were rejected (declared significant), red bars were not."}
-pvals  <- res$component_tests$p_value
-steps  <- res$component_tests$step
-col    <- ifelse(pvals <= 0.05, "#2ca02c", "#d62728")
+pvals <- res$component_tests$p_value
+units <- res$component_tests$unit_id
+col   <- ifelse(pvals <= 0.05, "#2ca02c", "#d62728")
 bp <- barplot(
   pvals,
-  names.arg = steps,
+  names.arg = units,
   col       = col,
   border    = NA,
   ylim      = c(0, max(0.12, max(pvals) * 1.2)),
   ylab      = "sequential p-value",
-  xlab      = "rung (component index)",
+  xlab      = "unit",
   main      = "multifer ladder decisions"
 )
 abline(h = 0.05, lty = 2, col = "gray30")
@@ -225,8 +219,8 @@ text(x = bp, y = pvals + 0.005,
      labels = sprintf("%.3f", pvals), cex = 0.8)
 ```
 
-The plot is just the `component_tests$p_value` column against its rung
-index — everything the decision rests on is already in the result.
+The plot is just the `component_tests$p_value` column against its
+unit id — everything the decision rests on is already in the result.
 
 ## When roots are near-tied: subspace inference
 
@@ -290,9 +284,22 @@ The checks run at the top of `infer()`, before any SVD or bootstrap. On
 clean input the pass records are recorded in `result$assumptions$checked`
 for downstream inspection.
 
+## Significance is one question; importance is another
+
+`infer_*()` and the `component_tests` block answer "is component `k`
+detectable above noise?" That is a question about **roots**.
+
+A different question — "which variables drive the structure that
+ladder selected?" — is answered by `feature_importance_from_bootstrap()`
+(descriptive) and `feature_importance_pvalues()` (null-calibrated).
+For a worked example see `vignette("pca-inference")` and
+`vignette("plsr-inference")`. The schema deliberately separates
+significance (per-unit p-values) from importance (per-variable
+summaries) so neither is mistaken for the other.
+
 ## Where to go next
 
-Three family-specific vignettes walk each inferential family in depth:
+Five family-specific vignettes walk each inferential family in depth:
 
 - `vignette("pca-inference")` — one-block variance, the collapsed Vitale
   P3 ladder, and variable / score / subspace stability on a signal-bearing
@@ -302,6 +309,15 @@ Three family-specific vignettes walk each inferential family in depth:
 - `vignette("cca-inference")` — two-block correlation (CCA-family), the
   mature-tier whitened-space stepwise deflation, and the
   paired-rows / nuisance-adjusted / grouped-exchangeable design matrix.
+- `vignette("plsr-inference")` — two-block predictive (PLSR), the
+  held-out gain ladder, and feature-importance summaries for the
+  selected predictive components.
+- `vignette("lda-inference")` — generalized-eigen discriminant-root
+  significance under label permutation, plus null-calibrated
+  variable importance for class-discriminating features.
+
+For adapter authors, `vignette("writing-adapters")` walks the
+contract end to end.
 
 For a quick reference on which adapter ships which family at which
 maturity label, see the **Built-in adapters and maturity** table in the

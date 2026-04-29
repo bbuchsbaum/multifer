@@ -21,11 +21,37 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+```
+
+```{r albers-classes, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
 ```
 
 `multifer` provides **typed perturbation inference** for latent-root
@@ -49,26 +75,6 @@ tail-root statistic is the observed test statistic, column-permutation
 is the null action, and the ladder drives rung-by-rung
 stop-at-first-non-rejection.
 
-## Setup
-
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multifer)
-```
-
-```{r albers-classes, echo=FALSE, results='asis'}
-cat(sprintf(
-  paste0(
-    '<script>document.addEventListener("DOMContentLoaded",function(){',
-    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
-    'document.body.classList.add("palette-%s","preset-%s");',
-    '});</script>'
-  ),
-  params$family,
-  params$preset
-))
-```
-
 ## A synthetic PCA example with three true components
 
 We build a `40 x 8` matrix with three real signal directions plus
@@ -86,21 +92,21 @@ noise  <- matrix(rnorm(n * p, sd = 0.3), n, p)
 X <- signal + noise
 ```
 
-## Running `infer()`
+## Running `infer_pca()`
+
+`infer_pca()` is the convenience wrapper for the
+`(oneblock, variance)` family. It pins the geometry and relation,
+picks the `multivarious_pca` adapter by default, and forwards
+everything else to `infer()`.
 
 ```{r infer-pca}
-res <- infer(
-  adapter  = "svd_oneblock",
-  data     = X,
-  geometry = "oneblock",
-  relation = "variance",
-  B        = 99,
-  R        = 20,
-  alpha    = 0.05,
-  seed     = 2
-)
+res <- infer_pca(X, B = 99, R = 20, alpha = 0.05, seed = 2)
 res
 ```
+
+If you need the explicit form — for instance, to swap in a different
+adapter while testing — `infer_pca()` is exactly equivalent to
+`infer(adapter = "multivarious_pca", data = X, geometry = "oneblock", relation = "variance", ...)`.
 
 ## What this vignette tests
 
@@ -175,12 +181,48 @@ successful path:
 res$assumptions$checked
 ```
 
-## What this vignette does *not* cover
+## Variable importance: the right object for "which variable matters?"
 
-- `variable_stability` is a stability measure, not a significance
-  test; variable-level significance is deferred to a later phase of
-  the package.
-- For supervised latent-root inference (PLS regression, reduced-rank
-  regression), see the planned `predictive` relation — covariance
-  mode is the wrong inferential target for those methods and the
-  package refuses to silently reuse it.
+`variable_stability` is a *stability* measure. To ask whether a
+variable's loading magnitude is detectable above the column-permutation
+null, use `feature_importance_pvalues()`:
+
+```{r importance-pvalues}
+recipe <- infer_recipe(
+  geometry = "oneblock", relation = "variance",
+  adapter  = adapter_svd()
+)
+fit   <- adapter_svd()$refit(NULL, X)
+units <- form_units(adapter_svd()$roots(fit))
+fi <- feature_importance_pvalues(
+  recipe, adapter_svd(),
+  data = X, units = units, original_fit = fit,
+  B = 99, adjust = "BH", seed = 11
+)
+head(fi[, c("variable", "statistic", "p_value", "p_adjusted")], 8)
+```
+
+```{r importance-plot, echo = FALSE, fig.cap = "Aggregate squared-loading importance with BH-adjusted p-values. Bars below the dashed 0.05 line are significant after adjustment."}
+ord <- order(fi$p_adjusted)
+fi_o <- fi[ord, ]
+col  <- ifelse(fi_o$p_adjusted <= 0.05, "#2ca02c", "#d62728")
+bp <- barplot(
+  fi_o$p_adjusted, names.arg = fi_o$variable, col = col,
+  border = NA, ylim = c(0, 1.0),
+  ylab = "BH-adjusted p-value", xlab = "variable",
+  main = "feature_importance_pvalues, X domain"
+)
+abline(h = 0.05, lty = 2, col = "gray30")
+```
+
+The schema separates significance (per-unit p-values) from importance
+(per-variable summaries) on purpose: a stability summary is *not* a
+hypothesis test, and the package will not relabel one as the other.
+
+## Cross-references
+
+- For supervised latent-root inference, `vignette("plsr-inference")`
+  covers the predictive relation — held-out gain rather than
+  in-sample variance.
+- For two-block covariance and correlation, see
+  `vignette("plsc-inference")` and `vignette("cca-inference")`.

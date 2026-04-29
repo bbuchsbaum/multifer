@@ -21,11 +21,37 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+```
+
+```{r albers-classes-hidden, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
 ```
 
 This vignette walks the **generalized-eigen** flagship in `multifer`:
@@ -48,26 +74,6 @@ The public geneig surface is intentionally narrow in v1: `infer_lda()`
 ships discriminant-root significance for LDA, while broader
 metric-weighted / contrastive generalized-eigen families remain future
 extensions rather than hidden features of the current wrapper.
-
-## Setup
-
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multifer)
-```
-
-```{r albers-classes, echo=FALSE, results='asis'}
-cat(sprintf(
-  paste0(
-    '<script>document.addEventListener("DOMContentLoaded",function(){',
-    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
-    'document.body.classList.add("palette-%s","preset-%s");',
-    '});</script>'
-  ),
-  params$family,
-  params$preset
-))
-```
 
 ## What the null actually tests
 
@@ -173,9 +179,55 @@ mean:
 - that any specific pair of classes is individually significant
 - that the loadings are p-values
 
-Those are different inferential objects. The current LDA/geneig surface
-does not claim `variable_significance`, and this vignette does not
-reinterpret stability summaries as significance tests.
+Those are different inferential objects. `infer_lda()` itself does
+not claim `variable_significance` — that target is gated as a sidecar
+API rather than a frozen sub-block of `infer_result`.
+
+## A sidecar API for variable-level p-values
+
+For the question "which variables drive the discriminant axes?",
+`feature_importance_pvalues()` runs a null-calibrated permutation
+test on aggregate squared-loading importance, using the adapter's
+own label-permutation null and a `refit_data` hook that translates
+the geneig operator payload back to LDA `(X, y)` data.
+
+```{r lda-importance}
+adapter <- adapter_lda_refit()
+data    <- list(X = X, y = labels)
+recipe  <- infer_recipe(
+  geometry = "geneig", relation = "generalized_eigen",
+  adapter  = adapter,  targets  = "component_significance"
+)
+fit     <- adapter$refit(NULL, data)
+rank    <- ncol(adapter$loadings(fit))
+units   <- form_units(adapter$roots(fit)[seq_len(rank)])
+
+fi <- feature_importance_pvalues(
+  recipe, adapter, data = data, units = units,
+  original_fit = fit, B = 49, adjust = "BH", seed = 11
+)
+fi[, c("variable", "statistic", "p_value", "p_adjusted")]
+```
+
+```{r lda-scatter, echo = FALSE, fig.cap = "Discriminant scores colored by class. The first axis separates classes; the second carries little signal — consistent with the planted rank-1 design."}
+fit <- adapter$refit(NULL, data)
+S <- adapter$scores(fit)
+op <- par(mar = c(4, 4, 3, 1))
+on.exit(par(op), add = TRUE)
+plot(
+  S[, 1L], if (ncol(S) >= 2L) S[, 2L] else rep(0, nrow(S)),
+  col = c("#1f77b4", "#2ca02c", "#d62728")[as.integer(labels)],
+  pch = 19L, xlab = "LD1", ylab = "LD2",
+  main = "LDA discriminant scores"
+)
+legend("topright", legend = levels(labels), bty = "n",
+       col = c("#1f77b4", "#2ca02c", "#d62728"), pch = 19L)
+```
+
+Variable 1 — the planted discriminant axis — carries the lowest
+adjusted p-value; the others track the noise model. The result is a
+companion to `res$component_tests`, not a replacement: roots and
+variables are different inferential objects.
 
 ## Why deflation is B-metric, not Euclidean
 

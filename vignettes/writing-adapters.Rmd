@@ -22,16 +22,23 @@ vignette: |
 ---
 
 ```{r setup, include = FALSE}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment  = "#>",
-  message  = FALSE,
-  warning  = FALSE
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
 ```
 
-```{r albers-classes, echo=FALSE, results='asis'}
+```{r albers-classes, echo = FALSE, results = "asis"}
 cat(sprintf(
   paste0(
     '<script>document.addEventListener("DOMContentLoaded",function(){',
@@ -238,29 +245,30 @@ adapter_multivarious_pca <- function() {
                         "subspace_stability"))
     ),
 
-    # Delegate every accessor to multivarious generics --------------------------
-    roots    = function(x, ...) x$sdev^2,
+    # Delegate accessors to multivarious generics ------------------------------
+    roots    = function(x, ...) multivarious::sdev(x)^2,
     scores   = function(x, domain = NULL, ...) multivarious::scores(x),
-    loadings = function(x, domain = NULL, ...) multivarious::components(x),
+    # coef() on a bi_projector returns the V (right singular vectors / loadings)
+    loadings = function(x, domain = NULL, ...) stats::coef(x),
 
-    # Deflation via multivarious's own truncation + reconstruction -------------
+    # Deflation: subtract rank-k reconstruction directly -----------------------
     residualize = function(x, k, data, ...) {
-      trunc <- multivarious::truncate(x, k)
-      recon <- multivarious::reconstruct(trunc)
-      data - recon
+      V <- stats::coef(x)[, seq_len(k), drop = FALSE]
+      S <- multivarious::scores(x)[, seq_len(k), drop = FALSE]
+      data - tcrossprod(S, V)
     },
 
     # Refit by calling multivarious::pca() on the resampled data ---------------
     refit = function(x, new_data, ...) {
       if (is.list(new_data) && !is.null(new_data$X)) new_data <- new_data$X
-      multivarious::pca(new_data, ncomp = length(x$sdev))
+      multivarious::pca(new_data, ncomp = min(dim(new_data)) - 1L)
     },
 
     null_action = function(x, data, ...) apply(data, 2L, sample),
 
     component_stat = function(x, data, k, ...) {
       fit <- multivarious::pca(data, ncomp = k)
-      s2  <- fit$sdev^2
+      s2  <- multivarious::sdev(fit)^2
       if (k > length(s2) || sum(s2[k:length(s2)]) == 0) return(NA_real_)
       s2[k] / sum(s2[k:length(s2)])
     },
@@ -273,10 +281,41 @@ adapter_multivarious_pca <- function() {
 ```
 
 The shape is the same; only the bodies change. Each hook is a thin
-delegator to a `multivarious::` generic — no math, just plumbing.
-That is what we mean by "multifer is the inference layer on top of
-a fitting framework." Your package provides the fitter; `multifer`
-provides the ladder.
+delegator to a `multivarious::` generic (or to `stats::coef()` for
+the loadings, which is how `multivarious::bi_projector` exposes the
+right singular vectors). That is what we mean by "multifer is the
+inference layer on top of a fitting framework." Your package provides
+the fitter; `multifer` provides the ladder.
+
+## Translating null payloads with `refit_data`
+
+For most adapters, `null_action(x, data)` returns data shaped like
+the original input, and `refit(x, null_data)` accepts it directly.
+Some adapters need a translation step in between — typically because
+their `null_action` returns a richer payload (a precomputed operator,
+permuted state, ...) that the engine can use directly but that
+`refit()` cannot. The optional `refit_data` hook covers exactly that
+case:
+
+```{r refit-data, eval = FALSE}
+refit_data = function(x, null_payload, original_data, ...) {
+  # Translate `null_payload` (whatever your null_action() returned)
+  # into the shape your refit() expects.
+  list(X = null_payload$state$X, y = null_payload$state$y)
+}
+```
+
+`feature_importance_pvalues()` is the one consumer that needs this:
+when a geometry's null payload differs from the refit input shape,
+the helper calls `adapter$refit_data()` (when present) before
+calling `adapter$refit()`. The shipped `lda_refit` adapter is the
+canonical example — its `null_action` returns a generalized-eigen
+operator with permuted-label state, and its `refit_data` peels the
+state back into `list(X, y)` so the standard refit path works.
+
+Adapters that don't need translation can omit the hook entirely; the
+helper falls back to a default that keeps oneblock, cross, and
+multiblock geometries working out of the box.
 
 ## Registering the adapter
 

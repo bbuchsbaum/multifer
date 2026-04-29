@@ -21,11 +21,37 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+```
+
+```{r albers-classes, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
 ```
 
 This vignette walks the two-block covariance case: cross-block
@@ -50,26 +76,6 @@ full product equals the top singular value of the `k_x × k_y` inner
 core M, so null draws collapse to a small inner matrix instead of
 reforming the full `p × q` cross product at every permutation.
 
-## Setup
-
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multifer)
-```
-
-```{r albers-classes, echo=FALSE, results='asis'}
-cat(sprintf(
-  paste0(
-    '<script>document.addEventListener("DOMContentLoaded",function(){',
-    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
-    'document.body.classList.add("palette-%s","preset-%s");',
-    '});</script>'
-  ),
-  params$family,
-  params$preset
-))
-```
-
 ## A synthetic PLSC example with a shared latent factor
 
 ```{r synthetic-cross}
@@ -88,19 +94,14 @@ Y <- U %*% diag(sig, nrow = k) %*% t(Wy) +
   matrix(rnorm(n * p_y, sd = 0.5), n, p_y)
 ```
 
-## Running `infer()`
+## Running `infer_plsc()`
+
+`infer_plsc()` is the convenience wrapper. It pins the geometry,
+relation, and design, and uses the `multivarious_plsc` adapter when
+available (falling back to `cross_svd` otherwise):
 
 ```{r infer-plsc}
-res <- infer(
-  adapter  = "cross_svd",
-  data     = list(X = X, Y = Y),
-  geometry = "cross",
-  relation = "covariance",
-  B        = 99,
-  R        = 20,
-  alpha    = 0.05,
-  seed     = 2
-)
+res <- infer_plsc(X, Y, B = 99, R = 20, alpha = 0.05, seed = 2)
 res
 ```
 
@@ -139,6 +140,29 @@ domain)` where `domain` is `"X"` or `"Y"`:
 head(res$variable_stability, 10)
 head(res$score_stability, 10)
 ```
+
+```{r stability-plot, echo = FALSE, fig.cap = "Variable stability per (unit, domain). Stability of 1 means the variable's loading sign and magnitude are reproduced perfectly across bootstrap replicates; values near 0 mean the loading flips or fluctuates wildly."}
+vs <- res$variable_stability
+sel <- vs$unit_id %in% res$units$unit_id[res$units$selected]
+vs <- vs[sel, , drop = FALSE]
+op <- par(mfrow = c(1, 2L), mar = c(4, 4, 3, 1))
+on.exit(par(op), add = TRUE)
+for (d in c("X", "Y")) {
+  vd <- vs[vs$domain == d, , drop = FALSE]
+  ord <- order(vd$unit_id, vd$variable)
+  vd <- vd[ord, , drop = FALSE]
+  col <- ifelse(vd$unit_id == "u1", "#1f77b4", "#ff7f0e")
+  barplot(
+    vd$stability, names.arg = vd$variable, las = 2L, col = col,
+    border = NA, ylim = c(0, 1.05),
+    ylab = "stability", main = sprintf("domain %s", d)
+  )
+}
+```
+
+Both blocks load mostly on the leading unit, and stability is
+high there; the trailing unit recovers signal in only a few
+variables, with broader uncertainty.
 
 ## Subspace stability for tied canonical pairs
 

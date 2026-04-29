@@ -21,11 +21,37 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+```
+
+```{r albers-classes, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
 ```
 
 This vignette walks the **canonical correlation** case: inference on
@@ -38,26 +64,6 @@ support boundary:
   nuisance-adjusted designs with within-block exchangeability
 - richer structured designs fall back to the conservative first-root
   cap until their validity story is fully settled
-
-## Setup
-
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multifer)
-```
-
-```{r albers-classes, echo=FALSE, results='asis'}
-cat(sprintf(
-  paste0(
-    '<script>document.addEventListener("DOMContentLoaded",function(){',
-    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
-    'document.body.classList.add("palette-%s","preset-%s");',
-    '});</script>'
-  ),
-  params$family,
-  params$preset
-))
-```
 
 ## A paired-row CCA example
 

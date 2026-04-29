@@ -21,11 +21,38 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 6,
+  fig.height = 4,
+  dpi       = 150
 )
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("albersdown", quietly = TRUE)) {
+  ggplot2::theme_set(albersdown::theme_albers(family = params$family,
+                                              preset = params$preset))
+}
+if (!requireNamespace("pls", quietly = TRUE)) knitr::knit_exit()
+```
+
+```{r albers-classes-hidden, echo = FALSE, results = "asis"}
+cat(sprintf(
+  paste0(
+    '<script>document.addEventListener("DOMContentLoaded",function(){',
+    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
+    'document.body.classList.add("palette-%s","preset-%s");',
+    '});</script>'
+  ),
+  params$family, params$preset
+))
+```
+
+```{r library}
+library(multifer)
 ```
 
 This vignette covers **supervised predictive inference**. Unlike PLSC,
@@ -48,27 +75,6 @@ predictive-cross families remain future work.
 This is a different inferential family from covariance-mode PLSC. The
 predictive relation keeps that distinction explicit in the type system
 and at adapter registration time.
-
-## Setup
-
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multifer)
-if (!requireNamespace("pls", quietly = TRUE)) knitr::knit_exit()
-```
-
-```{r albers-classes, echo=FALSE, results='asis'}
-cat(sprintf(
-  paste0(
-    '<script>document.addEventListener("DOMContentLoaded",function(){',
-    'document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");',
-    'document.body.classList.add("palette-%s","preset-%s");',
-    '});</script>'
-  ),
-  params$family,
-  params$preset
-))
-```
 
 ## A synthetic predictive example
 
@@ -149,14 +155,10 @@ The first two latent predictors are selected; the third is not.
 
 As elsewhere in `multifer`, variable and score summaries are
 **stability** outputs. They are useful for reading the fitted latent
-predictors, but they are not p-values and do not make a claim of
-`variable_significance`, which remains out of scope in v1.
+predictors, but they are not p-values.
 
 ```{r variable-stability}
 head(res$variable_stability, 12)
-```
-
-```{r score-stability}
 head(res$score_stability, 12)
 ```
 
@@ -164,6 +166,57 @@ You can already see the expected pattern: variables aligned with the
 first predictive direction are more stable than the trailing noise
 variables, and the leading score interval is tighter than the trailing
 noise unit.
+
+## Variable importance: a descriptive companion
+
+`feature_importance_from_bootstrap()` summarizes the bootstrap
+artifact `multifer` already built during `infer_plsr()`'s stability
+sweep. Because it consumes the artifact directly, it does **not**
+refit anything — it just aggregates squared aligned loadings across
+the selected predictive components.
+
+```{r plsr-importance}
+adapter <- adapter_plsr_refit()
+recipe  <- infer_recipe(
+  geometry = "cross", relation = "predictive",
+  adapter  = adapter,
+  targets  = c("component_significance", "variable_stability",
+               "score_stability", "subspace_stability")
+)
+data    <- list(X = X, Y = Y, relation = "predictive")
+fit     <- adapter$refit(NULL, data)
+units   <- form_units(adapter$roots(fit))
+art     <- bootstrap_fits(
+  recipe = recipe, adapter = adapter, data = data,
+  original_fit = fit, units = units, R = 12L, seed = 7L
+)
+fi <- feature_importance_from_bootstrap(
+  art, units, k = "all", weights = "root",
+  roots = adapter$roots(fit)
+)
+fi[fi$domain == "X", c("variable", "estimate", "lower", "upper", "stability")]
+```
+
+```{r plsr-importance-plot, echo = FALSE, fig.cap = "Aggregate predictive importance per X-variable across the selected latent predictors, with bootstrap 95\\% intervals. The first three variables (the planted predictors of LV1) and the next three (LV2) dominate."}
+fx <- fi[fi$domain == "X", , drop = FALSE]
+ord <- order(-fx$estimate)
+fx <- fx[ord, , drop = FALSE]
+op <- par(mar = c(4, 4, 3, 1))
+on.exit(par(op), add = TRUE)
+mid <- barplot(
+  fx$estimate, names.arg = fx$variable, las = 2L,
+  col = "#1f77b4", border = NA,
+  ylab = "aggregate squared-loading importance",
+  main = "feature_importance_from_bootstrap (X domain)",
+  ylim = c(0, max(fx$upper, na.rm = TRUE) * 1.05)
+)
+arrows(mid, fx$lower, mid, fx$upper, code = 3L, angle = 90L,
+       length = 0.04, col = "gray30")
+```
+
+This is descriptive — not a p-value. For predictive significance at
+the *component* level (the held-out gain ladder), see
+`res$component_tests` above.
 
 ## Why predictive needs its own relation
 
