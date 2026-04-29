@@ -351,37 +351,11 @@ print.multifer_feature_importance_pvalues <- function(x, ...) {
   invisible(adapter)
 }
 
-.default_refit_data <- function(null_payload, geom_kind, rel_kind) {
-  if (identical(geom_kind, "oneblock")) {
-    if (is.list(null_payload) && !is.null(null_payload$X)) {
-      null_payload$X
-    } else {
-      null_payload
-    }
-  } else if (identical(geom_kind, "cross")) {
-    if (!is.list(null_payload) || is.null(null_payload$X) ||
-        is.null(null_payload$Y)) {
-      stop(
-        "feature_importance_pvalues: cross null payloads must be lists with `X` and `Y`, or the adapter must provide `refit_data`.",
-        call. = FALSE
-      )
-    }
-    list(X = null_payload$X, Y = null_payload$Y, relation = rel_kind)
-  } else if (identical(geom_kind, "multiblock")) {
-    .validate_multiblock_data(null_payload)
-    null_payload
-  } else {
-    stop(sprintf(
-      "feature_importance_pvalues: geometry '%s' requires the adapter to provide a `refit_data` hook to translate null payloads back to refit input.",
-      geom_kind
-    ), call. = FALSE)
-  }
-}
-
 compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL) {
   .fi_validate_pvalue_hooks(adapter)
   geom_kind <- recipe$shape$geometry$kind
   rel_kind  <- recipe$shape$relation$kind
+  refit_data <- .compile_fi_refit_data(adapter, geom_kind, rel_kind, data)
   list(
     geom_kind    = geom_kind,
     rel_kind     = rel_kind,
@@ -393,15 +367,57 @@ compile_variable_importance_plan <- function(recipe, adapter, data, model = NULL
     },
     null_payload = function(fit) adapter$null_action(fit, data),
     refit_null   = function(fit, null_payload) {
-      refit_input <- if (!is.null(adapter$refit_data)) {
-        adapter$refit_data(fit, null_payload, data)
-      } else {
-        .default_refit_data(null_payload, geom_kind, rel_kind)
-      }
-      adapter$refit(fit, refit_input)
+      adapter$refit(fit, refit_data(fit, null_payload))
     },
     null_label = .fi_null_label(geom_kind)
   )
+}
+
+.compile_fi_refit_data <- function(adapter, geom_kind, rel_kind, data) {
+  if (is.function(adapter$refit_data)) {
+    return(function(fit, null_payload) {
+      adapter$refit_data(fit, null_payload, data)
+    })
+  }
+  .default_fi_refit_data_translator(geom_kind, rel_kind)
+}
+
+.default_fi_refit_data_translator <- function(geom_kind, rel_kind) {
+  if (identical(geom_kind, "oneblock")) {
+    return(function(fit, null_payload) {
+      if (is.list(null_payload) && !is.null(null_payload$X)) {
+        null_payload$X
+      } else {
+        null_payload
+      }
+    })
+  }
+
+  if (identical(geom_kind, "cross")) {
+    force(rel_kind)
+    return(function(fit, null_payload) {
+      if (!is.list(null_payload) || is.null(null_payload$X) ||
+          is.null(null_payload$Y)) {
+        stop(
+          "feature_importance_pvalues: cross null payloads must be lists with `X` and `Y`, or the adapter must provide `refit_data`.",
+          call. = FALSE
+        )
+      }
+      list(X = null_payload$X, Y = null_payload$Y, relation = rel_kind)
+    })
+  }
+
+  if (identical(geom_kind, "multiblock")) {
+    return(function(fit, null_payload) {
+      .validate_multiblock_data(null_payload)
+      null_payload
+    })
+  }
+
+  stop(sprintf(
+    "feature_importance_pvalues: geometry '%s' requires the adapter to provide a `refit_data` hook to translate null payloads back to refit input.",
+    geom_kind
+  ), call. = FALSE)
 }
 
 .fi_null_label <- function(geom_kind) {

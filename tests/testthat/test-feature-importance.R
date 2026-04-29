@@ -317,6 +317,33 @@ test_that("feature_importance_pvalues calls null_action B times and uses maxT", 
   expect_equal(out$p_adjusted, c(1, 1))
 })
 
+test_that("feature_importance_pvalues refuses geneig null refits without refit_data at plan compile time", {
+  adapter <- structure(
+    list(
+      refit = function(x, new_data, ...) x,
+      loadings = function(x, domain = NULL, ...) matrix(1, 1, 1),
+      null_action = function(x, data, ...) data
+    ),
+    class = "multifer_adapter"
+  )
+  recipe <- structure(
+    list(
+      shape = typed_shape(
+        geometry("geneig"),
+        relation("generalized_eigen"),
+        exchangeable_rows()
+      ),
+      validity_level = "conditional"
+    ),
+    class = "multifer_infer_recipe"
+  )
+
+  expect_error(
+    compile_variable_importance_plan(recipe, adapter, list(X = matrix(1, 2, 1))),
+    "requires the adapter to provide a `refit_data` hook"
+  )
+})
+
 test_that("feature_importance_pvalues drives a geneig (LDA) adapter end-to-end", {
   skip_if_not_installed("MASS")
 
