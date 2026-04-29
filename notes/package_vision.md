@@ -111,7 +111,7 @@ Every inferential family the package ships is labeled internally with one of thr
 
 - **One-block variance** (PCA-family): `adapter_svd`, `adapter_prcomp`, `multivarious_pca`. Collapsed Vitale P3 ladder is exact and tested against the original projected construction. Core-space bootstrap via the Fisher identity is exact.
 - **Cross-block covariance** (PLSC-family): `adapter_cross_svd` in covariance mode, `multivarious_plsc`. Exact core-space bootstrap path via `(V_x, D_x, V_y, D_y)` identity is in place and machine-precision verified against refit across six shape/SNR regimes in `notes/cross_core_bootstrap_study.md`.
-- **Cross-block correlation** (CCA-family): `adapter_cross_svd` in correlation mode and `adapter_cancor`. The current implementation supports multi-root testing for the paired-row design and for the shipped nuisance-adjusted designs, including grouped exchangeability. Designs outside that support matrix fall back conservatively to first-root inference.
+- **Cross-block correlation** (CCA-family): `adapter_cancor`, `adapter_cross_svd` in correlation mode, and the explicit `multivarious_cca` backend. The current implementation supports multi-root testing for the paired-row design and for the shipped nuisance-adjusted designs, including grouped exchangeability. Designs outside that support matrix fall back conservatively to first-root inference.
 
 These are what the README should lead with. Paper 1 may still emphasize PCA + PLSC most heavily, but the package-level CCA story is now a shipped and defended path rather than a merely aspirational extension.
 
@@ -124,7 +124,7 @@ These surfaces are real and useful, but they are not yet the center of the packa
 
 ### Planned — architectural slot or broader family expansion, not current package surface
 
-- **Multi-block** geometry: declared in the vocabulary and the capability matrix; `bootstrap_fits()` explicitly refuses. Needs a real engine with the generalized core-space identity for `K = sum_{ij} X_i^T W_{ij} Y_j`.
+- **Bundled multi-block method families**: `multiblock` geometry is implemented as an adapter-driven path with generic inference, bootstrap resampling, result assembly, and arbitrary block-domain stability tables. What is still planned is a bundled public method adapter / wrapper and any family-specific generalized core-space identity such as `K = sum_{ij} X_i^T W_{ij} Y_j`.
 - **Broader generalized-eigen families**: contrastive PCA, metric-weighted PCA, and other `geneig` special cases beyond LDA.
 - **Broader supervised / predictive families**: reduced-rank regression and richer predictive-cross engines beyond the current PLSR wrapper.
 
