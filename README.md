@@ -106,9 +106,9 @@ Engine dependencies:
 - `multivarious` is a required dependency and supplies the default
   public engines for `infer_pca()` and `infer_plsc()` through the
   `multivarious_pca` and `multivarious_plsc` adapters. The
-  `multivarious_cca` adapter is registered as an explicit CCA backend
-  with component-inference parity pinned against the mature CCA path,
-  though `infer_cca()` still defaults to `cancor_cross`.
+  `multivarious_cca` adapter is registered as an explicit mature CCA backend
+  for the validity-gated full-rank CCA support matrix, though `infer_cca()`
+  still defaults to `cancor_cross`.
   Base-R reference adapters such as `prcomp_oneblock` and `cross_svd`
   remain available, but callers must request them explicitly with
   `adapter = `.
@@ -205,11 +205,12 @@ the public CCA path single-relation and unambiguous. For correlation-mode
 cross problems, the strongest current paths are the plain paired-row design,
 common-`Z` nuisance-adjusted designs, and nuisance-adjusted designs with
 within-block exchangeability, plus `blocked_rows(groups)`. The
-`multivarious_cca` adapter is available for explicit use and now has
-component-test parity pinned against `cancor_cross`, but it is still not the
-default because adapter-owned loading estimates, score estimates, score
-intervals, subspace stability, and regularized-fit semantics remain
-normalization-specific.
+`multivarious_cca` adapter is available for explicit use and now has mature
+component-test parity pinned against `cancor_cross` on the shipped support
+matrix. It is still not the default because adapter-owned loading estimates,
+score estimates, score intervals, subspace stability, and regularized-fit
+semantics remain backend-specific rather than reasons to change the public
+default.
 
 ## Built-in adapters and maturity
 
@@ -222,7 +223,7 @@ normalization-specific.
 | `cancor_cross`         | cross     | correlation        | **mature** |
 | `multivarious_pca`     | oneblock  | variance           | **mature** |
 | `multivarious_plsc`    | cross     | covariance         | **mature** |
-| `multivarious_cca`     | cross     | correlation        | **narrow** |
+| `multivarious_cca`     | cross     | correlation        | **mature** |
 | `lda_refit`            | geneig    | generalized_eigen  | **narrow** |
 | `plsr_refit`           | cross     | predictive         | **narrow** |
 
@@ -236,9 +237,7 @@ meaning each:
   with within-block exchangeability, and `blocked_rows(groups)`.
 - **narrow**: shipped today with a deliberately limited public
   surface. The engine works end-to-end but the family coverage is
-  intentionally scoped — for example `multivarious_cca` is
-  scaffold-parity compatible for component tests but still needs
-  adapter-owned loading/score stability evidence, `lda_refit` exposes
+  intentionally scoped — for example `lda_refit` exposes
   only full-rank LDA discriminant-root significance for
   `(geneig, generalized_eigen)`,
   and `plsr_refit` exposes only held-out predictive gain for
@@ -252,12 +251,12 @@ directly from the registry; the drift-guard test asserts it stays in
 sync with this README.
 
 For CCA specifically, `infer_cca()` still defaults to `cancor_cross`.
-The `multivarious_cca` adapter is available as an explicit alternate
-backend. Component-test parity with the shipped path is pinned in
-`tests/testthat/test-cca-parity.R`; the remaining default-backend question is
-about whether adapter-owned loadings, scores, stability summaries, and
-regularization defaults should be normalized to a common public contract or
-documented as backend-specific summaries.
+The `multivarious_cca` adapter is available as an explicit mature backend
+for the same validity-gated full-rank CCA support matrix. Component-test
+parity with the shipped path is pinned in
+`tests/testthat/test-cca-parity.R`; adapter-owned loadings, scores,
+stability summaries, and regularization defaults are documented as
+backend-specific summaries rather than default-backend blockers.
 
 All mature-tier adapters now carry **executable validity contracts**:
 `infer()` runs the adapter's `checked_assumptions` against the raw data

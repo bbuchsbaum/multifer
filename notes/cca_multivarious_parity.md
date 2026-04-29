@@ -5,10 +5,11 @@ This note records the executable evidence for mote
 
 ## Contract
 
-`multivarious_cca` is an explicit CCA backend for the `(cross, correlation)`
-family. The mature public CCA path remains `infer_cca(..., adapter =
-"cancor_cross")`. For `multivarious_cca` to move toward the mature boundary, it
-must agree with the mature path on the scaffold-level inferential outputs:
+`multivarious_cca` is an explicit mature CCA backend for the `(cross,
+correlation)` family on the validity-gated full-rank CCA support matrix. The
+default public wrapper remains `infer_cca(..., adapter = "cancor_cross")`.
+For `multivarious_cca` to share the mature CCA label, it must agree with the
+default mature path on the scaffold-level inferential outputs:
 
 - component test statistics,
 - Monte Carlo p-values under the same seed,
@@ -62,18 +63,20 @@ boundary, not ordinary numerical noise.
 The current evidence supports this statement:
 
 > `multivarious_cca` is scaffold-parity compatible with the mature CCA path for
-> component-significance inference on the shipped support matrix.
+> component-significance inference on the shipped support matrix, and is a
+> mature explicit backend for that validity-gated surface.
 
-The adapter-owned stability evidence is narrower. On a paired-row CCA fixture,
+The adapter-owned stability evidence is backend-specific. On a paired-row CCA fixture,
 `multivarious_cca` and `cancor_cross` produce the same stability table keys and
 closely matching variable-stability scores after sign alignment. They do not
 produce raw-equal loading estimates, score estimates, score intervals, or
 subspace principal-angle summaries. Those quantities are tied to each backend's
-normalization of canonical coefficients and scores, so they are currently
-adapter-specific outputs rather than cross-backend parity targets.
+normalization of canonical coefficients and scores, so they are adapter-owned
+summaries rather than cross-backend equality targets.
 
-It does not yet imply that `multivarious_cca` should become the default CCA
-wrapper backend or be relabeled as a mature adapter. Default-backend maturity
-still needs a deliberate normalization contract for adapter-owned loadings,
-scores, score intervals, subspace stability, regularization defaults, and any
-future feature-evidence statistics.
+This promotion does not imply that `multivarious_cca` should become the default
+CCA wrapper backend. It also does not promote high-dimensional regularized CCA
+inside `infer()`: the shared CCA validity checks still require full column rank
+and enough effective rows for whitening. Regularized `multivarious::cca()`
+refits can exist as adapter-owned fit capabilities without changing the
+validity-gated mature inference boundary.

@@ -21,10 +21,11 @@ that set, the package deliberately falls back to **first-root-only** inference
 rather than making a stepwise claim it cannot yet defend.
 
 `multivarious_cca` is now parity-pinned for scaffold-level component
-inference on this support matrix, but it is not the default `infer_cca()`
-backend. Its `multivarious::cca()` fit surface brings adapter-owned loading and
-score semantics, plus regularization defaults, that need their own evidence
-before the adapter itself should be labeled mature.
+inference on this support matrix and is labeled as a mature explicit backend
+for that validity-gated surface. It is not the default `infer_cca()` backend.
+Its `multivarious::cca()` fit surface brings adapter-owned loading and score
+semantics, plus regularization defaults, so those summaries are documented as
+backend-specific rather than as raw-equality targets.
 
 ## Supported multi-root designs
 
@@ -144,11 +145,12 @@ This note does **not** claim:
 
 - that every conceivable structured CCA design has multi-root validity,
 - that variable-level significance exists for CCA loadings,
-- that `multivarious_cca` is already the public default CCA backend,
-- that `multivarious_cca` adapter-owned loadings, scores, or regularized fits
-  have the same maturity status as the scaffold-level component test,
+- that `multivarious_cca` is the public default CCA backend,
+- that `multivarious_cca` regularized high-dimensional refits are part of the
+  mature `infer()` boundary,
 - that Paper 1 needs to treat CCA as part of its theorem-bearing center.
 
-The next step for CCA maturity is not another backend name. It is a targeted
-stability/parity pass for adapter-owned CCA loadings and scores, including the
-regularization defaults exposed by `multivarious::cca()`.
+The next step for CCA is not another backend-name promotion. It is a targeted
+feature-evidence contract for CCA loadings, scores, and regularized fits that
+states which quantities are invariant, which are backend-owned, and which need
+method-specific calibration.

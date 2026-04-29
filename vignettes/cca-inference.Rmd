@@ -138,17 +138,17 @@ stopifnot(
 ## Using the `multivarious_cca` backend
 
 `multivarious_cca` wraps `multivarious::cca()` and is available as an
-explicit backend. Its component-test scaffold is parity-pinned against
-`cancor_cross` on the shipped CCA support matrix, including paired rows,
-blocked rows, nuisance-adjusted designs, grouped nuisance-adjusted
-designs, first-root capping outside the multi-root boundary, and
-rank-deficient validity failures.
+explicit mature backend for the validity-gated full-rank CCA surface.
+Its component-test scaffold is parity-pinned against `cancor_cross` on
+the shipped CCA support matrix, including paired rows, blocked rows,
+nuisance-adjusted designs, grouped nuisance-adjusted designs,
+first-root capping outside the multi-root boundary, and rank-deficient
+validity failures.
 
-It is still not the `infer_cca()` default. The remaining maturity work
-is adapter-owned: loading estimates, score estimates, score intervals,
-subspace stability summaries, regularization defaults, and future
-feature-evidence statistics are normalization-specific rather than
-raw-equal across backends.
+It is still not the `infer_cca()` default. Loading estimates, score
+estimates, score intervals, subspace stability summaries,
+regularization defaults, and future feature-evidence statistics are
+backend-specific rather than raw-equal across backends.
 
 ```{r infer-multivarious-cca}
 mv_res <- infer(

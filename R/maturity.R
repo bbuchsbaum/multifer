@@ -45,7 +45,7 @@ multifer_maturity_levels <- function() {
   cancor_cross       = "mature",
   multivarious_pca   = "mature",
   multivarious_plsc  = "mature",
-  multivarious_cca   = "narrow",
+  multivarious_cca   = "mature",
   lda_refit          = "narrow",
   plsr_refit         = "narrow"
 )

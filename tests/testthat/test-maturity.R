@@ -10,7 +10,7 @@ test_that("multifer_adapter_maturity() returns the known label for each v1 adapt
   expect_equal(multifer_adapter_maturity("cancor_cross"), "mature")
   expect_equal(multifer_adapter_maturity("multivarious_pca"), "mature")
   expect_equal(multifer_adapter_maturity("multivarious_plsc"), "mature")
-  expect_equal(multifer_adapter_maturity("multivarious_cca"), "narrow")
+  expect_equal(multifer_adapter_maturity("multivarious_cca"), "mature")
   expect_equal(multifer_adapter_maturity("lda_refit"), "narrow")
   expect_equal(multifer_adapter_maturity("plsr_refit"), "narrow")
 })
@@ -51,6 +51,8 @@ test_that("list_infer_adapters(details = TRUE) returns adapter_id/maturity/geome
   # latent-root backbone.
   mature_ids <- df$adapter_id[df$maturity == "mature"]
   expect_true("cross_svd" %in% mature_ids)
+  expect_true("cancor_cross" %in% mature_ids)
+  expect_true("multivarious_cca" %in% mature_ids)
   expect_true("prcomp_oneblock" %in% mature_ids ||
                 "svd_oneblock" %in% mature_ids)
 
