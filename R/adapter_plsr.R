@@ -11,14 +11,21 @@
 #' @param ncomp Optional integer cap on fitted components. When `NULL`,
 #'   the refit hook chooses `min(nrow(X) - 1, ncol(X), ncol(Y), 50L)`.
 #' @param method Character PLS algorithm passed to [pls::plsr()].
-#'   Default `"simpls"`.
+#'   One of `"simpls"` (default), `"oscorespls"`, `"kernelpls"`, or
+#'   `"widekernelpls"`. Validated via [match.arg()] at construction time;
+#'   unknown values error before any fitting happens. The `"model.frame"`
+#'   value accepted by `pls::plsr()` itself is excluded because it returns
+#'   a model frame rather than a fitted model.
 #'
 #' @return A `multifer_adapter`.
 #' @export
 adapter_plsr_refit <- function(adapter_id = "plsr_refit",
                                adapter_version = "0.0.1",
                                ncomp = NULL,
-                               method = "simpls") {
+                               method = c("simpls", "oscorespls",
+                                          "kernelpls", "widekernelpls")) {
+
+  method <- match.arg(method)
 
   require_pls <- function() {
     if (!requireNamespace("pls", quietly = TRUE)) {

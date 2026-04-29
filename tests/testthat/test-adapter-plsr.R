@@ -78,3 +78,31 @@ test_that("register_plsr_refit_adapter registers the default id", {
   expect_true("plsr_refit" %in% list_infer_adapters())
   expect_true(is_infer_adapter(get_infer_adapter("plsr_refit")))
 })
+
+test_that("adapter_plsr_refit rejects unknown method via match.arg()", {
+  skip_if_not_installed("pls")
+
+  expect_error(
+    adapter_plsr_refit(method = "kernelpls_typo"),
+    "should be one of"
+  )
+  expect_error(
+    adapter_plsr_refit(method = "model.frame"),
+    "should be one of"
+  )
+})
+
+for (m in c("simpls", "oscorespls", "kernelpls", "widekernelpls")) {
+  local({
+    method_name <- m
+    test_that(sprintf("adapter_plsr_refit accepts method '%s'", method_name), {
+      skip_if_not_installed("pls")
+      dat <- make_plsr_fixture(seed = 17L)
+      a <- adapter_plsr_refit(method = method_name)
+      fit <- a$refit(NULL, dat)
+      expect_s3_class(fit, "mvr")
+      expect_true(is.numeric(a$roots(fit)))
+      expect_gte(ncol(a$loadings(fit, "X")), 1L)
+    })
+  })
+}
