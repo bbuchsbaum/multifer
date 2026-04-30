@@ -104,7 +104,7 @@ bootstrap artifact. Default \code{FALSE}.}
 An \code{\link{infer_result}}.
 }
 \description{
-The user-facing entry point for the Phase 1 refit-first engine.
+The user-facing entry point for the shipped inference engine.
 Given an adapter and data, runs the full pipeline:
 \enumerate{
 \item resolve / build a \code{\link{typed_shape}};
@@ -121,6 +121,11 @@ artifact;
 }
 }
 \details{
-Phase 1 runs every requested target. Sequential MC stopping and the
-core-update fast path are deferred to Phase 1.5.
+The default path runs the exact refit-first engine for component testing and
+bootstrap summaries. When adapters expose \code{core()} and
+\code{update_core()} hooks, \code{fast_path = "auto"} uses the Phase 1.5
+core-update path for bootstrap refits; \code{fast_path = "off"} keeps the
+refit path for agreement checks. Sequential Monte Carlo uses a global budget
+allocator when \code{B_total} is supplied, and \code{parallel} can fan out
+bootstrap replicates through the \code{mirai} backend.
 }
