@@ -48,6 +48,9 @@ test_that("compile_bootstrap_plan resolves default cross callbacks once", {
   rep_data <- plan$resample_data(idx)
 
   expect_s3_class(plan, "multifer_bootstrap_plan")
+  expect_equal(plan$data_shape, "cross")
+  expect_true(is_data_role_schema(plan$data_schema))
+  expect_named(plan$data_schema, c("X", "Y", "relation"))
   expect_equal(plan$domains, c("X", "Y"))
   expect_true(plan$fast_path_supported)
   expect_false(plan$rank_deficient_fallback)
@@ -92,6 +95,155 @@ test_that("compile_bootstrap_plan normalizes adapter-owned bootstrap callbacks",
   expect_true(plan$has_custom_bootstrap)
   expect_equal(action$fit, fit)
   expect_equal(action$resample_indices, 3L)
+})
+
+test_that("compile_bootstrap_plan resamples adapter data through data_schema", {
+  clear_adapter_registry()
+
+  payload <- list(
+    Z = matrix(seq_len(20), nrow = 5),
+    group = letters[1:5],
+    weights = seq_len(5),
+    lambda = 0.5
+  )
+  fit <- list(values = 1, loadings = matrix(1, 4, 1))
+  adapter <- infer_adapter(
+    adapter_id = "schema_bootstrap_plan_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "variable_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) fit,
+    validity_level = "conditional",
+    data_schema = data_role_schema(
+      Z = role("primary", axes = c("row", "col")),
+      group = role("design_index", axis = "row"),
+      weights = role("metric", axis = "row",
+                     policy = "diagonal_position_weights"),
+      lambda = role("static")
+    )
+  )
+  recipe <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    targets = "variable_stability",
+    adapter = adapter
+  )
+
+  plan <- compile_bootstrap_plan(
+    recipe,
+    adapter,
+    payload,
+    fit,
+    store_aligned_scores = FALSE
+  )
+  idx <- c(5L, 1L, 5L, 2L, 3L)
+  rep_data <- plan$resample_data(idx)
+
+  expect_s3_class(plan, "multifer_bootstrap_plan")
+  expect_equal(plan$data_shape, "adapter_schema")
+  expect_true(is_data_role_schema(plan$data_schema))
+  expect_false(plan$fast_path_supported)
+  expect_equal(rep_data$Z, payload$Z[idx, , drop = FALSE])
+  expect_equal(rep_data$group, payload$group[idx])
+  expect_equal(rep_data$weights, payload$weights)
+  expect_equal(rep_data$lambda, payload$lambda)
+})
+
+test_that("compile_bootstrap_plan refuses unsafe adapter metric policies", {
+  clear_adapter_registry()
+
+  payload <- list(
+    Z = matrix(stats::rnorm(20), nrow = 5),
+    K = diag(5)
+  )
+  fit <- list(values = 1, loadings = matrix(1, 4, 1))
+  adapter <- infer_adapter(
+    adapter_id = "unsafe_schema_bootstrap_plan_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "variable_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) fit,
+    validity_level = "conditional",
+    data_schema = data_role_schema(
+      Z = role("primary", axes = c("row", "col")),
+      K = role("metric", axes = c("row", "col"),
+               policy = "full_spd_no_replacement_only")
+    )
+  )
+  recipe <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    targets = "variable_stability",
+    adapter = adapter
+  )
+
+  expect_error(
+    compile_bootstrap_plan(
+      recipe,
+      adapter,
+      payload,
+      fit,
+      store_aligned_scores = FALSE
+    ),
+    "full_spd_no_replacement_only"
+  )
+})
+
+test_that("compile_bootstrap_plan lets custom bootstrap own unsafe schema roles", {
+  clear_adapter_registry()
+
+  payload <- list(
+    Z = matrix(stats::rnorm(20), nrow = 5),
+    K = diag(5)
+  )
+  fit <- list(values = 1, loadings = matrix(1, 4, 1))
+  adapter <- infer_adapter(
+    adapter_id = "custom_schema_bootstrap_plan_adapter",
+    shape_kinds = "adapter",
+    capabilities = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "variable_stability")
+    ),
+    roots = function(x) x$values,
+    loadings = function(x, domain = NULL) x$loadings,
+    refit = function(x, new_data) fit,
+    bootstrap_action = function(x, data, design, replicate = NULL) {
+      list(fit = x, info = list(replicate = replicate))
+    },
+    validity_level = "conditional",
+    data_schema = data_role_schema(
+      Z = role("primary", axes = c("row", "col")),
+      K = role("metric", axes = c("row", "col"),
+               policy = "full_spd_no_replacement_only")
+    )
+  )
+  recipe <- infer_recipe(
+    geometry = "adapter",
+    relation = "variance",
+    targets = "variable_stability",
+    adapter = adapter
+  )
+
+  plan <- compile_bootstrap_plan(
+    recipe,
+    adapter,
+    payload,
+    fit,
+    store_aligned_scores = FALSE
+  )
+
+  expect_s3_class(plan, "multifer_bootstrap_plan")
+  expect_true(plan$has_custom_bootstrap)
+  expect_equal(plan$data_shape, "adapter")
+  expect_true(is_data_role_schema(plan$data_schema))
 })
 
 # ---------------------------------------------------------------------------

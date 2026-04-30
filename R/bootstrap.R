@@ -406,90 +406,260 @@ compile_bootstrap_plan <- function(recipe,
     NULL
   }
 
-  if (identical(geom_kind, "oneblock")) {
-    if (!is.matrix(data)) {
-      stop(
-        "For oneblock geometry, `data` must be a numeric matrix.",
-        call. = FALSE
-      )
-    }
-    n <- nrow(data)
-    resample_data <- function(indices) data[indices, , drop = FALSE]
-  } else if (identical(geom_kind, "cross")) {
-    if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
-      stop(
-        "For cross geometry, `data` must be a list with elements `X` and `Y`.",
-        call. = FALSE
-      )
-    }
-    n <- nrow(data$X)
-    if (nrow(data$Y) != n) {
-      stop(
-        "For cross geometry, `data$X` and `data$Y` must have the same number of rows.",
-        call. = FALSE
-      )
-    }
-    resample_data <- function(indices) {
-      list(
-        X = data$X[indices, , drop = FALSE],
-        Y = data$Y[indices, , drop = FALSE],
-        relation = rel_kind
-      )
-    }
-  } else if (identical(geom_kind, "multiblock")) {
-    .validate_multiblock_data(data)
-    n <- nrow(data[[1L]])
-    resample_data <- function(indices) .resample_multiblock_data(data, indices)
-  } else if (identical(geom_kind, "adapter")) {
-    if (!has_custom_bootstrap) {
-      stop(
-        "bootstrap_fits requires `adapter$bootstrap_action` for adapter-owned geometry.",
-        call. = FALSE
-      )
-    }
-    if (isTRUE(store_aligned_scores) && !has_project_scores) {
-      stop(
-        "bootstrap_fits requires `adapter$project_scores` to store aligned scores for adapter-owned geometry.",
-        call. = FALSE
-      )
-    }
-    n <- NA_integer_
-    resample_data <- function(indices) {
-      stop("Adapter-owned geometry must provide `adapter$bootstrap_action`.",
-           call. = FALSE)
-    }
-  } else {
-    stop(
-      sprintf(
-        "bootstrap_fits only supports 'oneblock', 'cross', 'multiblock', and 'adapter' geometries. Got: '%s'.",
-        geom_kind
-      ),
-      call. = FALSE
-    )
-  }
+  data_plan <- .compile_bootstrap_data_plan(
+    recipe = recipe,
+    adapter = adapter,
+    data = data,
+    has_custom_bootstrap = has_custom_bootstrap,
+    has_project_scores = has_project_scores,
+    store_aligned_scores = store_aligned_scores
+  )
 
   domains <- .adapter_domains(adapter, fit = original_fit, data = data,
                               geom_kind = geom_kind)
-  fast_path_supported <- identical(geom_kind, "oneblock") ||
-    (identical(geom_kind, "cross") &&
+  fast_path_supported <- identical(data_plan$shape, "oneblock") ||
+    (identical(data_plan$shape, "cross") &&
      rel_kind %in% c("covariance", "correlation"))
 
   structure(
     list(
       geom_kind = geom_kind,
       rel_kind = rel_kind,
+      data_shape = data_plan$shape,
+      data_schema = data_plan$schema,
       has_custom_bootstrap = has_custom_bootstrap,
       has_project_scores = has_project_scores,
       fast_path_supported = fast_path_supported,
-      rank_deficient_fallback = identical(geom_kind, "cross") &&
+      rank_deficient_fallback = identical(data_plan$shape, "cross") &&
         identical(rel_kind, "correlation"),
       domains = domains,
-      resample_indices = function(design) .bootstrap_resample_indices(n, design),
-      resample_data = resample_data,
+      resample_indices = function(design) .bootstrap_resample_indices(data_plan$n, design),
+      resample_data = data_plan$resample_data,
       bootstrap_action = bootstrap_action
     ),
     class = "multifer_bootstrap_plan"
   )
+}
+
+.compile_bootstrap_data_plan <- function(recipe,
+                                         adapter,
+                                         data,
+                                         has_custom_bootstrap,
+                                         has_project_scores,
+                                         store_aligned_scores) {
+  geom_kind <- recipe$shape$geometry$kind
+  rel_kind <- recipe$shape$relation$kind
+  schema <- adapter$data_schema
+  if (is.null(schema)) {
+    schema <- .bootstrap_schema_template(geom_kind)
+  }
+
+  if (identical(geom_kind, "adapter")) {
+    if (isTRUE(store_aligned_scores) && !has_project_scores) {
+      stop(
+        "bootstrap_fits requires `adapter$project_scores` to store aligned scores for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
+    if (has_custom_bootstrap) {
+      return(list(
+        shape = "adapter",
+        schema = adapter$data_schema,
+        n = NA_integer_,
+        resample_data = function(indices) {
+          stop("Adapter-owned geometry must provide `adapter$bootstrap_action`.",
+               call. = FALSE)
+        }
+      ))
+    }
+    if (is.null(adapter$data_schema)) {
+      stop(
+        "bootstrap_fits requires `adapter$bootstrap_action` or `adapter$data_schema` for adapter-owned geometry.",
+        call. = FALSE
+      )
+    }
+  }
+
+  .resolve_bootstrap_schema_data(
+    schema = schema,
+    data = data,
+    shape = geom_kind,
+    relation = rel_kind
+  )
+}
+
+.bootstrap_schema_template <- function(geom_kind) {
+  if (identical(geom_kind, "oneblock")) {
+    return(data_role_schema(X = role("primary", axes = c("row", "col"))))
+  }
+  if (identical(geom_kind, "cross")) {
+    return(data_role_schema(
+      X = role("primary", axes = c("row", "col")),
+      Y = role("primary", axes = c("row", "col")),
+      relation = role("static")
+    ))
+  }
+  if (identical(geom_kind, "multiblock")) {
+    return(data_role_schema(blocks = role("primary", axes = c("row", "col"))))
+  }
+  if (identical(geom_kind, "adapter")) {
+    return(NULL)
+  }
+  stop(
+    sprintf(
+      "bootstrap_fits only supports 'oneblock', 'cross', 'multiblock', and 'adapter' geometries. Got: '%s'.",
+      geom_kind
+    ),
+    call. = FALSE
+  )
+}
+
+.resolve_bootstrap_schema_data <- function(schema, data, shape, relation) {
+  if (identical(shape, "oneblock")) {
+    if (!is.matrix(data)) {
+      stop("For oneblock geometry, `data` must be a numeric matrix.",
+           call. = FALSE)
+    }
+    n <- nrow(data)
+    return(list(
+      shape = "oneblock",
+      schema = schema,
+      n = n,
+      resample_data = function(indices) data[indices, , drop = FALSE]
+    ))
+  }
+
+  if (identical(shape, "cross")) {
+    if (!is.list(data) || is.null(data$X) || is.null(data$Y)) {
+      stop("For cross geometry, `data` must be a list with elements `X` and `Y`.",
+           call. = FALSE)
+    }
+    n <- nrow(data$X)
+    if (nrow(data$Y) != n) {
+      stop("For cross geometry, `data$X` and `data$Y` must have the same number of rows.",
+           call. = FALSE)
+    }
+    return(list(
+      shape = "cross",
+      schema = schema,
+      n = n,
+      resample_data = function(indices) {
+        list(
+          X = data$X[indices, , drop = FALSE],
+          Y = data$Y[indices, , drop = FALSE],
+          relation = relation
+        )
+      }
+    ))
+  }
+
+  if (identical(shape, "multiblock")) {
+    .validate_multiblock_data(data)
+    n <- nrow(data[[1L]])
+    return(list(
+      shape = "multiblock",
+      schema = schema,
+      n = n,
+      resample_data = function(indices) .resample_multiblock_data(data, indices)
+    ))
+  }
+
+  if (identical(shape, "adapter")) {
+    return(.resolve_adapter_schema_bootstrap(schema, data))
+  }
+
+  stop(sprintf("Unsupported bootstrap data shape: %s.", shape), call. = FALSE)
+}
+
+.resolve_adapter_schema_bootstrap <- function(schema, data) {
+  if (!is_data_role_schema(schema)) {
+    stop("Adapter-owned bootstrap planning requires a data_role_schema().",
+         call. = FALSE)
+  }
+  if (!is.list(data)) {
+    stop("Adapter-owned data with `data_schema` must be a named list.",
+         call. = FALSE)
+  }
+
+  missing <- setdiff(names(schema), names(data))
+  if (length(missing) > 0L) {
+    stop(sprintf("Adapter data is missing schema role(s): %s.",
+                 paste(missing, collapse = ", ")), call. = FALSE)
+  }
+
+  row_roles <- names(schema)[vapply(schema, function(r) "row" %in% r$axes,
+                                    logical(1L))]
+  if (length(row_roles) == 0L) {
+    stop("Adapter data_schema has no row-aligned roles to bootstrap.",
+         call. = FALSE)
+  }
+  n_by_role <- vapply(row_roles, function(nm) .role_row_count(data[[nm]], nm),
+                      integer(1L))
+  n <- unique(n_by_role)
+  if (length(n) != 1L) {
+    stop(sprintf("Row-aligned schema roles must have matching row counts: %s.",
+                 paste(sprintf("%s=%s", names(n_by_role), n_by_role),
+                       collapse = ", ")), call. = FALSE)
+  }
+
+  for (nm in names(schema)) {
+    r <- schema[[nm]]
+    if (identical(r$kind, "metric") && "row" %in% r$axes &&
+        r$policy %in% c("full_spd_no_replacement_only", "adapter_owned")) {
+      stop(sprintf(
+        paste0("Row metric `%s` has policy `%s`; the default with-replacement ",
+               "bootstrap cannot subset it safely. Supply `bootstrap_action` ",
+               "or change the metric policy."),
+        nm, r$policy
+      ), call. = FALSE)
+    }
+  }
+
+  list(
+    shape = "adapter_schema",
+    schema = schema,
+    n = n,
+    resample_data = function(indices) {
+      stats::setNames(
+        lapply(names(data), function(nm) {
+          role <- schema[[nm]]
+          if (is.null(role)) {
+            return(data[[nm]])
+          }
+          .resample_schema_role(data[[nm]], role, indices, nm)
+        }),
+        names(data)
+      )
+    }
+  )
+}
+
+.role_row_count <- function(x, name) {
+  if (is.matrix(x) || is.data.frame(x)) {
+    return(nrow(x))
+  }
+  if (is.atomic(x) && is.null(dim(x))) {
+    return(length(x))
+  }
+  stop(sprintf("Row-aligned role `%s` must be a matrix, data frame, or vector.",
+               name), call. = FALSE)
+}
+
+.resample_schema_role <- function(x, role, indices, name) {
+  if (!("row" %in% role$axes)) {
+    return(x)
+  }
+  if (identical(role$kind, "metric") &&
+      identical(role$policy, "diagonal_position_weights")) {
+    return(x)
+  }
+  if (is.matrix(x) || is.data.frame(x)) {
+    return(x[indices, , drop = FALSE])
+  }
+  if (is.atomic(x) && is.null(dim(x))) {
+    return(x[indices])
+  }
+  stop(sprintf("Cannot row-resample schema role `%s`.", name), call. = FALSE)
 }
 
 .normalize_bootstrap_action <- function(x) {
