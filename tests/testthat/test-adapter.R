@@ -215,6 +215,86 @@ test_that("optional feature evidence hooks are accepted but not required", {
   expect_true(is.function(a$feature_null_action))
 })
 
+test_that("adapter records optional data schema and null spec declarations", {
+  schema <- data_role_schema(
+    X = role("primary", axis = "row"),
+    y = role("design_index", axis = "row"),
+    K = role("metric", axis = "row",
+             policy = "diagonal_observation_weights")
+  )
+  ns <- null_spec(
+    kind = "between_role_decoupling",
+    randomized_role = "y",
+    reference_role = "X",
+    axis = "row",
+    preserves = "X_rows"
+  )
+
+  a <- infer_adapter(
+    adapter_id      = "schema_adapter",
+    adapter_version = "0.0.1",
+    shape_kinds     = "adapter",
+    capabilities    = capability_matrix(
+      list(geometry = "adapter", relation = "variance",
+           targets = "component_significance")
+    ),
+    roots = function(x) x$values,
+    refit = function(x, new_data) list(values = 1),
+    null_action = function(x, data) data,
+    component_stat = function(x, data, k) 1,
+    residualize = function(x, k, data) data,
+    validity_level = "conditional",
+    data_schema = schema,
+    null_spec = ns
+  )
+
+  expect_true(is_infer_adapter(a))
+  expect_true(is_data_role_schema(a$data_schema))
+  expect_true(is_null_spec(a$null_spec))
+  expect_equal(names(a$data_schema), c("X", "y", "K"))
+  expect_equal(a$null_spec$kind, "between_role_decoupling")
+})
+
+test_that("adapter validates optional schema declarations", {
+  expect_error(
+    infer_adapter(
+      adapter_id = "bad_data_schema_adapter",
+      shape_kinds = "adapter",
+      capabilities = capability_matrix(
+        list(geometry = "adapter", relation = "variance",
+             targets = "component_significance")
+      ),
+      roots = function(x) x$values,
+      refit = function(x, new_data) list(values = 1),
+      null_action = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize = function(x, k, data) data,
+      validity_level = "conditional",
+      data_schema = list(X = role("primary", axis = "row"))
+    ),
+    "data_schema"
+  )
+
+  expect_error(
+    infer_adapter(
+      adapter_id = "bad_null_spec_adapter",
+      shape_kinds = "adapter",
+      capabilities = capability_matrix(
+        list(geometry = "adapter", relation = "variance",
+             targets = "component_significance")
+      ),
+      roots = function(x) x$values,
+      refit = function(x, new_data) list(values = 1),
+      null_action = function(x, data) data,
+      component_stat = function(x, data, k) 1,
+      residualize = function(x, k, data) data,
+      validity_level = "conditional",
+      null_spec = list(kind = "between_role_decoupling")
+    ),
+    "null_spec"
+  )
+})
+
 test_that("adapter-owned component execution field is accepted", {
   a <- infer_adapter(
     adapter_id      = "adapter_component_execution",

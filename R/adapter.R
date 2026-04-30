@@ -33,6 +33,10 @@
 #' @param checked_assumptions Named list of runtime-testable assumption checks.
 #'   Each element should be a list with fields `name` (character),
 #'   `check` (function(x, data) returning logical), and `detail` (character).
+#' @param data_schema Optional `data_role_schema()` declaration describing
+#'   named roles in adapter-owned data payloads.
+#' @param null_spec Optional `null_spec()` declaration describing the semantics
+#'   of the adapter's operational `null_action()`.
 #'
 #' @details
 #' **Hook functions** (all passed via `...`, all optional except as required by
@@ -115,6 +119,8 @@ infer_adapter <- function(adapter_id,
                           validity_level,
                           declared_assumptions = character(0),
                           checked_assumptions = list(),
+                          data_schema = NULL,
+                          null_spec = NULL,
                           component_execution = "default",
                           geneig_deflation = "euclidean") {
 
@@ -401,6 +407,15 @@ infer_adapter <- function(adapter_id,
     stop("`checked_assumptions` must be a list.", call. = FALSE)
   }
 
+  # -- data_schema / null_spec ------------------------------------------------
+  if (!is.null(data_schema) && !is_data_role_schema(data_schema)) {
+    stop("`data_schema` must be built with data_role_schema().",
+         call. = FALSE)
+  }
+  if (!is.null(null_spec) && !is_null_spec(null_spec)) {
+    stop("`null_spec` must be built with null_spec().", call. = FALSE)
+  }
+
   # -- assemble ---------------------------------------------------------------
   structure(
     c(
@@ -412,6 +427,8 @@ infer_adapter <- function(adapter_id,
         validity_level       = validity_level,
         declared_assumptions = declared_assumptions,
         checked_assumptions  = checked_assumptions,
+        data_schema          = data_schema,
+        null_spec            = null_spec,
         component_execution  = component_execution,
         geneig_deflation     = geneig_deflation
       ),

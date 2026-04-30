@@ -13,6 +13,8 @@ infer_adapter(
   validity_level,
   declared_assumptions = character(0),
   checked_assumptions = list(),
+  data_schema = NULL,
+  null_spec = NULL,
   component_execution = "default",
   geneig_deflation = "euclidean"
 )
@@ -41,6 +43,12 @@ this adapter claims to support.}
 \item{checked_assumptions}{Named list of runtime-testable assumption checks.
 Each element should be a list with fields \code{name} (character),
 \code{check} (function(x, data) returning logical), and \code{detail} (character).}
+
+\item{data_schema}{Optional \code{data_role_schema()} declaration describing
+named roles in adapter-owned data payloads.}
+
+\item{null_spec}{Optional \code{null_spec()} declaration describing the semantics
+of the adapter's operational \code{null_action()}.}
 
 \item{component_execution}{Character scalar. Set to \code{"adapter"} to
 route component-significance through adapter-owned \code{component_stat},
