@@ -53,6 +53,12 @@ exist in \code{units$unit_id}.
 \details{
 This schema is \strong{frozen} at the end of Phase 0. Adding or removing
 fields requires an explicit design review.
+
+Feature-level evidence is intentionally outside this frozen result
+schema. Use the \code{feature_evidence_*()} sidecar APIs for bootstrap
+ratios, null-calibrated feature p-values, VIP / coefficient
+evidence, and aggregate feature importance. The legacy
+\code{variable_significance} target remains blocked.
 }
 \section{Fields}{
 
@@ -71,4 +77,3 @@ Monte Carlo uncertainty, null label, validity level.
 \item \code{provenance} -- adapter id, version, capability flags, call.
 }
 }
-

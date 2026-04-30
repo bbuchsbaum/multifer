@@ -25,6 +25,12 @@
 #' - `cost` -- cost accounting block (Part 4 section 32).
 #' - `provenance` -- adapter id, version, capability flags, call.
 #'
+#' Feature-level evidence is intentionally outside this frozen result
+#' schema. Use the `feature_evidence_*()` sidecar APIs for bootstrap
+#' ratios, null-calibrated feature p-values, VIP / coefficient
+#' evidence, and aggregate feature importance. The legacy
+#' `variable_significance` target remains blocked.
+#'
 #' @name infer_result
 NULL
 
@@ -590,7 +596,7 @@ print.infer_result <- function(x, ...) {
   }
 
   cat("  NOTE: variable_stability is a STABILITY measure, not a p-value.\n")
-  cat("        Variable significance is deferred to Phase 3 (Part 5 section 38).\n")
+  cat("        Feature evidence and variable-level p-values live in sidecar APIs.\n")
   invisible(x)
 }
 

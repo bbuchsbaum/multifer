@@ -1,6 +1,14 @@
 test_that("empty_infer_result() produces a valid object", {
   r <- empty_infer_result()
   expect_true(is_infer_result(r))
+  expect_named(
+    r,
+    c("units", "component_tests", "variable_stability",
+      "score_stability", "subspace_stability", "assumptions",
+      "mc", "cost", "provenance")
+  )
+  expect_false("variable_significance" %in% names(r))
+  expect_false("feature_evidence" %in% names(r))
   expect_equal(nrow(r$units), 0L)
   expect_equal(nrow(r$component_tests), 0L)
   expect_equal(nrow(r$variable_stability), 0L)
@@ -172,6 +180,7 @@ test_that("infer_result print method runs and mentions stability-vs-p-value", {
   out <- capture.output(print(r))
   expect_true(any(grepl("infer_result", out)))
   expect_true(any(grepl("STABILITY measure, not a p-value", out)))
+  expect_true(any(grepl("sidecar APIs", out)))
 })
 
 test_that("print and summary show subspace units before singleton units", {
