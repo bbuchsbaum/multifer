@@ -116,8 +116,12 @@
 #' stepwise ladder. More complex designs still fall back to the
 #' conservative first-root cap.
 #'
-#' Phase 1 is refit-first; the Part 2 section 9 core-space update is
-#' a Phase 1.5 optimization.
+#' For covariance-mode cross problems, the compiled ladder plan uses the
+#' Phase 1.5 core-space helpers when the low-dimensional core is cheaper
+#' than the full cross product. Correlation-mode plans use the whitened
+#' QR-space ladder and the shared partial-SVD helpers. The refit path
+#' remains available through higher-level bootstrap controls for agreement
+#' checks.
 #'
 #' @param recipe A compiled \code{multifer_infer_recipe} with geometry
 #'   \code{"cross"} and relation \code{"covariance"} or

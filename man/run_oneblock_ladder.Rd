@@ -80,8 +80,10 @@ on the randomized residual \code{M_b}. No projected matrix is formed
 and no second SVD is needed; only the first \code{a} singular values
 of \code{M_b} are required.
 
-Phase 1.5 TODO: replace full \code{base::svd()} calls in
-\code{observed_stat_fn} and \code{null_stat_fn} with a partial SVD
-(e.g. \code{RSpectra::svds(, k = 1)}) once the interface stabilises.
-For Phase 1 (refit-first) the full decomposition is acceptable.
+The compiled ladder plan now uses the Phase 1.5 partial-SVD helpers:
+\code{top_singular_values()} for observed and null statistics, and
+\code{top_svd()} for rank-1 deflation. These helpers use
+\pkg{RSpectra} when available and fall back to \code{base::svd()},
+preserving the exact ladder semantics while avoiding full decompositions
+on large residual matrices.
 }
