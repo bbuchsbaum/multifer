@@ -245,15 +245,16 @@ stopifnot(
 fit <- adapter$refit(NULL, data)
 S <- adapter$scores(fit)
 op <- par(mar = c(4, 4, 3, 1))
-on.exit(par(op), add = TRUE)
-plot(
-  S[, 1L], if (ncol(S) >= 2L) S[, 2L] else rep(0, nrow(S)),
-  col = c("#1f77b4", "#2ca02c", "#d62728")[as.integer(labels)],
-  pch = 19L, xlab = "LD1", ylab = "LD2",
-  main = "LDA discriminant scores"
-)
-legend("topright", legend = levels(labels), bty = "n",
-       col = c("#1f77b4", "#2ca02c", "#d62728"), pch = 19L)
+tryCatch({
+  plot(
+    S[, 1L], if (ncol(S) >= 2L) S[, 2L] else rep(0, nrow(S)),
+    col = c("#1f77b4", "#2ca02c", "#d62728")[as.integer(labels)],
+    pch = 19L, xlab = "LD1", ylab = "LD2",
+    main = "LDA discriminant scores"
+  )
+  legend("topright", legend = levels(labels), bty = "n",
+         col = c("#1f77b4", "#2ca02c", "#d62728"), pch = 19L)
+}, finally = par(op))
 ```
 
 Variable 1 -- the planted discriminant axis -- carries the lowest

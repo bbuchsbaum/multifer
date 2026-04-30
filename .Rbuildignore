@@ -20,3 +20,6 @@
 ^doc$
 ^Meta$
 ^docs$
+^pkgdown$
+^_pkgdown\.yml$
+^\.rcmdcheck_result\.rds$

@@ -274,16 +274,17 @@ fx <- fi[fi$domain == "X", , drop = FALSE]
 ord <- order(-fx$estimate)
 fx <- fx[ord, , drop = FALSE]
 op <- par(mar = c(4, 4, 3, 1))
-on.exit(par(op), add = TRUE)
-mid <- barplot(
-  fx$estimate, names.arg = fx$variable, las = 2L,
-  col = "#1f77b4", border = NA,
-  ylab = "aggregate squared-loading importance",
-  main = "feature_importance_from_bootstrap (X domain)",
-  ylim = c(0, max(fx$upper, na.rm = TRUE) * 1.05)
-)
-arrows(mid, fx$lower, mid, fx$upper, code = 3L, angle = 90L,
-       length = 0.04, col = "gray30")
+tryCatch({
+  mid <- barplot(
+    fx$estimate, names.arg = fx$variable, las = 2L,
+    col = "#1f77b4", border = NA,
+    ylab = "aggregate squared-loading importance",
+    main = "feature_importance_from_bootstrap (X domain)",
+    ylim = c(0, max(fx$upper, na.rm = TRUE) * 1.05)
+  )
+  arrows(mid, fx$lower, mid, fx$upper, code = 3L, angle = 90L,
+         length = 0.04, col = "gray30")
+}, finally = par(op))
 ```
 
 This is descriptive — not a p-value. For predictive significance at

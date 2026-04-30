@@ -158,18 +158,19 @@ vs <- res$variable_stability
 sel <- vs$unit_id %in% res$units$unit_id[res$units$selected]
 vs <- vs[sel, , drop = FALSE]
 op <- par(mfrow = c(1, 2L), mar = c(4, 4, 3, 1))
-on.exit(par(op), add = TRUE)
-for (d in c("X", "Y")) {
-  vd <- vs[vs$domain == d, , drop = FALSE]
-  ord <- order(vd$unit_id, vd$variable)
-  vd <- vd[ord, , drop = FALSE]
-  col <- ifelse(vd$unit_id == "u1", "#1f77b4", "#ff7f0e")
-  barplot(
-    vd$stability, names.arg = vd$variable, las = 2L, col = col,
-    border = NA, ylim = c(0, 1.05),
-    ylab = "stability", main = sprintf("domain %s", d)
-  )
-}
+tryCatch({
+  for (d in c("X", "Y")) {
+    vd <- vs[vs$domain == d, , drop = FALSE]
+    ord <- order(vd$unit_id, vd$variable)
+    vd <- vd[ord, , drop = FALSE]
+    col <- ifelse(vd$unit_id == "u1", "#1f77b4", "#ff7f0e")
+    barplot(
+      vd$stability, names.arg = vd$variable, las = 2L, col = col,
+      border = NA, ylim = c(0, 1.05),
+      ylab = "stability", main = sprintf("domain %s", d)
+    )
+  }
+}, finally = par(op))
 ```
 
 Both blocks load mostly on the leading unit, and stability is
